@@ -1,0 +1,46 @@
+# WordPress core — non versionare
+/wp-admin/
+/wp-includes/
+/wp-*.php
+/index.php
+/xmlrpc.php
+/license.txt
+/readme.html
+
+# Configurazione con password — MAI su Git
+wp-config.php
+wp-config-local.php
+
+# Uploads (media) — troppo pesanti e non sono codice
+/wp-content/uploads/
+
+# Cache e file generati
+/wp-content/cache/
+/wp-content/upgrade/
+/wp-content/backup-db/
+/wp-content/advanced-cache.php
+/wp-content/wp-cache-config.php
+
+# Plugin e temi di terze parti — li gestisci separatamente
+/wp-content/plugins/
+!/wp-content/plugins/domizionews-ai-publisher-fix/
+
+/wp-content/themes/
+!/wp-content/themes/domizionews-theme-v2/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Log
+*.log
+/wp-content/debug.log
+
+# Node
+node_modules/
