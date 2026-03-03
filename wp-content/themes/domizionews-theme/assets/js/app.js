@@ -77,6 +77,19 @@
 
   const CAT_ICONS = { 'cronaca': '🚨', 'sport': '⚽', 'politica': '🏛️', 'ambiente-mare': '🌊', 'eventi-cultura': '🎭', 'salute': '🏥' };
 
+  // ─── AD SLOTS ────────────────────────────────────────────────────────────────
+  function buildNativeAd(num) {
+    return `
+      <div class="dn-ad-slot" data-slot="${num}" style="
+        background:#f5f2ef;border:1.5px solid #e8a87c;border-radius:10px;
+        height:90px;display:flex;flex-direction:column;align-items:center;
+        justify-content:center;margin:8px 0;gap:4px;
+      ">
+        <span style="font-size:9px;color:#bbb;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;">SPONSORIZZATO</span>
+        <span style="font-size:13px;color:#999;">Pubblicità</span>
+      </div>`;
+  }
+
   // ─── HTML BUILDERS ──────────────────────────────────────────────────────────
   function buildArticleCard(post, featured = false) {
     const img  = post.image || '';
@@ -127,7 +140,12 @@
         </div>
         <div class="dn-section-label" style="margin: 20px 20px 0">📰 Ultime notizie</div>
         <div class="dn-list" style="padding: 0 20px">
-          ${rest.map(p => buildArticleCard(p)).join('')}
+          ${rest.reduce((html, p, i) => {
+            const pos = i + 1;
+            html += buildArticleCard(p);
+            if (pos % 4 === 0) html += buildNativeAd(pos % 8 === 0 ? 2 : 1);
+            return html;
+          }, '')}
         </div>
       </div>`;
   }
@@ -228,6 +246,9 @@
             </div>
           </div>
           <div class="dn-detail-content">${post.content}</div>
+          <div class="dn-ad-slot" data-slot="3" style="width:100%;height:100px;background:#f5f2ef;border:1.5px solid #e8a87c;display:flex;align-items:center;justify-content:center;margin:20px 0;box-sizing:border-box;">
+            <span style="font-size:13px;color:#999;">Pubblicità</span>
+          </div>
         </div>
       </div>`;
   }
@@ -240,6 +261,9 @@
       { id: 'search',     label: 'Cerca',     icon: ICO.search },
     ];
     return `
+      <div class="dn-ad-slot dn-ad-sticky" data-slot="4">
+        <span style="color:#fff;font-size:13px;">Pubblicità</span>
+      </div>
       <nav class="dn-bottom-nav">
         ${tabs.map(t => `
           <button class="dn-nav-tab ${state.tab === t.id ? 'active' : ''}" data-tab="${t.id}">
@@ -264,7 +288,7 @@
   const STYLES = `
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&display=swap');
 
-    .dn-app { font-family: 'Segoe UI', system-ui, sans-serif; background: #faf9f7; min-height: 100vh; padding-bottom: 80px; }
+    .dn-app { font-family: 'Segoe UI', system-ui, sans-serif; background: #faf9f7; min-height: 100vh; padding-bottom: 130px; }
 
     /* LOADING */
     .dn-loading { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #1a1a2e; color: #fff; gap: 8px; }
@@ -326,7 +350,7 @@
     .dn-empty { color: #bbb; text-align: center; font-size: 15px; }
 
     /* ARTICLE DETAIL */
-    .dn-detail { min-height: 100vh; background: #faf9f7; padding-bottom: 80px; }
+    .dn-detail { min-height: 100vh; background: #faf9f7; padding-bottom: 130px; }
     .dn-detail-header { position: sticky; top: 0; z-index: 10; background: rgba(250,249,247,0.95); backdrop-filter: blur(12px); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ede9e4; }
     .dn-back-btn { background: none; border: none; cursor: pointer; color: #1a1a2e; display: flex; align-items: center; gap: 4px; font-size: 15px; font-weight: 600; padding: 0; font-family: inherit; }
     .dn-detail-img-wrap { position: relative; height: 240px; overflow: hidden; }
@@ -345,6 +369,9 @@
     .dn-detail-content p { margin: 0 0 16px; }
     .dn-detail-content strong { color: #1a1a2e; }
     .dn-local-context { background: #f0f8e8; border-left: 3px solid #5a8a3c; padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
+
+    /* AD SLOTS */
+    .dn-ad-sticky { position: fixed; bottom: 65px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; height: 50px; background: #1a1a2e; z-index: 99; display: flex; align-items: center; justify-content: center; }
 
     /* BOTTOM NAV */
     .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: rgba(250,249,247,0.96); backdrop-filter: blur(20px); border-top: 1px solid #ede9e4; display: flex; padding: 8px 0; padding-bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 100; }
