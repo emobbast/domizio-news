@@ -1,0 +1,425 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+/* ============================================================
+   TASSONOMIA "CITY"
+   Registrata qui perché core.php viene caricato ad ogni
+   plugins_loaded, garantendo che la taxonomy sia sempre
+   disponibile prima che WP risolva le query e le REST API.
+   ============================================================ */
+add_action('init', 'dnap_register_city_taxonomy', 5);
+function dnap_register_city_taxonomy() {
+    register_taxonomy('city', 'post', [
+        'label'              => 'Città',
+        'labels'             => [
+            'name'              => 'Città',
+            'singular_name'     => 'Città',
+            'search_items'      => 'Cerca città',
+            'all_items'         => 'Tutte le città',
+            'edit_item'         => 'Modifica città',
+            'update_item'       => 'Aggiorna città',
+            'add_new_item'      => 'Aggiungi città',
+            'new_item_name'     => 'Nuova città',
+            'menu_name'         => 'Città',
+        ],
+        'hierarchical'       => false,
+        'public'             => true,
+        'show_ui'            => true,
+        'show_in_menu'       => true,
+        'show_in_nav_menus'  => true,
+        'show_tagcloud'      => false,
+        'show_in_quick_edit' => true,
+        'show_admin_column'  => true,
+        'show_in_rest'       => true,   // esposta nelle REST API e nel blocco Gutenberg
+        'rest_base'          => 'city',
+        'rewrite'            => ['slug' => 'citta', 'with_front' => false],
+        'query_var'          => true,
+        'capabilities'       => [
+            'manage_terms' => 'manage_categories',
+            'edit_terms'   => 'manage_categories',
+            'delete_terms' => 'manage_categories',
+            'assign_terms' => 'edit_posts',
+        ],
+    ]);
+}
+
+/* ============================================================
+   AUTORE "REDAZIONE"
+   ============================================================ */
+function dnap_get_redazione_author() {
+    $user = get_user_by('login', 'redazione');
+    if (!$user) {
+        $id = wp_create_user('redazione', wp_generate_password(), 'redazione@' . parse_url(home_url(), PHP_URL_HOST));
+        wp_update_user(['ID' => $id, 'display_name' => 'Redazione']);
+        dnap_log('Utente redazione creato.');
+        return $id;
+    }
+    return $user->ID;
+}
+
+/* ============================================================
+   ANTI-DUPLICATO — hash + similarità titolo (48h)
+   ============================================================ */
+function dnap_source_exists(string $source_url, string $hash, string $new_title): bool {
+
+    // 1. URL esatto
+    if (get_posts(['post_type' => 'post', 'meta_key' => '_source_url',
+                   'meta_value' => $source_url, 'posts_per_page' => 1, 'fields' => 'ids'])) {
+        return true;
+    }
+
+    // 2. Hash contenuto
+    if (get_posts(['post_type' => 'post', 'meta_key' => '_source_hash',
+                   'meta_value' => $hash, 'posts_per_page' => 1, 'fields' => 'ids'])) {
+        return true;
+    }
+
+    // 3. Titolo simile nelle ultime 48h (similar_text ≥ 70%)
+    $recent = get_posts([
+        'post_type'      => 'post',
+        'posts_per_page' => 100,
+        'fields'         => 'ids',
+        'date_query'     => [['after' => '48 hours ago']],
+    ]);
+
+    foreach ($recent as $pid) {
+        $existing_title = get_the_title($pid);
+        similar_text(
+            mb_strtolower($new_title),
+            mb_strtolower($existing_title),
+            $pct
+        );
+        if ($pct >= 70) {
+            dnap_log("Duplicato titolo ({$pct}%): \"{$new_title}\" ~ \"{$existing_title}\"");
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* ============================================================
+   INSERT AD SLOT — posizioni configurabili
+   ============================================================ */
+function dnap_insert_ad_slots(string $content): string {
+    $pos2 = get_option('dnap_ad_pos_2', true);
+    $pos4 = get_option('dnap_ad_pos_4', true);
+
+    $paragraphs = explode('</p>', $content);
+    $total = count($paragraphs);
+
+    if ($pos2 && $total > 2) {
+        $paragraphs[1] .= '<div class="dn-ad-slot dn-ad-inline" aria-label="Pubblicità"></div>';
+    }
+    if ($pos4 && $total > 4) {
+        $paragraphs[3] .= '<div class="dn-ad-slot dn-ad-inline" aria-label="Pubblicità"></div>';
+    }
+
+    return implode('</p>', $paragraphs);
+}
+
+/* ============================================================
+   RISOLVI URL GOOGLE NEWS (no sslverify false)
+   ============================================================ */
+function dnap_resolve_google_url(string $url): string {
+    if (strpos($url, 'news.google.com') === false) return $url;
+
+    $response = wp_remote_get($url, [
+        'timeout'     => 20,
+        'redirection' => 10,
+        'user-agent'  => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
+        'headers'     => ['Accept-Language' => 'it-IT,it;q=0.9'],
+    ]);
+
+    if (is_wp_error($response)) {
+        dnap_log('Errore risoluzione Google URL: ' . $response->get_error_message());
+        return $url;
+    }
+
+    $body = wp_remote_retrieve_body($response);
+
+    // Link canonico
+    if (preg_match('/<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']/', $body, $m)) {
+        $found = html_entity_decode($m[1]);
+        if (strpos($found, 'google.com') === false && filter_var($found, FILTER_VALIDATE_URL)) {
+            return esc_url_raw($found);
+        }
+    }
+
+    // Meta refresh
+    if (preg_match('/content=["\'][0-9]+;\s*url=([^"\'&]+)/i', $body, $m)) {
+        $found = esc_url_raw(html_entity_decode(trim($m[1])));
+        if (filter_var($found, FILTER_VALIDATE_URL)) return $found;
+    }
+
+    return $url;
+}
+
+/* ============================================================
+   SCRAPING INTELLIGENTE
+   Solo: titolo, estratto (og:description), immagine (og:image),
+   URL canonico. NON importa il corpo dell'articolo.
+   ============================================================ */
+function dnap_scrape_meta(string $url): array {
+    $result = [
+        'canonical'   => $url,
+        'description' => '',
+        'image'       => '',
+        'title'       => '',
+    ];
+
+    $host = parse_url($url, PHP_URL_HOST);
+    if ($host && strpos($host, 'google.com') !== false) return $result;
+
+    $response = wp_remote_get($url, [
+        'timeout'    => 20,
+        'user-agent' => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
+        'headers'    => ['Accept-Language' => 'it-IT,it;q=0.9'],
+    ]);
+
+    if (is_wp_error($response)) {
+        dnap_log('Errore scraping meta: ' . $response->get_error_message() . ' — ' . $url);
+        return $result;
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    if ($code !== 200) {
+        dnap_log("Scraping meta HTTP {$code}: {$url}");
+        return $result;
+    }
+
+    $html = wp_remote_retrieve_body($response);
+    if (strlen($html) < 100) return $result;
+
+    // Estrai solo il <head>
+    preg_match('/<head[^>]*>([\s\S]*?)<\/head>/i', $html, $head_match);
+    $head = $head_match[1] ?? substr($html, 0, 5000);
+
+    // og:title
+    if (preg_match('/<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']/', $head, $m)) {
+        $result['title'] = html_entity_decode(trim($m[1]), ENT_QUOTES, 'UTF-8');
+    }
+    // og:description
+    if (preg_match('/<meta[^>]+(?:property=["\']og:description["\']|name=["\']description["\'])[^>]+content=["\']([^"\']{20,})["\']/', $head, $m)) {
+        $result['description'] = html_entity_decode(trim($m[1]), ENT_QUOTES, 'UTF-8');
+    }
+    // og:image
+    if (preg_match('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/', $head, $m)) {
+        $result['image'] = esc_url_raw(html_entity_decode($m[1]));
+    }
+    // canonical
+    if (preg_match('/<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']/', $head, $m)) {
+        $found = esc_url_raw(html_entity_decode($m[1]));
+        if (filter_var($found, FILTER_VALIDATE_URL)) {
+            $result['canonical'] = $found;
+        }
+    }
+
+    return $result;
+}
+
+/* ============================================================
+   ESTRAI TESTO DAL FEED ITEM
+   ============================================================ */
+function dnap_get_item_text($item): string {
+    $text = '';
+    if (method_exists($item, 'get_content')) $text = $item->get_content();
+    if (empty(trim(strip_tags($text)))) $text = $item->get_description();
+    if (empty(trim(strip_tags($text)))) $text = $item->get_title() . '. ' . $item->get_description();
+
+    $text = wp_strip_all_tags($text);
+    $text = preg_replace('/\s+/', ' ', $text);
+    return trim(mb_substr($text, 0, 800));
+}
+
+/* ============================================================
+   IMPORT PRINCIPALE
+   Rate limiting: max DNAP_MAX_PER_RUN per esecuzione
+   Lock transient per evitare run paralleli
+   ============================================================ */
+function dnap_import_now() {
+
+    // Lock: evita run paralleli
+    if (get_transient('dnap_running')) {
+        dnap_log('⏸ Import già in corso, skip.');
+        return;
+    }
+    set_transient('dnap_running', 1, 10 * MINUTE_IN_SECONDS);
+
+    $feeds = get_option('dnap_feeds', []);
+    if (empty($feeds)) {
+        dnap_log('Nessun feed configurato.');
+        delete_transient('dnap_running');
+        return;
+    }
+
+    require_once ABSPATH . WPINC . '/feed.php';
+
+    $total_imported = 0;
+    $total_skipped  = 0;
+    $total_errors   = 0;
+    $run_limit      = (int) get_option('dnap_max_per_run', DNAP_MAX_PER_RUN);
+
+    $active_feeds = array_filter($feeds, fn($f) => !empty($f['active']));
+    dnap_log("Import avviato — " . count($active_feeds) . " feed attivi, max {$run_limit}/run");
+
+    foreach ($feeds as $feed) {
+
+        if (empty($feed['active'])) continue;
+        if ($total_imported >= $run_limit) {
+            dnap_log("Limite {$run_limit} articoli/run raggiunto. Fermato.");
+            break;
+        }
+
+        $feed_url = esc_url_raw(sanitize_text_field($feed['url']));
+        dnap_log("Feed: {$feed_url}");
+
+        $rss = fetch_feed($feed_url);
+        if (is_wp_error($rss)) {
+            dnap_log("ERRORE feed: {$feed_url} — " . $rss->get_error_message());
+            $total_errors++;
+            continue;
+        }
+
+        $items = $rss->get_items(0, 15);
+        if (empty($items)) {
+            dnap_log("Feed vuoto: {$feed_url}");
+            continue;
+        }
+
+        foreach ($items as $item) {
+
+            if ($total_imported >= $run_limit) break;
+
+            $source_url = esc_url_raw($item->get_permalink());
+            $title_raw  = sanitize_text_field($item->get_title());
+            $feed_text  = dnap_get_item_text($item);
+
+            // Risolvi redirect Google News
+            $real_url = dnap_resolve_google_url($source_url);
+            if ($real_url !== $source_url) {
+                dnap_log("URL reale: {$real_url}");
+                $source_url = $real_url;
+            }
+
+            // Scraping meta (og:description, og:image, canonical)
+            $meta = dnap_scrape_meta($source_url);
+
+            // Testo per GPT: usa og:description se disponibile, altrimenti testo feed
+            $ai_text = !empty($meta['description']) ? $meta['description'] : $feed_text;
+            if (empty(trim($ai_text))) {
+                $ai_text = $title_raw;
+            }
+            $ai_text = mb_substr($ai_text, 0, 800);
+
+            $hash = md5($source_url . $ai_text);
+
+            if (dnap_source_exists($source_url, $hash, $title_raw)) {
+                $total_skipped++;
+                continue;
+            }
+
+            dnap_log("GPT: {$title_raw}");
+
+            $rewritten = dnap_gpt_rewrite($ai_text, $title_raw, $meta['canonical']);
+            if (!$rewritten) {
+                dnap_log("ERRORE GPT: {$title_raw}");
+                $total_errors++;
+                continue;
+            }
+
+            $word_count = str_word_count(strip_tags($rewritten['content']));
+            if ($word_count < 80) {
+                dnap_log("Troppo corto ({$word_count} parole): {$title_raw}");
+                $total_skipped++;
+                continue;
+            }
+
+            // Slug ottimizzato
+            $slug = !empty($rewritten['slug'])
+                ? sanitize_title($rewritten['slug'])
+                : sanitize_title($rewritten['title']);
+
+            $content = wpautop($rewritten['content']);
+            $content = dnap_insert_ad_slots($content);
+
+            $post_id = wp_insert_post([
+                'post_title'   => wp_slash(sanitize_text_field($rewritten['title'])),
+                'post_content' => wp_slash($content),
+                'post_status'  => 'publish',
+                'post_author'  => dnap_get_redazione_author(),
+                'post_excerpt' => wp_slash(sanitize_textarea_field($rewritten['excerpt'])),
+                'post_name'    => $slug,
+            ]);
+
+            if (is_wp_error($post_id)) {
+                dnap_log("ERRORE inserimento: " . $post_id->get_error_message());
+                $total_errors++;
+                continue;
+            }
+
+            update_post_meta($post_id, '_source_url',      $source_url);
+            update_post_meta($post_id, '_source_hash',     $hash);
+            update_post_meta($post_id, '_meta_description', sanitize_textarea_field($rewritten['meta_description'] ?? ''));
+
+            // Immagine in evidenza: priorità og:image dallo scraping
+            $image_url = !empty($meta['image']) ? $meta['image'] : '';
+            dnap_set_featured_image($post_id, $rewritten['title'], $item, $source_url, $image_url);
+
+            // ── CATEGORIA ────────────────────────────────────────────
+            $assigned_cat = false;
+            if (!empty($rewritten['category'])) {
+                $cat_obj = get_category_by_slug($rewritten['category']);
+                if ($cat_obj) {
+                    wp_set_post_categories($post_id, [$cat_obj->term_id]);
+                    dnap_log("Categoria: {$cat_obj->name}");
+                    $assigned_cat = true;
+                }
+            }
+            if (!$assigned_cat && !empty($feed['cat_id'])) {
+                $cat_obj = get_category(intval($feed['cat_id']));
+                if ($cat_obj && !is_wp_error($cat_obj)) {
+                    wp_set_post_categories($post_id, [$cat_obj->term_id]);
+                }
+            }
+
+            // ── CITTÀ ────────────────────────────────────────────────
+            $assigned_cities = false;
+            if (!empty($rewritten['cities']) && is_array($rewritten['cities'])) {
+                $city_ids = [];
+                foreach ($rewritten['cities'] as $city_slug) {
+                    $term = get_term_by('slug', sanitize_text_field($city_slug), 'city');
+                    if ($term) $city_ids[] = $term->term_id;
+                }
+                if ($city_ids) {
+                    wp_set_post_terms($post_id, $city_ids, 'city');
+                    $assigned_cities = true;
+                }
+            }
+            if (!$assigned_cities && !empty($feed['city_slug'])) {
+                $term = get_term_by('slug', sanitize_text_field($feed['city_slug']), 'city');
+                if ($term) wp_set_post_terms($post_id, [$term->term_id], 'city');
+            }
+
+            // ── TAG ──────────────────────────────────────────────────
+            if (!empty($rewritten['tags']) && is_array($rewritten['tags'])) {
+                $clean_tags = array_map('sanitize_text_field', array_slice($rewritten['tags'], 0, 5));
+                wp_set_post_tags($post_id, $clean_tags);
+            }
+
+            dnap_log("✅ Pubblicato [{$post_id}]: {$rewritten['title']}");
+            $total_imported++;
+        }
+    }
+
+    dnap_log("Completato — Importati: {$total_imported} | Saltati: {$total_skipped} | Errori: {$total_errors}");
+
+    update_option('dnap_last_import', [
+        'time'     => current_time('mysql'),
+        'imported' => $total_imported,
+        'skipped'  => $total_skipped,
+        'errors'   => $total_errors,
+    ]);
+
+    delete_transient('dnap_running');
+}
