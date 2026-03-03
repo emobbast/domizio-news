@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Domizio News AI Publisher
-Description: v7.0 — Sicurezza, scraping intelligente, AI avanzata, anti-duplicato, SEO automation
+Description: v7.1 — Sicurezza, scraping intelligente, AI avanzata, anti-duplicato, SEO automation
 Version: 7.0
 Author: Domizio News
 */
@@ -9,7 +9,7 @@ Author: Domizio News
 if (!defined('ABSPATH')) exit;
 
 define('DNAP_DIR',        plugin_dir_path(__FILE__));
-define('DNAP_VERSION',    '7.0');
+define('DNAP_VERSION',    '7.1');
 define('DNAP_LOG_KEY',    'dnap_import_log');
 define('DNAP_LOG_MAX',    200);
 define('DNAP_MAX_PER_RUN', 5);
