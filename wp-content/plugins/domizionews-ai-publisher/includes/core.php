@@ -156,6 +156,50 @@ function dnap_resolve_google_url(string $url): string {
 }
 
 /* ============================================================
+   RISOLUZIONE URL REALE DA ITEM GOOGLE NEWS
+   Tenta di ricavare l'URL dell'articolo originale dai metadati
+   dell'item SimplePie, senza effettuare richieste HTTP.
+   ============================================================ */
+function dnap_resolve_google_news_url( $item, string $source_url ): string {
+
+    if ( strpos( $source_url, 'news.google.com' ) === false ) return $source_url;
+
+    // 1. Enclosure link
+    $enc = $item->get_enclosure();
+    if ( $enc ) {
+        $enc_link = $enc->get_link();
+        if ( $enc_link && strpos( $enc_link, 'google.com' ) === false && filter_var( $enc_link, FILTER_VALIDATE_URL ) ) {
+            dnap_log( "Google News → enclosure: {$enc_link}" );
+            return esc_url_raw( $enc_link );
+        }
+    }
+
+    // 2. Tutti i link dell'item — primo non-google
+    $links = $item->get_links() ?? [];
+    foreach ( $links as $link ) {
+        if ( $link && strpos( $link, 'google.com' ) === false && filter_var( $link, FILTER_VALIDATE_URL ) ) {
+            dnap_log( "Google News → link: {$link}" );
+            return esc_url_raw( $link );
+        }
+    }
+
+    // 3. Tag <a href="..."> nella description/content dell'item
+    $content = $item->get_content() ?: ( $item->get_description() ?: '' );
+    if ( $content && preg_match_all( '/<a\s[^>]*href=["\']([^"\']+)["\'][^>]*>/i', $content, $matches ) ) {
+        foreach ( $matches[1] as $href ) {
+            $href = html_entity_decode( $href );
+            if ( strpos( $href, 'google.com' ) === false && filter_var( $href, FILTER_VALIDATE_URL ) ) {
+                dnap_log( "Google News → href in content: {$href}" );
+                return esc_url_raw( $href );
+            }
+        }
+    }
+
+    // 4. Fallback: URL originale (dnap_scrape_meta gestirà il redirect HTTP)
+    return $source_url;
+}
+
+/* ============================================================
    SCRAPING INTELLIGENTE
    Solo: titolo, estratto (og:description), immagine (og:image),
    URL canonico. NON importa il corpo dell'articolo.
@@ -343,12 +387,8 @@ function dnap_import_now() {
             $title_raw  = sanitize_text_field($item->get_title());
             $feed_text  = dnap_get_item_text($item);
 
-            // Risolvi redirect Google News
-            $real_url = dnap_resolve_google_url($source_url);
-            if ($real_url !== $source_url) {
-                dnap_log("URL reale: {$real_url}");
-                $source_url = $real_url;
-            }
+            // Risolvi URL reale da metadati item (enclosure, links, href in content)
+            $source_url = dnap_resolve_google_news_url( $item, $source_url );
 
             // Scraping meta (og:description, og:image, canonical)
             $meta = dnap_scrape_meta($source_url);
