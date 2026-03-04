@@ -325,6 +325,67 @@ function dnap_get_item_text($item): string {
 }
 
 /* ============================================================
+   FILTRO CONTENUTO LOCALE
+   Restituisce true solo se il testo contiene almeno una keyword
+   geografica del litorale domizio / area casertana.
+   ============================================================ */
+function dnap_is_local_content(string $text): bool {
+    $keywords = [
+        'mondragone', 'castel volturno', 'pinetamare', 'villaggio coppola',
+        'pescopagano', 'ischitella', 'baia verde', 'baia domizia', 'baia felice',
+        'cellole', 'borgo centore', 'san limato', 'falciano del massico', 'falciano',
+        'carinola', 'ventaroli', 'varano', 'maiorano di monte', 'sessa aurunca',
+        'piedimonte massicano', 'litorale domizio', 'litorale domitio',
+    ];
+    $lower = mb_strtolower($text);
+    foreach ($keywords as $kw) {
+        if (strpos($lower, $kw) !== false) return true;
+    }
+    return false;
+}
+
+/* ============================================================
+   RILEVAMENTO CITTÀ DAL TESTO
+   Scorre il testo cercando keyword geografiche (ordinate dalla
+   più lunga alla più corta per evitare match parziali prematuri,
+   es. "falciano" prima di "falciano del massico").
+   Restituisce array di slug città univoci.
+   ============================================================ */
+function dnap_get_cities_from_text(string $text): array {
+    $map = [
+        'falciano del massico' => 'falciano-del-massico',
+        'villaggio coppola'    => 'castel-volturno',
+        'maiorano di monte'    => 'carinola',
+        'piedimonte massicano' => 'sessa-aurunca',
+        'castel volturno'      => 'castel-volturno',
+        'borgo centore'        => 'cellole',
+        'sessa aurunca'        => 'sessa-aurunca',
+        'baia domizia'         => 'baia-domizia',
+        'baia felice'          => 'sessa-aurunca',
+        'baia verde'           => 'castel-volturno',
+        'san limato'           => 'cellole',
+        'mondragone'           => 'mondragone',
+        'pinetamare'           => 'castel-volturno',
+        'pescopagano'          => 'castel-volturno',
+        'ischitella'           => 'castel-volturno',
+        'ventaroli'            => 'carinola',
+        'falciano'             => 'falciano-del-massico',
+        'carinola'             => 'carinola',
+        'cellole'              => 'cellole',
+        'varano'               => 'carinola',
+    ];
+
+    $lower = mb_strtolower($text);
+    $slugs = [];
+    foreach ($map as $keyword => $slug) {
+        if (strpos($lower, $keyword) !== false && !in_array($slug, $slugs, true)) {
+            $slugs[] = $slug;
+        }
+    }
+    return $slugs;
+}
+
+/* ============================================================
    IMPORT PRINCIPALE
    Rate limiting: max DNAP_MAX_PER_RUN per esecuzione
    Lock transient per evitare run paralleli
@@ -407,6 +468,14 @@ function dnap_import_now() {
                 continue;
             }
 
+            // Filtra articoli non locali (PRIMA di chiamare GPT)
+            $local_text = $title_raw . ' ' . $feed_text . ' ' . $meta['description'];
+            if (!dnap_is_local_content($local_text)) {
+                dnap_log("⏭ Saltato (non locale): {$title_raw}");
+                $total_skipped++;
+                continue;
+            }
+
             dnap_log("GPT: {$title_raw}");
 
             $rewritten = dnap_gpt_rewrite($ai_text, $title_raw, $meta['canonical']);
@@ -472,21 +541,13 @@ function dnap_import_now() {
             }
 
             // ── CITTÀ ────────────────────────────────────────────────
-            $assigned_cities = false;
-            if (!empty($rewritten['cities']) && is_array($rewritten['cities'])) {
-                $city_ids = [];
-                foreach ($rewritten['cities'] as $city_slug) {
-                    $term = get_term_by('slug', sanitize_text_field($city_slug), 'city');
-                    if ($term) $city_ids[] = $term->term_id;
-                }
-                if ($city_ids) {
-                    wp_set_post_terms($post_id, $city_ids, 'city');
-                    $assigned_cities = true;
-                }
-            }
-            if (!$assigned_cities && !empty($feed['city_slug'])) {
-                $term = get_term_by('slug', sanitize_text_field($feed['city_slug']), 'city');
-                if ($term) wp_set_post_terms($post_id, [$term->term_id], 'city');
+            $city_text  = $title_raw . ' ' . $feed_text . ' ' . $meta['description'];
+            $city_slugs = dnap_get_cities_from_text($city_text);
+            if ($city_slugs) {
+                wp_set_object_terms($post_id, $city_slugs, 'city');
+                dnap_log("Città: " . implode(', ', $city_slugs));
+            } elseif (!empty($feed['city_slug'])) {
+                wp_set_object_terms($post_id, [sanitize_text_field($feed['city_slug'])], 'city');
             }
 
             // ── TAG ──────────────────────────────────────────────────
