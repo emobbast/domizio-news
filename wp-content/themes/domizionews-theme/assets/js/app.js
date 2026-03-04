@@ -25,6 +25,10 @@
     return d.textContent || '';
   }
 
+  function sourceDomain(url) {
+    try { return new URL(url || '').hostname.replace(/^www\./, ''); } catch { return ''; }
+  }
+
   // ─── STATE ──────────────────────────────────────────────────────────────────
   let state = {
     tab: 'home',
@@ -36,6 +40,7 @@
     searchQuery: '',
     selectedCity: '',
     selectedCat: '',
+    homeCat: '',
   };
 
   function setState(patch) {
@@ -66,111 +71,132 @@
 
   // ─── ICONS (SVG string) ──────────────────────────────────────────────────────
   const ICO = {
-    home:    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
-    cities:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`,
-    cats:    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
-    search:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-    back:    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
-    share:   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
-    bell:    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+    home:     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+    news:     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>`,
+    bookmark: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`,
+    search:   `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+    back:     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
+    share:    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+    profile:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
   };
-
-  const CAT_ICONS = { 'cronaca': '🚨', 'sport': '⚽', 'politica': '🏛️', 'ambiente-mare': '🌊', 'eventi-cultura': '🎭', 'salute': '🏥' };
 
   // ─── AD SLOTS ────────────────────────────────────────────────────────────────
   function buildNativeAd(num) {
     return `
       <div class="dn-ad-slot" data-slot="${num}" style="
-        background:#f5f2ef;border:1.5px solid #e8a87c;border-radius:10px;
+        background:#F2F2F2;border-top:1px solid #E0E0E0;border-bottom:1px solid #E0E0E0;
         height:90px;display:flex;flex-direction:column;align-items:center;
-        justify-content:center;margin:8px 0;gap:4px;
+        justify-content:center;gap:4px;
       ">
-        <span style="font-size:9px;color:#bbb;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;">SPONSORIZZATO</span>
-        <span style="font-size:13px;color:#999;">Pubblicità</span>
+        <span style="font-size:9px;color:#9AA0A6;letter-spacing:1.5px;text-transform:uppercase;font-weight:500;">SPONSORIZZATO</span>
+        <span style="font-size:13px;color:#9AA0A6;">Pubblicità</span>
       </div>`;
   }
 
   function buildCityAd() {
+    return buildNativeAd('city-ad');
+  }
+
+  // ─── FAVICON HELPER ─────────────────────────────────────────────────────────
+  function buildFavicon(url) {
+    const domain = sourceDomain(url);
+    if (!domain) return '';
+    return `<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=16" class="dn-favicon" alt="">`;
+  }
+
+  function buildSourceMeta(post) {
+    const domain = sourceDomain(post.source_url);
+    const favicon = buildFavicon(post.source_url);
+    const sourceName = domain || 'Redazione';
     return `
-      <div class="dn-ad-slot" data-slot="city-ad" style="
-        background:#f5f2ef;border:1.5px solid #e8a87c;border-radius:10px;
-        height:90px;display:flex;flex-direction:column;align-items:center;
-        justify-content:center;margin:8px 20px;gap:4px;
-      ">
-        <span style="font-size:9px;color:#bbb;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;">SPONSORIZZATO</span>
-        <span style="font-size:13px;color:#999;">Pubblicità</span>
+      <div class="dn-card-meta">
+        ${favicon}<span class="dn-source">${sourceName}</span><span class="dn-dot"> • </span><span class="dn-time">${timeAgo(post.date)}</span>
       </div>`;
   }
 
   // ─── HTML BUILDERS ──────────────────────────────────────────────────────────
-  function buildArticleCard(post, featured = false) {
-    const img  = post.image || '';
-    const cat  = post.categories?.[0];
-    const city = post.cities?.[0];
 
-    if (featured) {
-      return `
-        <div class="dn-card-featured" data-post-id="${post.id}">
-          ${img ? `<img src="${img}" alt="" loading="lazy">` : ''}
-          <div class="dn-card-featured-overlay">
-            ${cat ? `<span class="dn-cat-badge">${cat.name}</span>` : ''}
-            <h3>${post.title}</h3>
-            <span class="dn-time">${timeAgo(post.date)}</span>
-          </div>
-        </div>`;
-    }
-
+  // Hero card: prima notizia del feed, immagine full-width 16/9
+  function buildHeroCard(post) {
+    const img = post.image || '';
     return `
-      <div class="dn-card-list" data-post-id="${post.id}">
-        ${img ? `<img src="${img}" alt="" loading="lazy">` : ''}
-        <div class="dn-card-body">
-          <div class="dn-card-meta">
-            ${cat  ? `<span class="dn-cat-label">${cat.name}</span>` : ''}
-            ${city ? `<span class="dn-city-label">📍 ${city.name}</span>` : ''}
-          </div>
-          <h3>${post.title}</h3>
-          <span class="dn-time">${timeAgo(post.date)}</span>
+      <div class="dn-card-hero" data-post-id="${post.id}">
+        ${img ? `<div class="dn-card-hero-img"><img src="${img}" alt="" loading="lazy"></div>` : ''}
+        <div class="dn-card-hero-body">
+          <h3 class="dn-card-hero-title">${post.title}</h3>
+          ${buildSourceMeta(post)}
         </div>
       </div>`;
   }
 
-  function buildHome() {
-    const featured = state.posts.slice(0, 3);
-
-    let citySections = '';
-    let cityCount = 0;
-    state.cities.forEach(city => {
-      const cityPosts = state.posts.filter(p => p.cities?.some(c => c.slug === city.slug));
-      if (cityPosts.length === 0) return;
-      cityCount++;
-      if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
-        citySections += buildCityAd();
-      }
-      const shown = cityPosts.slice(0, 3);
-      citySections += `
-        <div class="dn-section-label" style="margin: 20px 20px 8px">📍 ${city.name}</div>
-        <div class="dn-list" style="padding: 0 20px">
-          ${shown.map(p => buildArticleCard(p)).join('')}
+  // List card: thumbnail 96x96 a destra
+  function buildArticleCard(post) {
+    const img = post.image || '';
+    return `
+      <div class="dn-card-list" data-post-id="${post.id}">
+        <div class="dn-card-body">
+          <h3>${post.title}</h3>
+          ${buildSourceMeta(post)}
         </div>
-        <div style="padding: 4px 20px 12px; text-align: right">
-          <button class="dn-city-more" data-goto-city="${city.slug}">→ Vedi tutte le notizie di ${city.name}</button>
-        </div>`;
-    });
+        ${img ? `<img src="${img}" alt="" loading="lazy">` : ''}
+      </div>`;
+  }
+
+  // ─── CATEGORY CHIPS BAR (home) ───────────────────────────────────────────────
+  const HOME_CATS = [
+    { slug: '',               name: 'Tutte' },
+    { slug: 'cronaca',        name: 'Cronaca' },
+    { slug: 'sport',          name: 'Sport' },
+    { slug: 'politica',       name: 'Politica' },
+    { slug: 'economia',       name: 'Economia' },
+    { slug: 'ambiente-mare',  name: 'Ambiente' },
+    { slug: 'eventi-cultura', name: 'Eventi' },
+    { slug: 'salute',         name: 'Salute' },
+  ];
+
+  function buildCatChipsBar() {
+    return `
+      <div class="dn-home-chips">
+        ${HOME_CATS.map(c => `
+          <button class="dn-home-chip ${state.homeCat === c.slug ? 'active' : ''}" data-home-cat="${c.slug}">${c.name}</button>
+        `).join('')}
+      </div>`;
+  }
+
+  function buildHome() {
+    const filtered = state.homeCat
+      ? state.posts.filter(p => p.categories?.some(c => c.slug === state.homeCat))
+      : state.posts;
+
+    const [hero, ...rest] = filtered;
 
     return `
       <div class="dn-screen" id="screen-home">
         <div class="dn-top-header">
-          <div>
-            <div class="dn-kicker">IL GIORNALE DEL</div>
-            <h1 class="dn-site-title">Litorale Domizio</h1>
-          </div>
-          <button class="dn-icon-btn">${ICO.bell}<span class="dn-notif-dot"></span></button>
+          <h1 class="dn-site-title">Domizio News</h1>
+          <button class="dn-icon-btn">${ICO.profile}</button>
         </div>
-        <div class="dn-section-label">🔥 In evidenza</div>
-        <div class="dn-featured-scroll">
-          ${featured.map(p => buildArticleCard(p, true)).join('')}
+        ${buildCatChipsBar()}
+        <div class="dn-feed">
+          ${hero ? buildHeroCard(hero) : ''}
+          ${rest.map(p => buildArticleCard(p)).join('')}
         </div>
-        ${citySections}
+      </div>`;
+  }
+
+  function buildNews() {
+    return `
+      <div class="dn-screen">
+        <div class="dn-top-header">
+          <h1 class="dn-site-title">Domizio News</h1>
+          <button class="dn-icon-btn">${ICO.profile}</button>
+        </div>
+        ${buildCatChipsBar()}
+        <div class="dn-feed">
+          ${state.posts.length === 0
+            ? `<p class="dn-empty" style="padding:40px 16px">Nessuna notizia disponibile.</p>`
+            : state.posts.map(p => buildArticleCard(p)).join('')}
+        </div>
       </div>`;
   }
 
@@ -186,11 +212,22 @@
             <button class="dn-chip ${state.selectedCity === c.slug ? 'active' : ''}" data-city="${c.slug}">${c.name}</button>
           `).join('')}
         </div>
-        <div class="dn-list" style="padding: 0 20px">
+        <div class="dn-feed">
           ${filtered.length === 0
-            ? `<p class="dn-empty">Nessun articolo per questa città.</p>`
+            ? `<p class="dn-empty" style="padding:40px 16px">Nessun articolo per questa città.</p>`
             : filtered.map(p => buildArticleCard(p)).join('')}
         </div>
+      </div>`;
+  }
+
+  function buildSaved() {
+    return `
+      <div class="dn-screen">
+        <div class="dn-top-header">
+          <h1 class="dn-site-title">Salvati</h1>
+          <button class="dn-icon-btn">${ICO.profile}</button>
+        </div>
+        <p class="dn-empty" style="padding:60px 16px 0">Nessun articolo salvato.</p>
       </div>`;
   }
 
@@ -198,6 +235,7 @@
     const filtered = state.selectedCat
       ? state.posts.filter(p => p.categories?.some(c => c.slug === state.selectedCat))
       : state.posts;
+    const CAT_ICONS = { 'cronaca': '🚨', 'sport': '⚽', 'politica': '🏛️', 'ambiente-mare': '🌊', 'eventi-cultura': '🎭', 'salute': '🏥' };
     return `
       <div class="dn-screen">
         <div class="dn-page-header"><h2>Categorie</h2></div>
@@ -209,7 +247,7 @@
             </button>
           `).join('')}
         </div>
-        <div class="dn-list" style="padding: 0 20px">
+        <div class="dn-feed">
           ${filtered.map(p => buildArticleCard(p)).join('')}
         </div>
       </div>`;
@@ -225,25 +263,27 @@
     return `
       <div class="dn-screen">
         <div class="dn-page-header"><h2>Cerca</h2></div>
-        <div style="padding: 0 20px 16px">
+        <div style="padding: 0 16px 16px">
           <div class="dn-search-wrap">
             <span class="dn-search-icon">${ICO.search}</span>
             <input id="dn-search-input" type="search" placeholder="Cerca notizie..." value="${q}" autocomplete="off">
           </div>
         </div>
-        <div class="dn-list" style="padding: 0 20px">
+        <div class="dn-feed">
           ${q.length < 2
-            ? `<p class="dn-empty" style="margin-top:60px">Digita almeno 2 caratteri</p>`
+            ? `<p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>`
             : filtered.length === 0
-              ? `<p class="dn-empty" style="margin-top:60px">Nessun risultato per "<b>${q}</b>"</p>`
-              : `<p style="font-size:13px;color:#aaa;margin-bottom:8px">${filtered.length} risultati</p>
+              ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${q}</b>"</p>`
+              : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${filtered.length} risultati</p>
                  ${filtered.map(p => buildArticleCard(p)).join('')}`}
         </div>
       </div>`;
   }
 
   function buildArticleDetail(post) {
-    const cat  = post.categories?.[0];
+    const domain = sourceDomain(post.source_url);
+    const favicon = buildFavicon(post.source_url);
+    const sourceName = domain || 'Redazione';
     const date = new Date(post.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
     return `
       <div class="dn-detail">
@@ -265,13 +305,13 @@
           <div class="dn-detail-byline">
             <div class="dn-avatar">R</div>
             <div>
-              <div class="dn-byline-name">Redazione</div>
+              <div class="dn-byline-name">${favicon}<span>${sourceName}</span></div>
               <div class="dn-byline-date">${date}</div>
             </div>
           </div>
           <div class="dn-detail-content">${post.content}</div>
-          <div class="dn-ad-slot" data-slot="3" style="width:100%;height:100px;background:#f5f2ef;border:1.5px solid #e8a87c;display:flex;align-items:center;justify-content:center;margin:20px 0;box-sizing:border-box;">
-            <span style="font-size:13px;color:#999;">Pubblicità</span>
+          <div class="dn-ad-slot" data-slot="3" style="width:100%;height:100px;background:#F2F2F2;border-top:1px solid #E0E0E0;border-bottom:1px solid #E0E0E0;display:flex;align-items:center;justify-content:center;margin:20px 0;box-sizing:border-box;">
+            <span style="font-size:13px;color:#9AA0A6;">Pubblicità</span>
           </div>
         </div>
       </div>`;
@@ -279,21 +319,17 @@
 
   function buildNav() {
     const tabs = [
-      { id: 'home',       label: 'Home',      icon: ICO.home },
-      { id: 'cities',     label: 'Città',     icon: ICO.cities },
-      { id: 'categories', label: 'Categorie', icon: ICO.cats },
-      { id: 'search',     label: 'Cerca',     icon: ICO.search },
+      { id: 'home',     label: 'Home',    icon: ICO.home },
+      { id: 'news',     label: 'Notizie', icon: ICO.news },
+      { id: 'saved',    label: 'Salvati', icon: ICO.bookmark },
+      { id: 'search',   label: 'Cerca',   icon: ICO.search },
     ];
     return `
-      <div class="dn-ad-slot dn-ad-sticky" data-slot="4">
-        <span style="color:#fff;font-size:13px;">Pubblicità</span>
-      </div>
       <nav class="dn-bottom-nav">
         ${tabs.map(t => `
           <button class="dn-nav-tab ${state.tab === t.id ? 'active' : ''}" data-tab="${t.id}">
             ${t.icon}
             <span>${t.label}</span>
-            ${state.tab === t.id ? '<span class="dn-nav-dot"></span>' : ''}
           </button>
         `).join('')}
       </nav>`;
@@ -303,7 +339,7 @@
     return `
       <div class="dn-loading">
         <div class="dn-loading-wave">🌊</div>
-        <h2>Litorale Domizio</h2>
+        <h2>Domizio News</h2>
         <p>Caricamento notizie...</p>
       </div>`;
   }
@@ -317,12 +353,15 @@
       --color-text-secondary: #5F6368;
       --color-primary: #1A73E8;
       --color-divider: #E0E0E0;
-      --color-background: #F2F2F2;
+      --color-background: #FFFFFF;
       --color-card: #FFFFFF;
+      --color-chip-inactive-bg: #F2F2F2;
+      --color-chip-active-bg: #E8F0FE;
+      --color-chip-active-text: #1A73E8;
     }
 
     * { font-family: 'Roboto', Arial, sans-serif; }
-    .dn-app { font-family: 'Roboto', Arial, sans-serif; background: var(--color-background); min-height: 100vh; padding-bottom: 130px; }
+    .dn-app { font-family: 'Roboto', Arial, sans-serif; background: var(--color-background); min-height: 100vh; padding-bottom: 64px; }
 
     /* LOADING */
     .dn-loading { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--color-text); color: #fff; gap: 8px; }
@@ -332,63 +371,72 @@
     @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 
     /* TOP HEADER */
-    .dn-top-header { padding: 20px 16px 16px; display: flex; align-items: center; justify-content: space-between; background: var(--color-card); border-bottom: 1px solid var(--color-divider); }
-    .dn-kicker { font-size: 11px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: var(--color-text-secondary); margin-bottom: 2px; }
-    .dn-site-title { margin: 0; font-size: 22px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1; }
-    .dn-icon-btn { background: none; border: none; cursor: pointer; color: var(--color-text); position: relative; padding: 4px; }
-    .dn-notif-dot { position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; background: var(--color-primary); border-radius: 50%; display: block; }
+    .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: var(--color-card); border-bottom: 1px solid var(--color-divider); }
+    .dn-site-title { margin: 0; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1; }
+    .dn-icon-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); position: relative; padding: 4px; }
 
-    /* SECTION LABELS */
-    .dn-section-label { font-size: 11px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: var(--color-text-secondary); padding-left: 16px; margin-bottom: 8px; }
+    /* PAGE HEADER (tabs secondari) */
     .dn-page-header { padding: 16px 16px 0; }
     .dn-page-header h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
 
-    /* FEATURED CARDS */
-    .dn-featured-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; scroll-snap-type: x mandatory; }
-    .dn-card-featured { position: relative; border-radius: 8px; overflow: hidden; cursor: pointer; flex-shrink: 0; width: 280px; height: 200px; background: var(--color-text); box-shadow: 0 1px 3px rgba(0,0,0,0.15); scroll-snap-align: start; transition: transform 0.15s; }
-    .dn-card-featured:active { transform: scale(0.97); }
-    .dn-card-featured img { width: 100%; height: 100%; object-fit: cover; opacity: 0.75; }
-    .dn-card-featured-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 55%); padding: 16px; display: flex; flex-direction: column; justify-content: flex-end; }
-    .dn-card-featured h3 { margin: 0; font-size: 16px; font-weight: 500; color: #fff; font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .dn-cat-badge { font-size: 11px; font-weight: 500; text-transform: uppercase; color: rgba(255,255,255,0.85); margin-bottom: 6px; display: block; }
+    /* CATEGORY CHIPS BAR (home) */
+    .dn-home-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); scrollbar-width: none; -ms-overflow-style: none; }
+    .dn-home-chips::-webkit-scrollbar { display: none; }
+    .dn-home-chip { flex-shrink: 0; padding: 8px 16px; border-radius: 16px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-chip-inactive-bg); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
+    .dn-home-chip.active { background: var(--color-chip-active-bg); color: var(--color-chip-active-text); }
+
+    /* FEED CONTAINER */
+    .dn-feed { background: var(--color-background); }
+
+    /* HERO CARD (prima notizia) */
+    .dn-card-hero { cursor: pointer; background: var(--color-card); border-bottom: 1px solid var(--color-divider); }
+    .dn-card-hero:active { opacity: 0.8; }
+    .dn-card-hero-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; }
+    .dn-card-hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .dn-card-hero-body { padding: 12px 16px 16px; }
+    .dn-card-hero-title { margin: 0 0 4px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
     /* LIST CARDS */
-    .dn-card-list { display: flex; gap: 12px; padding: 16px; border-radius: 8px; background: var(--color-card); box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; align-items: flex-start; transition: opacity 0.15s; margin-bottom: 8px; }
-    .dn-card-list:active { opacity: 0.7; }
-    .dn-card-list img { width: 96px; height: 96px; object-fit: cover; border-radius: 4px; flex-shrink: 0; order: 2; }
-    .dn-card-body { flex: 1; min-width: 0; order: 1; }
-    .dn-card-meta { display: flex; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; align-items: center; }
-    .dn-cat-label { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); }
-    .dn-city-label { font-size: 12px; color: var(--color-text-secondary); }
-    .dn-card-body h3 { margin: 0; font-size: 16px; font-weight: 500; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .dn-time { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; display: block; }
+    .dn-card-list { display: flex; gap: 12px; padding: 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); cursor: pointer; align-items: flex-start; transition: background 0.1s; }
+    .dn-card-list:active { background: #F8F9FA; }
+    .dn-card-list > img { width: 96px; height: 96px; object-fit: cover; border-radius: 0; flex-shrink: 0; }
+    .dn-card-body { flex: 1; min-width: 0; }
+    .dn-card-body h3 { margin: 0 0 4px; font-size: 16px; font-weight: 500; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-    /* CHIPS */
-    .dn-chips-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 16px; }
-    .dn-chip { flex-shrink: 0; padding: 7px 16px; border-radius: 20px; border: 1px solid var(--color-divider); cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-card); color: var(--color-text-secondary); transition: all 0.2s; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-chip.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+    /* CARD METADATA (favicon + fonte • tempo fa) */
+    .dn-card-meta { display: flex; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+    .dn-favicon { width: 16px; height: 16px; border-radius: 2px; margin-right: 4px; vertical-align: middle; flex-shrink: 0; }
+    .dn-source { font-size: 12px; font-weight: 500; color: var(--color-text); }
+    .dn-dot { font-size: 12px; color: var(--color-text-secondary); margin: 0 3px; }
+    .dn-time { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); }
+
+    /* CHIPS (tab Città) */
+    .dn-chips-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px 16px; scrollbar-width: none; -ms-overflow-style: none; }
+    .dn-chips-scroll::-webkit-scrollbar { display: none; }
+    .dn-chip { flex-shrink: 0; padding: 8px 16px; border-radius: 16px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-chip-inactive-bg); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-chip.active { background: var(--color-chip-active-bg); color: var(--color-chip-active-text); }
 
     /* CATEGORY GRID */
     .dn-cat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 0 16px 20px; }
-    .dn-cat-tile { padding: 14px 8px; border-radius: 8px; border: 1px solid var(--color-divider); cursor: pointer; font-size: 12px; font-weight: 500; line-height: 1.3; background: var(--color-card); color: var(--color-text); transition: all 0.2s; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-cat-tile.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+    .dn-cat-tile { padding: 14px 8px; border-radius: 8px; border: 1px solid var(--color-divider); cursor: pointer; font-size: 12px; font-weight: 500; line-height: 1.3; background: var(--color-card); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-cat-tile.active { background: var(--color-chip-active-bg); border-color: var(--color-primary); color: var(--color-primary); }
     .dn-cat-icon { display: block; font-size: 20px; margin-bottom: 4px; }
 
     /* SEARCH */
     .dn-search-wrap { position: relative; }
     .dn-search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--color-text-secondary); display: flex; }
-    #dn-search-input { width: 100%; padding: 12px 14px 12px 46px; border-radius: 24px; border: 1px solid var(--color-divider); background: var(--color-card); font-size: 16px; outline: none; font-family: 'Roboto', Arial, sans-serif; box-sizing: border-box; color: var(--color-text); }
-    #dn-search-input:focus { border-color: var(--color-primary); }
+    #dn-search-input { width: 100%; padding: 12px 14px 12px 46px; border-radius: 24px; border: 1px solid var(--color-divider); background: #F1F3F4; font-size: 16px; outline: none; font-family: 'Roboto', Arial, sans-serif; box-sizing: border-box; color: var(--color-text); }
+    #dn-search-input:focus { border-color: var(--color-primary); background: var(--color-card); }
 
     /* EMPTY */
     .dn-empty { color: var(--color-text-secondary); text-align: center; font-size: 15px; }
 
     /* ARTICLE DETAIL */
-    .dn-detail { min-height: 100vh; background: var(--color-background); padding-bottom: 130px; }
+    .dn-detail { min-height: 100vh; background: var(--color-background); padding-bottom: 80px; }
     .dn-detail-header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-divider); }
     .dn-back-btn { background: none; border: none; cursor: pointer; color: var(--color-primary); display: flex; align-items: center; gap: 4px; font-size: 15px; font-weight: 500; padding: 0; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-detail-img-wrap { position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; height: auto; }
-    .dn-detail-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .dn-detail-img-wrap { position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; }
+    .dn-detail-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .dn-detail-img-fade { position: absolute; inset: 0; background: linear-gradient(to top, var(--color-background) 0%, transparent 50%); }
     .dn-detail-body { padding: 0 16px; margin-top: -20px; }
     .dn-badges { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -397,25 +445,22 @@
     .dn-detail-title { margin: 0 0 12px; font-size: 28px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.2; }
     .dn-detail-byline { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--color-divider); }
     .dn-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; flex-shrink: 0; }
-    .dn-byline-name { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); }
+    .dn-byline-name { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); display: flex; align-items: center; gap: 4px; }
     .dn-byline-date { font-size: 13px; color: var(--color-text-secondary); }
     .dn-detail-content { font-size: 17px; line-height: 1.65; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
     .dn-detail-content p { margin: 0 0 16px; }
     .dn-detail-content strong { color: var(--color-text); font-weight: 700; }
-    .dn-local-context { background: #e8f0fe; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
+    .dn-local-context { background: #E8F0FE; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
 
-    /* CITY MORE LINK */
+    /* SECTION LABEL (usato in buildCities) */
+    .dn-section-label { font-size: 11px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: var(--color-text-secondary); padding-left: 16px; margin-bottom: 8px; }
     .dn-city-more { background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 13px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; padding: 0; }
     .dn-city-more:active { opacity: 0.7; }
 
-    /* AD SLOTS */
-    .dn-ad-sticky { position: fixed; bottom: 65px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; height: 50px; background: var(--color-text); z-index: 99; display: flex; align-items: center; justify-content: center; }
-
     /* BOTTOM NAV */
-    .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--color-card); border-top: 1px solid var(--color-divider); display: flex; padding: 0; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
-    .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; border-top: 2px solid transparent; cursor: pointer; padding: 10px 0 8px; color: var(--color-text-secondary); transition: color 0.2s; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-nav-tab.active { color: var(--color-primary); border-top: 2px solid var(--color-primary); }
-    .dn-nav-dot { display: none; }
+    .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--color-card); border-top: 1px solid var(--color-divider); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
+    .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; cursor: pointer; padding: 10px 0 8px; color: var(--color-text-secondary); transition: color 0.15s; font-size: 10px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-nav-tab.active { color: var(--color-primary); }
   `;
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
@@ -436,10 +481,10 @@
       return;
     }
 
-    if (state.tab === 'home')       content = buildHome();
-    if (state.tab === 'cities')     content = buildCities();
-    if (state.tab === 'categories') content = buildCategories();
-    if (state.tab === 'search')     content = buildSearch();
+    if (state.tab === 'home')     content = buildHome();
+    if (state.tab === 'news')     content = buildNews();
+    if (state.tab === 'saved')    content = buildSaved();
+    if (state.tab === 'search')   content = buildSearch();
 
     root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildNav()}</div>`;
     attachEvents();
@@ -475,9 +520,11 @@
       });
     });
 
-    // Home city "vedi tutte" links
-    document.querySelectorAll('[data-goto-city]').forEach(el => {
-      el.addEventListener('click', () => setState({ tab: 'cities', selectedCity: el.dataset.gotoCity }));
+    // Home category chips
+    document.querySelectorAll('[data-home-cat]').forEach(el => {
+      el.addEventListener('click', () => {
+        setState({ homeCat: el.dataset.homeCat });
+      });
     });
 
     // Search input
@@ -485,7 +532,7 @@
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         state.searchQuery = e.target.value;
-        render(); // re-render senza ricreare lo stato
+        render();
       });
       searchInput.focus();
     }
