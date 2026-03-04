@@ -168,8 +168,56 @@ function dnap_scrape_meta(string $url): array {
         'title'       => '',
     ];
 
+    // Risoluzione redirect per Google News (prima di qualsiasi scraping)
+    if (strpos($url, 'news.google.com') !== false) {
+        $gr = wp_remote_get($url, [
+            'timeout'     => 20,
+            'redirection' => 5,
+            'sslverify'   => false,
+            'user-agent'  => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
+            'headers'     => ['Accept-Language' => 'it-IT,it;q=0.9'],
+        ]);
+        if (!is_wp_error($gr)) {
+            $resolved = '';
+            // 1. effectiveUrl dalla libreria Requests (URL finale dopo tutti i redirect)
+            $http_obj = $gr['http_response'] ?? null;
+            if ($http_obj instanceof WP_HTTP_Requests_Response) {
+                $eff = $http_obj->get_response_object()->url;
+                if ($eff && strpos($eff, 'google.com') === false && filter_var($eff, FILTER_VALIDATE_URL)) {
+                    $resolved = esc_url_raw($eff);
+                }
+            }
+            // 2. Location header (ultimo redirect non seguito)
+            if (!$resolved) {
+                $loc = wp_remote_retrieve_header($gr, 'location');
+                if ($loc && strpos($loc, 'google.com') === false && filter_var($loc, FILTER_VALIDATE_URL)) {
+                    $resolved = esc_url_raw($loc);
+                }
+            }
+            // 3. canonical nel body della risposta
+            if (!$resolved) {
+                $body = wp_remote_retrieve_body($gr);
+                if (preg_match('/<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']/', $body, $m)) {
+                    $found = html_entity_decode($m[1]);
+                    if (strpos($found, 'google.com') === false && filter_var($found, FILTER_VALIDATE_URL)) {
+                        $resolved = esc_url_raw($found);
+                    }
+                }
+            }
+            if ($resolved) {
+                $url = $resolved;
+                $result['canonical'] = $url;
+                dnap_log("Google News risolto → {$url}");
+            }
+        }
+    }
+
+    // Non procedere con URL ancora Google (news non risolto o altri URL google.com)
     $host = parse_url($url, PHP_URL_HOST);
-    if ($host && strpos($host, 'google.com') !== false) return $result;
+    if ($host && strpos($host, 'google.com') !== false) {
+        dnap_log("URL Google non risolto, skip scraping: {$url}");
+        return $result;
+    }
 
     $response = wp_remote_get($url, [
         'timeout'    => 20,
