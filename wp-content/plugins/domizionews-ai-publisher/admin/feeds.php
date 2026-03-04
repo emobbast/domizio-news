@@ -1,36 +1,16 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-add_action('admin_menu', function(){
-    add_submenu_page(
-        'dnap-dashboard',
-        'Gestione Feed',
-        'Feed RSS',
-        'manage_options',
-        'dnap-feeds',
-        'dnap_feeds_page'
-    );
-});
+/*
+ * Gestione azioni toggle/delete su admin_init, PRIMA di qualsiasi output HTML.
+ * wp_redirect() deve essere chiamato prima che WordPress invii gli header della pagina;
+ * farlo dentro la callback di rendering (dnap_feeds_page) è troppo tardi.
+ */
+add_action('admin_init', function () {
+    if (!isset($_GET['page']) || $_GET['page'] !== 'dnap-feeds') return;
+    if (!current_user_can('manage_options')) return;
 
-function dnap_feeds_page() {
-
-    $feeds = get_option('dnap_feeds', array());
-
-    // Aggiungi feed
-    if (isset($_POST['new_feed']) && check_admin_referer('dnap_add_feed')) {
-        $url = esc_url_raw(trim($_POST['url']));
-        if ($url) {
-            $feeds[] = array(
-                'url'       => $url,
-                'city_slug' => sanitize_title(isset($_POST['city_slug']) ? $_POST['city_slug'] : ''),
-                'cat_id'    => intval(isset($_POST['cat_id']) ? $_POST['cat_id'] : 0),
-                'active'    => 1,
-            );
-            update_option('dnap_feeds', $feeds);
-            dnap_log("Feed aggiunto: {$url}");
-            echo '<div class="notice notice-success"><p>Feed aggiunto.</p></div>';
-        }
-    }
+    $feeds = get_option('dnap_feeds', []);
 
     // Attiva/disattiva
     if (isset($_GET['toggle']) && check_admin_referer('dnap_toggle_' . $_GET['toggle'])) {
@@ -54,6 +34,44 @@ function dnap_feeds_page() {
         wp_redirect(admin_url('admin.php?page=dnap-feeds'));
         exit;
     }
+});
+
+add_action('admin_menu', function(){
+    add_submenu_page(
+        'dnap-dashboard',
+        'Gestione Feed',
+        'Feed RSS',
+        'manage_options',
+        'dnap-feeds',
+        'dnap_feeds_page'
+    );
+});
+
+function dnap_feeds_page() {
+    // ob_start() come safety net: cattura eventuale output accidentale
+    // prima che wp_redirect() possa essere chiamato (e.g. da hook aggiuntivi).
+    ob_start();
+
+    $feeds = get_option('dnap_feeds', array());
+
+    // Aggiungi feed (gestito qui perché mostra un notice inline, non fa redirect)
+    if (isset($_POST['new_feed']) && check_admin_referer('dnap_add_feed')) {
+        $url = esc_url_raw(trim($_POST['url']));
+        if ($url) {
+            $feeds[] = array(
+                'url'       => $url,
+                'city_slug' => sanitize_title(isset($_POST['city_slug']) ? $_POST['city_slug'] : ''),
+                'cat_id'    => intval(isset($_POST['cat_id']) ? $_POST['cat_id'] : 0),
+                'active'    => 1,
+            );
+            update_option('dnap_feeds', $feeds);
+            dnap_log("Feed aggiunto: {$url}");
+            echo '<div class="notice notice-success"><p>Feed aggiunto.</p></div>';
+        }
+    }
+
+    // Nota: toggle e delete vengono gestiti in admin_init (prima di qualsiasi output)
+    // tramite l'hook registrato sopra; non servono qui.
 
     $cities     = get_terms(array('taxonomy' => 'city', 'hide_empty' => false));
     $categories = get_categories(array('hide_empty' => false, 'orderby' => 'name'));
