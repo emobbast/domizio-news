@@ -90,6 +90,18 @@
       </div>`;
   }
 
+  function buildCityAd() {
+    return `
+      <div class="dn-ad-slot" data-slot="city-ad" style="
+        background:#f5f2ef;border:1.5px solid #e8a87c;border-radius:10px;
+        height:90px;display:flex;flex-direction:column;align-items:center;
+        justify-content:center;margin:8px 20px;gap:4px;
+      ">
+        <span style="font-size:9px;color:#bbb;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;">SPONSORIZZATO</span>
+        <span style="font-size:13px;color:#999;">Pubblicità</span>
+      </div>`;
+  }
+
   // ─── HTML BUILDERS ──────────────────────────────────────────────────────────
   function buildArticleCard(post, featured = false) {
     const img  = post.image || '';
@@ -124,7 +136,27 @@
 
   function buildHome() {
     const featured = state.posts.slice(0, 3);
-    const rest     = state.posts.slice(3);
+
+    let citySections = '';
+    let cityCount = 0;
+    state.cities.forEach(city => {
+      const cityPosts = state.posts.filter(p => p.cities?.some(c => c.slug === city.slug));
+      if (cityPosts.length === 0) return;
+      cityCount++;
+      if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
+        citySections += buildCityAd();
+      }
+      const shown = cityPosts.slice(0, 3);
+      citySections += `
+        <div class="dn-section-label" style="margin: 20px 20px 8px">📍 ${city.name}</div>
+        <div class="dn-list" style="padding: 0 20px">
+          ${shown.map(p => buildArticleCard(p)).join('')}
+        </div>
+        <div style="padding: 4px 20px 12px; text-align: right">
+          <button class="dn-city-more" data-goto-city="${city.slug}">→ Vedi tutte le notizie di ${city.name}</button>
+        </div>`;
+    });
+
     return `
       <div class="dn-screen" id="screen-home">
         <div class="dn-top-header">
@@ -138,15 +170,7 @@
         <div class="dn-featured-scroll">
           ${featured.map(p => buildArticleCard(p, true)).join('')}
         </div>
-        <div class="dn-section-label" style="margin: 20px 20px 0">📰 Ultime notizie</div>
-        <div class="dn-list" style="padding: 0 20px">
-          ${rest.reduce((html, p, i) => {
-            const pos = i + 1;
-            html += buildArticleCard(p);
-            if (pos % 4 === 0) html += buildNativeAd(pos % 8 === 0 ? 2 : 1);
-            return html;
-          }, '')}
-        </div>
+        ${citySections}
       </div>`;
   }
 
@@ -370,6 +394,10 @@
     .dn-detail-content strong { color: #1a1a2e; }
     .dn-local-context { background: #f0f8e8; border-left: 3px solid #5a8a3c; padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
 
+    /* CITY MORE LINK */
+    .dn-city-more { background: none; border: none; cursor: pointer; color: #b5541a; font-size: 13px; font-weight: 600; font-family: inherit; padding: 0; }
+    .dn-city-more:active { opacity: 0.7; }
+
     /* AD SLOTS */
     .dn-ad-sticky { position: fixed; bottom: 65px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; height: 50px; background: #1a1a2e; z-index: 99; display: flex; align-items: center; justify-content: center; }
 
@@ -435,6 +463,11 @@
         const slug = el.dataset.cat;
         setState({ selectedCat: state.selectedCat === slug ? '' : slug });
       });
+    });
+
+    // Home city "vedi tutte" links
+    document.querySelectorAll('[data-goto-city]').forEach(el => {
+      el.addEventListener('click', () => setState({ tab: 'cities', selectedCity: el.dataset.gotoCity }));
     });
 
     // Search input
