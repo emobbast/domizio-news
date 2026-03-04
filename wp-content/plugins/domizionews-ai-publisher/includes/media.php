@@ -10,6 +10,7 @@ if (!defined('ABSPATH')) exit;
  *   3. Immagine nel contenuto HTML del feed
  *   4. og:image della pagina sorgente (fondamentale per Google News)
  *   5. Prima <img> nel body della pagina sorgente
+ *   6. Immagine di fallback per categoria (Unsplash, ultimo tentativo)
  */
 function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $image_url = '') {
 
@@ -66,9 +67,32 @@ function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $ima
         }
     }
 
+    // 6. Immagine di fallback per categoria
     if (!$img_url) {
-        dnap_log("Immagine non trovata per post [{$post_id}]");
-        return;
+        $category_images = [
+            'sport'               => 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800',
+            'cronaca'             => 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800',
+            'ambiente-mare'       => 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
+            'eventi-cultura'      => 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800',
+            'economia-lavoro'     => 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800',
+            'politica'            => 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800',
+            'incidenti-sicurezza' => 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?w=800',
+        ];
+        $default_image = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800';
+
+        $categories  = get_the_category($post_id);
+        $matched_slug = 'default';
+        foreach ($categories as $cat) {
+            if (isset($category_images[$cat->slug])) {
+                $matched_slug = $cat->slug;
+                $img_url      = $category_images[$cat->slug];
+                break;
+            }
+        }
+        if (!$img_url) {
+            $img_url = $default_image;
+        }
+        dnap_log("Immagine fallback categoria: {$matched_slug}");
     }
 
     dnap_log("Immagine trovata: " . mb_substr($img_url, 0, 80));
