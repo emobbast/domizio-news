@@ -336,6 +336,7 @@ function dnap_is_local_content(string $text): bool {
         'cellole', 'borgo centore', 'san limato', 'falciano del massico', 'falciano',
         'carinola', 'ventaroli', 'varano', 'maiorano di monte', 'sessa aurunca',
         'piedimonte massicano', 'litorale domizio', 'litorale domitio',
+        'giovanni zannini', 'zannini',
     ];
     $lower = mb_strtolower($text);
     foreach ($keywords as $kw) {
@@ -353,6 +354,8 @@ function dnap_is_local_content(string $text): bool {
    ============================================================ */
 function dnap_get_cities_from_text(string $text): array {
     $map = [
+        'giovanni zannini'     => 'mondragone',
+        'zannini'              => 'mondragone',
         'falciano del massico' => 'falciano-del-massico',
         'villaggio coppola'    => 'castel-volturno',
         'maiorano di monte'    => 'carinola',
@@ -383,6 +386,23 @@ function dnap_get_cities_from_text(string $text): array {
         }
     }
     return $slugs;
+}
+
+/* ============================================================
+   SOGGETTI VIP — post in evidenza (sticky)
+   Restituisce true se il testo contiene un personaggio/soggetto
+   di rilievo per cui il post va messo in primo piano.
+   ============================================================ */
+function dnap_is_featured_subject(string $text): bool {
+    $keywords = [
+        'giovanni zannini',
+        'zannini',
+    ];
+    $lower = mb_strtolower($text);
+    foreach ($keywords as $kw) {
+        if (strpos($lower, $kw) !== false) return true;
+    }
+    return false;
 }
 
 /* ============================================================
@@ -518,6 +538,14 @@ function dnap_import_now() {
             update_post_meta($post_id, '_source_url',      $source_url);
             update_post_meta($post_id, '_source_hash',     $hash);
             update_post_meta($post_id, '_meta_description', sanitize_textarea_field($rewritten['meta_description'] ?? ''));
+
+            // Post in evidenza (sticky) per soggetti VIP
+            $subject_text = $title_raw . ' ' . $feed_text . ' ' . $meta['description'];
+            if (dnap_is_featured_subject($subject_text)) {
+                update_post_meta($post_id, '_is_sticky', 1);
+                stick_post($post_id);
+                dnap_log("⭐ Post in evidenza: {$rewritten['title']}");
+            }
 
             // Immagine in evidenza: priorità og:image dallo scraping
             $image_url = !empty($meta['image']) ? $meta['image'] : '';
