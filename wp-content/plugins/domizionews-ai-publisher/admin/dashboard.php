@@ -1,6 +1,65 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+/*
+ * Tutte le azioni POST/GET gestite su admin_init, PRIMA degli header HTTP.
+ * Pattern Post/Redirect/Get: ogni azione fa redirect con ?dnap_notice=<key>,
+ * che la page callback mostra come notice. Questo evita "headers already sent"
+ * e permette F5 sicuro senza ri-eseguire l'azione.
+ */
+add_action('admin_init', function () {
+    if (!isset($_GET['page']) || $_GET['page'] !== 'dnap-dashboard') return;
+    if (!current_user_can('manage_options')) return;
+
+    // Salva API key
+    // hidden field "save_settings" distingue questo form dagli altri POST
+    if (isset($_POST['save_settings']) && check_admin_referer('dnap_save_settings')) {
+        update_option('dnap_api_key', sanitize_text_field(trim($_POST['api_key'] ?? '')));
+        wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=settings_saved'));
+        exit;
+    }
+
+    // Import manuale
+    // FIX: "import_now" è ora su un campo hidden, non sul submit disabilitato via onclick.
+    // Un <input type="submit" disabled> non viene incluso nel POST; il campo hidden sì.
+    if (isset($_POST['import_now']) && check_admin_referer('dnap_import')) {
+        dnap_import_now();
+        wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=import_done'));
+        exit;
+    }
+
+    // Svuota log
+    if (isset($_POST['clear_log']) && check_admin_referer('dnap_clear_log')) {
+        dnap_clear_log();
+        wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=log_cleared'));
+        exit;
+    }
+
+    // Test API key
+    if (isset($_POST['test_api']) && check_admin_referer('dnap_test_api')) {
+        $test   = dnap_call_gpt('Rispondi solo con: {"ok":true}', 20);
+        $parsed = $test ? dnap_parse_gpt_json($test) : null;
+        $result = ($parsed && !empty($parsed['ok'])) ? 'api_ok' : 'api_fail';
+        wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=' . $result));
+        exit;
+    }
+
+    // Reschedule cron
+    if (isset($_POST['reschedule_cron']) && check_admin_referer('dnap_reschedule')) {
+        wp_clear_scheduled_hook('dnap_cron_import');
+        wp_schedule_event(time(), 'hourly', 'dnap_cron_import');
+        wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=cron_rescheduled'));
+        exit;
+    }
+
+    // Sblocca import: cancella il transient bloccato
+    if (isset($_GET['dnap_unlock']) && check_admin_referer('dnap_unlock_import')) {
+        delete_transient('dnap_running');
+        wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=import_unlocked'));
+        exit;
+    }
+});
+
 add_action('admin_menu', function(){
     add_menu_page(
         'Domizio News',
@@ -14,42 +73,31 @@ add_action('admin_menu', function(){
 });
 
 function dnap_dashboard() {
+    ob_start();
 
-    // Salva API key
-    if (isset($_POST['api_key']) && check_admin_referer('dnap_save_settings')) {
-        update_option('dnap_api_key', sanitize_text_field(trim($_POST['api_key'])));
-        echo '<div class="notice notice-success"><p>✅ API Key salvata.</p></div>';
-    }
-
-    // Import manuale
-    if (isset($_POST['import_now']) && check_admin_referer('dnap_import')) {
-        dnap_import_now();
-        echo '<div class="notice notice-success"><p>✅ Import completato. Vedi il log sotto.</p></div>';
-    }
-
-    // Svuota log
-    if (isset($_POST['clear_log']) && check_admin_referer('dnap_clear_log')) {
-        dnap_clear_log();
-        echo '<div class="notice notice-info"><p>🗑️ Log svuotato.</p></div>';
-    }
-
-    // Test API key
-    if (isset($_POST['test_api']) && check_admin_referer('dnap_test_api')) {
-        $test = dnap_call_gpt('Rispondi solo con: {"ok":true}', 20);
-        $parsed = $test ? dnap_parse_gpt_json($test) : null;
-        if ($parsed && !empty($parsed['ok'])) {
-            echo '<div class="notice notice-success"><p>✅ API Key valida! Connessione OpenAI funzionante.</p></div>';
-        } else {
-            echo '<div class="notice notice-error"><p>❌ API Key non valida o errore di rete. Controlla il log.</p></div>';
-        }
-    }
-
-    $api_key     = get_option('dnap_api_key', '');
-    $last_import = get_option('dnap_last_import', null);
-    $next_cron   = wp_next_scheduled('dnap_cron_import');
-    $feeds       = get_option('dnap_feeds', []);
+    $api_key      = get_option('dnap_api_key', '');
+    $last_import  = get_option('dnap_last_import', null);
+    $next_cron    = wp_next_scheduled('dnap_cron_import');
+    $feeds        = get_option('dnap_feeds', []);
     $active_feeds = array_filter($feeds, function($f) { return !empty($f['active']); });
-    $log_entries = dnap_get_log();
+    $log_entries  = dnap_get_log();
+    $import_locked = (bool) get_transient('dnap_running');
+
+    // Mappa notice → [tipo, messaggio]
+    $notice_map = [
+        'settings_saved'   => ['success', '✅ API Key salvata.'],
+        'import_done'      => ['success', '✅ Import completato. Vedi il log sotto.'],
+        'log_cleared'      => ['info',    '🗑️ Log svuotato.'],
+        'api_ok'           => ['success', '✅ API Key valida! Connessione OpenAI funzionante.'],
+        'api_fail'         => ['error',   '❌ API Key non valida o errore di rete. Controlla il log.'],
+        'cron_rescheduled' => ['success', '✅ Cron riprogrammato!'],
+        'import_unlocked'  => ['success', '✅ Lock rimosso. Puoi avviare un nuovo import.'],
+    ];
+    $notice_key = isset($_GET['dnap_notice']) ? sanitize_key($_GET['dnap_notice']) : '';
+    if ($notice_key && isset($notice_map[$notice_key])) {
+        [$type, $msg] = $notice_map[$notice_key];
+        echo "<div class='notice notice-{$type} is-dismissible'><p>{$msg}</p></div>";
+    }
 
     ?>
     <div class="wrap">
@@ -106,14 +154,18 @@ function dnap_dashboard() {
         <?php wp_nonce_field('dnap_reschedule'); ?>
         <input type="hidden" name="reschedule_cron" value="1">
     </form>
-    <?php
-    // Gestisci reschedule
-    if (isset($_POST['reschedule_cron']) && check_admin_referer('dnap_reschedule')) {
-        wp_clear_scheduled_hook('dnap_cron_import');
-        wp_schedule_event(time(), 'hourly', 'dnap_cron_import');
-        echo '<div class="notice notice-success"><p>✅ Cron riprogrammato!</p></div>';
-    }
-    ?>
+    <?php endif; ?>
+
+    <!-- SE IL LOCK IMPORT È BLOCCATO: WARNING + LINK SBLOCCO -->
+    <?php if ($import_locked) : ?>
+    <div class="notice notice-warning">
+        <p>
+            <strong>⚠️ Import in corso o lock bloccato.</strong>
+            Il bottone "Importa Ora" non si attiverà finché il lock è attivo (max 10 min).
+            Se un import precedente è crashato,
+            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=dnap-dashboard&dnap_unlock=1'), 'dnap_unlock_import')); ?>">sblocca subito</a>.
+        </p>
+    </div>
     <?php endif; ?>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px;">
@@ -126,6 +178,7 @@ function dnap_dashboard() {
                 <h2 style="margin-top:0;">🔑 Configurazione OpenAI</h2>
                 <form method="post">
                     <?php wp_nonce_field('dnap_save_settings'); ?>
+                    <input type="hidden" name="save_settings" value="1">
                     <table class="form-table" style="margin:0;">
                         <tr>
                             <th><label for="api_key">API Key</label></th>
@@ -157,7 +210,10 @@ function dnap_dashboard() {
                 </p>
                 <form method="post">
                     <?php wp_nonce_field('dnap_import'); ?>
-                    <input type="submit" name="import_now" class="button button-secondary"
+                    <?php /* FIX: "import_now" su campo hidden — il submit disabilitato via onclick
+                              non viene inviato dal browser, ma il campo hidden sì. */ ?>
+                    <input type="hidden" name="import_now" value="1">
+                    <input type="submit" class="button button-secondary"
                            value="▶ Importa Ora"
                            onclick="this.value='⏳ Importazione in corso...';this.disabled=true;this.form.submit();">
                 </form>
@@ -192,7 +248,6 @@ function dnap_dashboard() {
                     <?php else : ?>
                         <?php foreach ($log_entries as $entry) :
                             $msg = esc_html($entry['msg']);
-                            // Colora le righe in base al tipo
                             if (strpos($msg, '✅') !== false)      $color = '#3fb950';
                             elseif (strpos($msg, '❌') !== false)  $color = '#f85149';
                             elseif (strpos($msg, '⚠️') !== false) $color = '#d29922';
