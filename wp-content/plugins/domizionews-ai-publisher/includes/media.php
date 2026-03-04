@@ -4,25 +4,33 @@ if (!defined('ABSPATH')) exit;
 /**
  * Cerca e imposta l'immagine in evidenza.
  * Strategia (in ordine di priorità):
+ *   0. $image_url passato direttamente (priorità massima, salta tutte le altre)
  *   1. Enclosure nel feed RSS
  *   2. media:thumbnail nel feed
  *   3. Immagine nel contenuto HTML del feed
- *   4. og:image della pagina sorgente  ← NUOVO (fondamentale per Google News)
- *   5. Prima <img> nel body della pagina sorgente ← NUOVO
+ *   4. og:image della pagina sorgente (fondamentale per Google News)
+ *   5. Prima <img> nel body della pagina sorgente
  */
-function dnap_set_featured_image($post_id, $title, $item, $source_url = '') {
+function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $image_url = '') {
 
     $img_url = '';
 
+    // 0. URL immagine passato direttamente (priorità massima)
+    if (!empty($image_url) && dnap_is_valid_image_url($image_url)) {
+        $img_url = $image_url;
+    }
+
     // 1. Enclosure RSS
-    $enclosures = $item->get_enclosures();
-    if ($enclosures) {
-        foreach ($enclosures as $enc) {
-            $type = $enc->get_type();
-            $type = $type ? $type : '';
-            if (strpos($type, 'image') !== false) {
-                $img_url = $enc->get_link();
-                break;
+    if (!$img_url) {
+        $enclosures = $item->get_enclosures();
+        if ($enclosures) {
+            foreach ($enclosures as $enc) {
+                $type = $enc->get_type();
+                $type = $type ? $type : '';
+                if (strpos($type, 'image') !== false) {
+                    $img_url = $enc->get_link();
+                    break;
+                }
             }
         }
     }
