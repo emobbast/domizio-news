@@ -6,7 +6,8 @@
   // ─── CONFIG: legge da window.DNAPP_CONFIG iniettato da WordPress ────────────
   const CFG = window.DNAPP_CONFIG || {};
   const API = CFG.wpBase ? CFG.wpBase.replace(/\/$/, '') : '';
-  const CUSTOM_API = API.replace('/wp/v2', '') + '/dnapp/v1';
+  const CUSTOM_API  = API.replace('/wp/v2', '') + '/dnapp/v1';
+  const STICKY_API  = API.replace('/wp/v2', '') + '/domizio/v1/sticky-news';
 
   // ─── UTILS ──────────────────────────────────────────────────────────────────
   function timeAgo(date) {
@@ -32,6 +33,7 @@
     posts: [],
     cities: [],
     categories: [],
+    stickyNews: [],
     loading: true,
     searchQuery: '',
     selectedCity: '',
@@ -46,16 +48,19 @@
   // ─── API ────────────────────────────────────────────────────────────────────
   async function loadData() {
     try {
-      const [feedRes, configRes] = await Promise.all([
+      const [feedRes, configRes, stickyRes] = await Promise.all([
         fetch(CUSTOM_API + '/feed?per_page=20'),
         fetch(CUSTOM_API + '/config'),
+        fetch(STICKY_API),
       ]);
       const feed   = await feedRes.json();
       const config = await configRes.json();
+      const sticky = stickyRes.ok ? await stickyRes.json() : [];
       setState({
         posts:      feed.posts || [],
         cities:     config.cities || [],
         categories: config.categories || [],
+        stickyNews: Array.isArray(sticky) ? sticky : [],
         loading:    false,
       });
     } catch (e) {
@@ -145,32 +150,44 @@
   }
 
   // ─── SLIDER NOTIZIE IN EVIDENZA ──────────────────────────────────────────────
+  // Usa i dati da /wp-json/domizio/v1/sticky-news (una card per città).
+  // Fallback: ultime notizie generiche se l'endpoint non ha risposto.
   function buildSlider() {
-    const sliderPosts = state.posts.filter(p => p.sticky).slice(0, 5);
-    const posts = sliderPosts.length > 0 ? sliderPosts : state.posts.slice(0, 5);
-    if (posts.length === 0) return '';
+    const items = state.stickyNews.length > 0
+      ? state.stickyNews
+      : state.posts.slice(0, 5).map(p => ({
+          post_id:   p.id,
+          title:     p.title,
+          image:     p.image || '',
+          category:  p.categories?.[0]?.name || '',
+          city:      p.cities?.[0]?.name || '',
+          city_slug: p.cities?.[0]?.slug || '',
+          time_ago:  timeAgo(p.date),
+          permalink: p.link || '',
+          is_vip:    !!p.sticky,
+        }));
+
+    if (items.length === 0) return '';
+
     return `
       <div class="dn-slider-wrap">
         <div class="dn-slider" id="dn-slider">
-          ${posts.map(p => {
-            const cat  = p.categories?.[0];
-            const city = p.cities?.[0];
-            return `
-              <div class="dn-slider-card" data-post-id="${p.id}">
-                ${p.image ? `<div class="dn-slider-img"><img src="${p.image}" alt="" loading="lazy"></div>` : ''}
-                <div class="dn-slider-body">
-                  <div class="dn-card-badges">
-                    ${cat  ? `<span class="dn-cat-label">${cat.name}</span>` : ''}
-                    ${city ? `<span class="dn-city-label">${city.name}</span>` : ''}
-                  </div>
-                  <h3 class="dn-slider-title">${p.title}</h3>
-                  <span class="dn-time">${timeAgo(p.date)}</span>
+          ${items.map(item => `
+            <div class="dn-slider-card" data-sticky-href="${item.permalink}" data-post-id="${item.post_id}">
+              ${item.image ? `<div class="dn-slider-img"><img src="${item.image}" alt="" loading="lazy"></div>` : ''}
+              <div class="dn-slider-body">
+                <div class="dn-card-badges">
+                  ${item.category ? `<span class="dn-cat-label">${item.category}</span>` : ''}
+                  ${item.city     ? `<span class="dn-city-label">${item.city}</span>` : ''}
+                  ${item.is_vip   ? `<span class="dn-vip-badge">In evidenza</span>` : ''}
                 </div>
-              </div>`;
-          }).join('')}
+                <h3 class="dn-slider-title">${item.title}</h3>
+                <span class="dn-time">${item.time_ago}</span>
+              </div>
+            </div>`).join('')}
         </div>
         <div class="dn-slider-dots" id="dn-slider-dots">
-          ${posts.map((_, i) => `<span class="dn-dot ${i === 0 ? 'active' : ''}"></span>`).join('')}
+          ${items.map((_, i) => `<span class="dn-dot ${i === 0 ? 'active' : ''}"></span>`).join('')}
         </div>
       </div>`;
   }
@@ -388,6 +405,7 @@
     .dn-slider-dots { display: flex; gap: 4px; justify-content: center; padding: 10px 0 4px; }
     .dn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-divider); transition: background 0.2s; flex-shrink: 0; }
     .dn-dot.active { background: var(--color-primary); }
+    .dn-vip-badge { font-size: 10px; font-weight: 600; color: #fff; background: var(--color-primary); padding: 2px 7px; border-radius: 4px; letter-spacing: .3px; }
 
     /* SEZIONI CITTÀ */
     .dn-section-label { font-size: 15px; font-weight: 700; color: var(--color-text); padding: 16px 16px 8px; display: block; }
@@ -499,11 +517,16 @@
   }
 
   function attachEvents() {
-    // Article cards
+    // Article cards (feed + slider)
     document.querySelectorAll('[data-post-id]').forEach(el => {
       el.addEventListener('click', () => {
         const post = state.posts.find(p => p.id == el.dataset.postId);
-        if (post) setState({ selectedPost: post });
+        if (post) {
+          setState({ selectedPost: post });
+        } else if (el.dataset.stickyHref) {
+          // Post non nel feed locale: apri permalink
+          window.location.href = el.dataset.stickyHref;
+        }
       });
     });
 

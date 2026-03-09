@@ -83,6 +83,8 @@ function dnap_load_modules() {
     require_once DNAP_DIR . 'includes/core.php';
     require_once DNAP_DIR . 'includes/gpt.php';
     require_once DNAP_DIR . 'includes/media.php';
+    require_once DNAP_DIR . 'includes/admin.php';
+    require_once DNAP_DIR . 'includes/rest.php';
     require_once DNAP_DIR . 'admin/dashboard.php';
     require_once DNAP_DIR . 'admin/feeds.php';
 }

@@ -92,6 +92,8 @@ function dnap_dashboard() {
         'api_fail'         => ['error',   '❌ API Key non valida o errore di rete. Controlla il log.'],
         'cron_rescheduled' => ['success', '✅ Cron riprogrammato!'],
         'import_unlocked'  => ['success', '✅ Lock rimosso. Puoi avviare un nuovo import.'],
+        'tag_added'        => ['success', '⭐ Tag in evidenza aggiunto.'],
+        'tag_removed'      => ['info',    '🗑️ Tag in evidenza rimosso.'],
     ];
     $notice_key = isset($_GET['dnap_notice']) ? sanitize_key($_GET['dnap_notice']) : '';
     if ($notice_key && isset($notice_map[$notice_key])) {
@@ -200,6 +202,9 @@ function dnap_dashboard() {
                     <input type="submit" name="test_api" class="button" value="🧪 Testa Connessione">
                 </form>
             </div>
+
+            <!-- TAG IN EVIDENZA -->
+            <?php dnap_vip_tags_section(); ?>
 
             <!-- IMPORT MANUALE -->
             <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;">

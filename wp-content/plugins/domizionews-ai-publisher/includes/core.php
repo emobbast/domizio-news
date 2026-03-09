@@ -390,17 +390,15 @@ function dnap_get_cities_from_text(string $text): array {
 
 /* ============================================================
    SOGGETTI VIP — post in evidenza (sticky)
-   Restituisce true se il testo contiene un personaggio/soggetto
-   di rilievo per cui il post va messo in primo piano.
+   Restituisce true se il testo contiene almeno un tag da
+   'dnap_vip_tags' (wp_options). Case-insensitive.
    ============================================================ */
 function dnap_is_featured_subject(string $text): bool {
-    $keywords = [
-        'giovanni zannini',
-        'zannini',
-    ];
+    $keywords = get_option('dnap_vip_tags', ['zannini', 'giovanni zannini']);
+    if (empty($keywords)) return false;
     $lower = mb_strtolower($text);
     foreach ($keywords as $kw) {
-        if (strpos($lower, $kw) !== false) return true;
+        if ($kw !== '' && strpos($lower, mb_strtolower($kw)) !== false) return true;
     }
     return false;
 }
