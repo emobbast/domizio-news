@@ -38,6 +38,8 @@
     searchQuery: '',
     selectedCity: '',
     selectedCat: '',
+    cityFeed: [],           // post caricati server-side per la città selezionata
+    cityFeedLoading: false, // spinner mentre si aspetta la risposta
   };
 
   function setState(patch) {
@@ -46,6 +48,28 @@
   }
 
   // ─── API ────────────────────────────────────────────────────────────────────
+
+  // Carica post filtrati per città dal server.
+  // Usa ?city=SLUG sull'endpoint /dnapp/v1/feed (tax_query sulla taxonomy 'city').
+  // Slug corretti: mondragone · castel-volturno · baia-domizia · cellole
+  //               falciano-del-massico · carinola · sessa-aurunca
+  async function loadCityFeed(slug) {
+    if (!slug) {
+      setState({ cityFeed: [], cityFeedLoading: false });
+      return;
+    }
+    const url = CUSTOM_API + '/feed?city=' + encodeURIComponent(slug) + '&per_page=20';
+    console.log('[DomizioNews] fetch città:', url);
+    try {
+      const res  = await fetch(url);
+      const data = await res.json();
+      setState({ cityFeed: data.posts || [], cityFeedLoading: false });
+    } catch (e) {
+      console.error('[DomizioNews] errore fetch città:', e);
+      setState({ cityFeedLoading: false });
+    }
+  }
+
   async function loadData() {
     try {
       const [feedRes, configRes, stickyRes] = await Promise.all([
@@ -230,9 +254,21 @@
   }
 
   function buildCities() {
-    const filtered = state.selectedCity
-      ? state.posts.filter(p => p.cities?.some(c => c.slug === state.selectedCity))
-      : state.posts;
+    // Il feed per città viene caricato server-side (loadCityFeed) così vengono
+    // trovati anche i post di città piccole che non rientrano nei primi 20.
+    let feedHtml;
+    if (!state.selectedCity) {
+      feedHtml = state.posts.length === 0
+        ? `<p class="dn-empty" style="padding:40px 16px">Nessuna notizia disponibile.</p>`
+        : state.posts.map(p => buildArticleCard(p)).join('');
+    } else if (state.cityFeedLoading) {
+      feedHtml = `<p class="dn-empty" style="padding:40px 16px">Caricamento...</p>`;
+    } else if (state.cityFeed.length === 0) {
+      feedHtml = `<p class="dn-empty" style="padding:40px 16px">Nessun articolo per questa città.</p>`;
+    } else {
+      feedHtml = state.cityFeed.map(p => buildArticleCard(p)).join('');
+    }
+
     return `
       <div class="dn-screen">
         <div class="dn-page-header"><h2>Città</h2></div>
@@ -242,9 +278,7 @@
           `).join('')}
         </div>
         <div class="dn-feed">
-          ${filtered.length === 0
-            ? `<p class="dn-empty" style="padding:40px 16px">Nessun articolo per questa città.</p>`
-            : filtered.map(p => buildArticleCard(p)).join('')}
+          ${feedHtml}
         </div>
       </div>`;
   }
@@ -517,14 +551,17 @@
   }
 
   function attachEvents() {
-    // Article cards (feed + slider)
+    // Article cards (feed principale, city feed server-side, slider)
     document.querySelectorAll('[data-post-id]').forEach(el => {
       el.addEventListener('click', () => {
-        const post = state.posts.find(p => p.id == el.dataset.postId);
+        const id   = el.dataset.postId;
+        // Cerca nel feed principale e nel city feed (post non presenti nei 20 iniziali)
+        const post = state.posts.find(p => p.id == id)
+                  || state.cityFeed.find(p => p.id == id);
         if (post) {
           setState({ selectedPost: post });
         } else if (el.dataset.stickyHref) {
-          // Post non nel feed locale: apri permalink
+          // Post sticky non nel feed locale: apri permalink
           window.location.href = el.dataset.stickyHref;
         }
       });
@@ -535,11 +572,13 @@
       el.addEventListener('click', () => setState({ tab: el.dataset.tab }));
     });
 
-    // City chips (tab Città)
+    // City chips (tab Città) — fetch server-side per slug corretto
     document.querySelectorAll('[data-city]').forEach(el => {
       el.addEventListener('click', () => {
-        const slug = el.dataset.city;
-        setState({ selectedCity: state.selectedCity === slug ? '' : slug });
+        const slug    = el.dataset.city;
+        const newSlug = state.selectedCity === slug ? '' : slug;
+        setState({ selectedCity: newSlug, cityFeed: [], cityFeedLoading: !!newSlug });
+        loadCityFeed(newSlug);
       });
     });
 
@@ -571,9 +610,13 @@
       });
     });
 
-    // Home city "Vedi altro" links
+    // Home city "Vedi altro" links — passa alla tab Città e carica feed server-side
     document.querySelectorAll('[data-goto-city]').forEach(el => {
-      el.addEventListener('click', () => setState({ tab: 'cities', selectedCity: el.dataset.gotoCity }));
+      el.addEventListener('click', () => {
+        const slug = el.dataset.gotoCity;
+        setState({ tab: 'cities', selectedCity: slug, cityFeed: [], cityFeedLoading: true });
+        loadCityFeed(slug);
+      });
     });
 
     // Slider — aggiorna dots al scroll
