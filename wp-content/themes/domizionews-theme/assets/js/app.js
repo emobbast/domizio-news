@@ -152,26 +152,20 @@
   }
 
   // ─── AD SLOTS ────────────────────────────────────────────────────────────────
-  const AD_IMAGES = [
-    { img: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800', alt: 'Ristorante sul mare' },
-    { img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800', alt: 'Lido balneare' },
-    { img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800', alt: 'Offerta ristorante' },
-    { img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800', alt: 'Negozio locale' },
-  ];
-  let adIndex = 0;
-
-  function buildNativeAd() {
-    const ad = AD_IMAGES[adIndex % AD_IMAGES.length];
-    adIndex++;
+  function renderAdSlot(index) {
+    const ads = [
+      { img: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800', alt: 'Ristorante sul mare' },
+      { img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800', alt: 'Lido balneare' },
+      { img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800', alt: 'Offerta ristorante' },
+      { img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800', alt: 'Negozio locale' }
+    ];
+    const ad = ads[index % ads.length];
     return `
-      <div class="dn-ad-card">
-        <span class="dn-ad-badge">Sponsorizzato</span>
-        <img src="${ad.img}" alt="${ad.alt}" loading="lazy">
-      </div>`;
-  }
-
-  function buildCityAd() {
-    return buildNativeAd();
+      <div style="padding:16px;border-top:8px solid #F2F2F2;border-bottom:8px solid #F2F2F2;position:relative;">
+        <span style="position:absolute;top:20px;left:20px;background:#F2F2F2;color:#5F6368;font-size:11px;padding:2px 6px;border-radius:4px;z-index:1;">Sponsorizzato</span>
+        <img src="${ad.img}" alt="${ad.alt}" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;display:block;" />
+      </div>
+    `;
   }
 
   // ─── CARD BADGES ─────────────────────────────────────────────────────────────
@@ -334,6 +328,7 @@
       citySections = `<p class="dn-empty" style="padding:40px 16px">Caricamento...</p>`;
     } else {
       let cityCount = 0;
+      let adIdx = 0;
       state.cities.forEach(city => {
         // "Tutte" → homeCityPosts (caricati al boot per città)
         // Categoria specifica → homeCatPosts (raggruppati per città)
@@ -343,7 +338,7 @@
         if (cityPosts.length === 0) return; // città senza post in questa categoria: nascosta
         cityCount++;
         if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
-          citySections += buildCityAd();
+          citySections += renderAdSlot(adIdx++);
         }
         const shown = cityPosts.slice(0, 3);
         citySections += `
@@ -564,7 +559,7 @@
             </div>
           </div>
           <div class="dn-detail-content">${post.content}</div>
-          ${buildNativeAd()}
+          ${renderAdSlot(0)}
         </div>
       </div>`;
   }
@@ -774,7 +769,6 @@
     const root = document.getElementById('domizionews-root');
     if (!root) return;
 
-    adIndex = 0; // reset rotazione ad slot ad ogni render
     let content = '';
 
     if (state.loading) {
