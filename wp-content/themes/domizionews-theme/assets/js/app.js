@@ -39,8 +39,10 @@
     searchQuery: '',
     selectedCity: '',
     selectedCat: '',
-    activeHomeCity: '',     // slug chip attivo nella home ('' = Tutte)
-    homeCityPosts:  {},     // map slug → posts[] per le sezioni home
+    activeHomeCat:  '',     // slug chip categoria attivo nella home ('' = Tutte)
+    homeCityPosts:  {},     // map city-slug → posts[] caricati al boot per "Tutte"
+    homeCatPosts:   {},     // map city-slug → posts[] filtrati per categoria attiva
+    homeCatLoading: false,  // spinner mentre si caricano post per categoria
     cityFeed: [],           // post caricati server-side per la città selezionata (tab Città)
     cityFeedLoading: false, // spinner mentre si aspetta la risposta
   };
@@ -79,6 +81,33 @@
     } catch (e) {
       console.error('[DomizioNews] errore fetch città:', e);
       setState({ cityFeedLoading: false });
+    }
+  }
+
+  // Carica post filtrati per categoria (chip home).
+  // GET /wp-json/domizio/v1/posts?category=SLUG&per_page=50
+  // Raggruppa per city_slug per alimentare le sezioni home.
+  async function loadCategoryFeed(catSlug) {
+    if (!catSlug) {
+      setState({ activeHomeCat: '', homeCatPosts: {}, homeCatLoading: false });
+      return;
+    }
+    setState({ activeHomeCat: catSlug, homeCatLoading: true });
+    try {
+      const url  = DOMIZIO_API + '/posts?category=' + encodeURIComponent(catSlug) + '&per_page=50';
+      const data = await fetch(url).then(r => r.json()).catch(() => ({ posts: [] }));
+      const grouped = {};
+      (data.posts || []).forEach(p => {
+        const citySlug = p.cities?.[0]?.slug;
+        if (citySlug) {
+          if (!grouped[citySlug]) grouped[citySlug] = [];
+          if (grouped[citySlug].length < 3) grouped[citySlug].push(p);
+        }
+      });
+      setState({ homeCatPosts: grouped, homeCatLoading: false });
+    } catch (e) {
+      console.error('[DomizioNews] errore fetch categoria home:', e);
+      setState({ homeCatLoading: false });
     }
   }
 
@@ -176,23 +205,27 @@
       </div>`;
   }
 
-  // ─── CHIP MENU CITTÀ (home) ──────────────────────────────────────────────────
-  const HOME_CITIES = [
-    { slug: '',                     name: 'Tutte' },
-    { slug: 'mondragone',           name: 'Mondragone' },
-    { slug: 'castel-volturno',      name: 'Castel Volturno' },
-    { slug: 'baia-domizia',         name: 'Baia Domizia' },
-    { slug: 'cellole',              name: 'Cellole' },
-    { slug: 'falciano-del-massico', name: 'Falciano' },
-    { slug: 'carinola',             name: 'Carinola' },
-    { slug: 'sessa-aurunca',        name: 'Sessa Aurunca' },
+  // ─── CHIP CATEGORIE (home) ───────────────────────────────────────────────────
+  const HOME_CATEGORIES = [
+    { slug: '',                name: 'Tutte' },
+    { slug: 'cronaca',         name: 'Cronaca' },
+    { slug: 'sport',           name: 'Sport' },
+    { slug: 'politica',        name: 'Politica' },
+    { slug: 'economia',        name: 'Economia' },
+    { slug: 'ambiente',        name: 'Ambiente' },
+    { slug: 'eventi',          name: 'Eventi' },
+    { slug: 'salute',          name: 'Salute' },
+    { slug: 'food-gusto',      name: 'Food & Gusto' },
+    { slug: 'turismo-vacanze', name: 'Turismo & Vacanze' },
+    { slug: 'shopping',        name: 'Shopping' },
+    { slug: 'benessere',       name: 'Benessere' },
   ];
 
-  function buildCityChipsBar() {
+  function buildCategoryChipsBar() {
     return `
-      <div class="dn-home-chips" id="dn-city-chips">
-        ${HOME_CITIES.map(c => `
-          <button class="dn-home-chip ${state.activeHomeCity === c.slug ? 'active' : ''}" data-home-city="${c.slug}">${c.name}</button>
+      <div class="dn-home-chips" id="dn-cat-chips">
+        ${HOME_CATEGORIES.map(c => `
+          <button class="dn-home-chip ${state.activeHomeCat === c.slug ? 'active' : ''}" data-home-cat="${c.slug}">${c.name}</button>
         `).join('')}
       </div>`;
   }
@@ -240,43 +273,50 @@
       </div>`;
   }
 
-  // ─── HOME: sezioni per città ─────────────────────────────────────────────────
+  // ─── HOME: sezioni per città filtrate per categoria ──────────────────────────
   function buildHome() {
+    const activeCat = state.activeHomeCat; // '' = Tutte
+
     let citySections = '';
-    let cityCount = 0;
-    const activeSlug = state.activeHomeCity; // '' = Tutte
-
-    state.cities.forEach(city => {
-      // Chip attivo: mostra solo la sezione della città selezionata
-      if (activeSlug && city.slug !== activeSlug) return;
-
-      // Post caricati server-side per questa città (slug esatto nel DB)
-      const cityPosts = state.homeCityPosts[city.slug] || [];
-      if (cityPosts.length === 0) return;
-      cityCount++;
-      if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
-        citySections += buildCityAd();
+    if (state.homeCatLoading) {
+      citySections = `<p class="dn-empty" style="padding:40px 16px">Caricamento...</p>`;
+    } else {
+      let cityCount = 0;
+      state.cities.forEach(city => {
+        // "Tutte" → homeCityPosts (caricati al boot per città)
+        // Categoria specifica → homeCatPosts (raggruppati per città)
+        const cityPosts = activeCat
+          ? (state.homeCatPosts[city.slug] || [])
+          : (state.homeCityPosts[city.slug] || []);
+        if (cityPosts.length === 0) return; // città senza post in questa categoria: nascosta
+        cityCount++;
+        if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
+          citySections += buildCityAd();
+        }
+        const shown = cityPosts.slice(0, 3);
+        citySections += `
+          <div class="dn-city-section" id="city-section-${city.slug}">
+            <div class="dn-section-label">${city.name}</div>
+            <div class="dn-feed">
+              ${shown.map(p => buildArticleCard(p)).join('')}
+            </div>
+            <div class="dn-city-more-wrap">
+              <button class="dn-city-more" data-goto-city="${city.slug}">Vedi altro</button>
+            </div>
+          </div>
+          <div class="dn-section-separator"></div>`;
+      });
+      if (cityCount === 0) {
+        citySections = `<p class="dn-empty" style="padding:40px 16px">Nessuna notizia per questa categoria.</p>`;
       }
-      const shown = cityPosts.slice(0, 3);
-      citySections += `
-        <div class="dn-city-section" id="city-section-${city.slug}">
-          <div class="dn-section-label">${city.name}</div>
-          <div class="dn-feed">
-            ${shown.map(p => buildArticleCard(p)).join('')}
-          </div>
-          <div class="dn-city-more-wrap">
-            <button class="dn-city-more" data-goto-city="${city.slug}">Vedi altro</button>
-          </div>
-        </div>
-        <div class="dn-section-separator"></div>`;
-    });
+    }
 
     return `
       <div class="dn-screen" id="screen-home">
         <div class="dn-top-header">
           <h1 class="dn-site-title">Domizio News</h1>
         </div>
-        ${buildCityChipsBar()}
+        ${buildCategoryChipsBar()}
         ${buildSlider()}
         ${citySections}
       </div>`;
@@ -318,7 +358,7 @@
       : state.posts;
     return `
       <div class="dn-screen">
-        <div class="dn-page-header"><h2>Categorie</h2></div>
+        <div class="dn-page-header"><h2>Scopri</h2></div>
         <div class="dn-cat-grid">
           ${state.categories.map(c => `
             <button class="dn-cat-tile ${state.selectedCat === c.slug ? 'active' : ''}" data-cat="${c.slug}">
@@ -396,7 +436,7 @@
     const tabs = [
       { id: 'home',       label: 'Home' },
       { id: 'cities',     label: 'Città' },
-      { id: 'categories', label: 'Categorie' },
+      { id: 'categories', label: 'Scopri' },
       { id: 'search',     label: 'Cerca' },
     ];
     return `
@@ -586,7 +626,9 @@
         const id   = el.dataset.postId;
         // Cerca nel feed principale e nel city feed (post non presenti nei 20 iniziali)
         const post = state.posts.find(p => p.id == id)
-                  || state.cityFeed.find(p => p.id == id);
+                  || state.cityFeed.find(p => p.id == id)
+                  || Object.values(state.homeCityPosts).flat().find(p => p.id == id)
+                  || Object.values(state.homeCatPosts).flat().find(p => p.id == id);
         if (post) {
           setState({ selectedPost: post });
         } else if (el.dataset.stickyHref) {
@@ -619,13 +661,17 @@
       });
     });
 
-    // Chip menu città (home) — filtra le sezioni via state (re-render)
-    document.querySelectorAll('[data-home-city]').forEach(el => {
+    // Chip categorie (home) — "Tutte" resetta, le altre caricano dal server
+    document.querySelectorAll('[data-home-cat]').forEach(el => {
       el.addEventListener('click', () => {
-        const slug = el.dataset.homeCity;
-        console.log('activeCity:', slug || 'tutte');
-        setState({ activeHomeCity: slug });
-        // Scroll verso l'alto così le sezioni sono subito visibili
+        const slug = el.dataset.homeCat;
+        if (slug === state.activeHomeCat) return; // stesso chip: nessuna azione
+        if (!slug) {
+          // "Tutte": ripristina le sezioni per città caricate al boot
+          setState({ activeHomeCat: '', homeCatPosts: {}, homeCatLoading: false });
+        } else {
+          loadCategoryFeed(slug);
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });

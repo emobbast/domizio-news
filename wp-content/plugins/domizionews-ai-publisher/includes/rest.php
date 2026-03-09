@@ -77,6 +77,7 @@ function dnap_register_posts_endpoint(): void {
         'permission_callback' => '__return_true',
         'args'                => [
             'city'     => ['default' => '', 'sanitize_callback' => 'sanitize_text_field'],
+            'category' => ['default' => '', 'sanitize_callback' => 'sanitize_text_field'],
             'per_page' => ['default' => 10, 'sanitize_callback' => 'absint'],
             'page'     => ['default' => 1,  'sanitize_callback' => 'absint'],
         ],
@@ -93,13 +94,26 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
         'order'          => 'DESC',
     ];
 
-    $city_slug = sanitize_text_field($request['city']);
+    $tax_query    = [];
+    $city_slug    = sanitize_text_field($request['city']);
+    $cat_slug     = sanitize_text_field($request['category']);
+
     if ($city_slug) {
-        $args['tax_query'] = [[
+        $tax_query[] = [
             'taxonomy' => 'city',
             'field'    => 'slug',
             'terms'    => $city_slug,
-        ]];
+        ];
+    }
+    if ($cat_slug) {
+        $tax_query[] = [
+            'taxonomy' => 'category',
+            'field'    => 'slug',
+            'terms'    => $cat_slug,
+        ];
+    }
+    if (!empty($tax_query)) {
+        $args['tax_query'] = array_merge(['relation' => 'AND'], $tax_query);
     }
 
     $query = new WP_Query($args);
@@ -112,6 +126,17 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
         $cats   = wp_get_post_categories($p->ID, ['fields' => 'all']);
         $cities = wp_get_post_terms($p->ID, 'city');
 
+        // Tempo fa
+        $diff  = time() - (int) get_post_time('U', false, $p);
+        $mins  = (int) floor($diff / 60);
+        if ($mins < 2)        $time_ago = 'Ora';
+        elseif ($mins < 60)   $time_ago = $mins . ' min fa';
+        elseif ($mins < 1440) { $h = (int) floor($mins / 60); $time_ago = $h === 1 ? '1 ora fa' : $h . ' ore fa'; }
+        else                  { $d = (int) floor($mins / 1440); $time_ago = $d === 1 ? '1 giorno fa' : $d . ' giorni fa'; }
+
+        $cats_arr   = array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cats);
+        $cities_arr = !is_wp_error($cities) ? array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cities) : [];
+
         $posts[] = [
             'id'      => $p->ID,
             'slug'    => $p->post_name,
@@ -120,10 +145,16 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
             'excerpt' => wp_trim_words(wp_strip_all_tags($p->post_excerpt ?: $p->post_content), 28),
             'content' => wp_kses_post($p->post_content),
             'image'   => $thumb_url,
+            'permalink'        => get_permalink($p->ID),
+            'time_ago'         => $time_ago,
+            'category'         => !empty($cats_arr)   ? $cats_arr[0]['name']   : '',
+            'category_slug'    => !empty($cats_arr)   ? $cats_arr[0]['slug']   : '',
+            'city'             => !empty($cities_arr) ? $cities_arr[0]['name'] : '',
+            'city_slug'        => !empty($cities_arr) ? $cities_arr[0]['slug'] : '',
             'meta_description' => get_post_meta($p->ID, '_meta_description', true),
             'source_url'       => get_post_meta($p->ID, '_source_url', true),
-            'categories' => array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cats),
-            'cities'     => !is_wp_error($cities) ? array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cities) : [],
+            'categories'       => $cats_arr,
+            'cities'           => $cities_arr,
         ];
     }
 
