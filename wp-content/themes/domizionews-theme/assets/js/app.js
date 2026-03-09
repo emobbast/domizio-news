@@ -36,7 +36,6 @@
     searchQuery: '',
     selectedCity: '',
     selectedCat: '',
-    homeCat: '',
   };
 
   function setState(patch) {
@@ -82,7 +81,7 @@
     return buildNativeAd('city-ad');
   }
 
-  // ─── CARD BADGES + METADATA ──────────────────────────────────────────────────
+  // ─── CARD BADGES ─────────────────────────────────────────────────────────────
   function buildCardBadges(post) {
     const cat  = post.categories?.[0];
     const city = post.cities?.[0];
@@ -96,7 +95,7 @@
 
   // ─── HTML BUILDERS ──────────────────────────────────────────────────────────
 
-  // Hero card: prima notizia del feed, immagine full-width 16/9
+  // Hero card: immagine full-width 16/9
   function buildHeroCard(post) {
     const img = post.image || '';
     return `
@@ -110,7 +109,7 @@
       </div>`;
   }
 
-  // List card: thumbnail 96x96 a destra
+  // List card: thumbnail 80x80 a destra
   function buildArticleCard(post) {
     const img = post.image || '';
     return `
@@ -124,41 +123,65 @@
       </div>`;
   }
 
-  // ─── CATEGORY CHIPS BAR (home) ───────────────────────────────────────────────
-  const HOME_CATS = [
-    { slug: '',               name: 'Tutte' },
-    { slug: 'cronaca',        name: 'Cronaca' },
-    { slug: 'sport',          name: 'Sport' },
-    { slug: 'politica',       name: 'Politica' },
-    { slug: 'economia',       name: 'Economia' },
-    { slug: 'ambiente-mare',  name: 'Ambiente' },
-    { slug: 'eventi-cultura', name: 'Eventi' },
-    { slug: 'salute',         name: 'Salute' },
+  // ─── CHIP MENU CITTÀ (home) ──────────────────────────────────────────────────
+  const HOME_CITIES = [
+    { slug: '',                     name: 'Tutte' },
+    { slug: 'mondragone',           name: 'Mondragone' },
+    { slug: 'castel-volturno',      name: 'Castel Volturno' },
+    { slug: 'baia-domizia',         name: 'Baia Domizia' },
+    { slug: 'cellole',              name: 'Cellole' },
+    { slug: 'falciano-del-massico', name: 'Falciano' },
+    { slug: 'carinola',             name: 'Carinola' },
+    { slug: 'sessa-aurunca',        name: 'Sessa Aurunca' },
   ];
 
-  function buildCatChipsBar() {
+  function buildCityChipsBar() {
     return `
-      <div class="dn-home-chips">
-        ${HOME_CATS.map(c => `
-          <button class="dn-home-chip ${state.homeCat === c.slug ? 'active' : ''}" data-home-cat="${c.slug}">${c.name}</button>
+      <div class="dn-home-chips" id="dn-city-chips">
+        ${HOME_CITIES.map((c, i) => `
+          <button class="dn-home-chip ${i === 0 ? 'active' : ''}" data-home-city="${c.slug}">${c.name}</button>
         `).join('')}
       </div>`;
   }
 
+  // ─── SLIDER NOTIZIE IN EVIDENZA ──────────────────────────────────────────────
+  function buildSlider() {
+    const sliderPosts = state.posts.filter(p => p.sticky).slice(0, 5);
+    const posts = sliderPosts.length > 0 ? sliderPosts : state.posts.slice(0, 5);
+    if (posts.length === 0) return '';
+    return `
+      <div class="dn-slider-wrap">
+        <div class="dn-slider" id="dn-slider">
+          ${posts.map(p => {
+            const cat  = p.categories?.[0];
+            const city = p.cities?.[0];
+            return `
+              <div class="dn-slider-card" data-post-id="${p.id}">
+                ${p.image ? `<div class="dn-slider-img"><img src="${p.image}" alt="" loading="lazy"></div>` : ''}
+                <div class="dn-slider-body">
+                  <div class="dn-card-badges">
+                    ${cat  ? `<span class="dn-cat-label">${cat.name}</span>` : ''}
+                    ${city ? `<span class="dn-city-label">${city.name}</span>` : ''}
+                  </div>
+                  <h3 class="dn-slider-title">${p.title}</h3>
+                  <span class="dn-time">${timeAgo(p.date)}</span>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+        <div class="dn-slider-dots" id="dn-slider-dots">
+          ${posts.map((_, i) => `<span class="dn-dot ${i === 0 ? 'active' : ''}"></span>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  // ─── HOME: sezioni per città ─────────────────────────────────────────────────
   function buildHome() {
-    const filtered = state.homeCat
-      ? state.posts.filter(p => p.categories?.some(c => c.slug === state.homeCat))
-      : state.posts;
-
-    const [hero, ...rest] = filtered;
-
-    // Sezioni per città
     let citySections = '';
     let cityCount = 0;
+
     state.cities.forEach(city => {
-      const cityPosts = state.homeCat
-        ? filtered.filter(p => p.cities?.some(c => c.slug === city.slug))
-        : state.posts.filter(p => p.cities?.some(c => c.slug === city.slug));
+      const cityPosts = state.posts.filter(p => p.cities?.some(c => c.slug === city.slug));
       if (cityPosts.length === 0) return;
       cityCount++;
       if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
@@ -166,13 +189,16 @@
       }
       const shown = cityPosts.slice(0, 3);
       citySections += `
-        <div class="dn-section-label" style="margin: 20px 16px 8px">${city.name}</div>
-        <div class="dn-feed">
-          ${shown.map(p => buildArticleCard(p)).join('')}
+        <div class="dn-city-section" id="city-section-${city.slug}">
+          <div class="dn-section-label">${city.name}</div>
+          <div class="dn-feed">
+            ${shown.map(p => buildArticleCard(p)).join('')}
+          </div>
+          <div class="dn-city-more-wrap">
+            <button class="dn-city-more" data-goto-city="${city.slug}">Vedi altro</button>
+          </div>
         </div>
-        <div style="padding: 4px 16px 12px; text-align: right">
-          <button class="dn-city-more" data-goto-city="${city.slug}">Vedi altro</button>
-        </div>`;
+        <div class="dn-section-separator"></div>`;
     });
 
     return `
@@ -180,11 +206,8 @@
         <div class="dn-top-header">
           <h1 class="dn-site-title">Domizio News</h1>
         </div>
-        ${buildCatChipsBar()}
-        ${hero ? `
-          <div class="dn-feed">
-            ${buildHeroCard(hero)}
-          </div>` : ''}
+        ${buildCityChipsBar()}
+        ${buildSlider()}
         ${citySections}
       </div>`;
   }
@@ -328,6 +351,7 @@
       --color-chip-inactive-bg: #F2F2F2;
       --color-chip-active-bg: #E8F0FE;
       --color-chip-active-text: #1A73E8;
+      --color-separator: #F2F2F2;
     }
 
     * { font-family: 'Roboto', Arial, sans-serif; }
@@ -346,47 +370,64 @@
     .dn-page-header { padding: 16px 16px 0; }
     .dn-page-header h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
 
-    /* CATEGORY CHIPS BAR (home) */
-    .dn-home-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); scrollbar-width: none; -ms-overflow-style: none; }
+    /* CHIP MENU CITTÀ (home) */
+    .dn-home-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
     .dn-home-chips::-webkit-scrollbar { display: none; }
-    .dn-home-chip { flex-shrink: 0; padding: 8px 16px; border-radius: 16px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-chip-inactive-bg); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
+    .dn-home-chip { flex-shrink: 0; height: 32px; padding: 0 12px; line-height: 32px; border-radius: 16px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-chip-inactive-bg); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
     .dn-home-chip.active { background: var(--color-chip-active-bg); color: var(--color-chip-active-text); }
 
-    /* SECTION LABELS (intestazioni città in home) */
-    .dn-section-label { font-size: 13px; font-weight: 700; color: var(--color-text); padding-left: 16px; margin-bottom: 0; }
-    .dn-city-more { background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 13px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; padding: 0; }
+    /* SLIDER NOTIZIE IN EVIDENZA */
+    .dn-slider-wrap { padding: 16px 0 8px; border-bottom: 8px solid var(--color-separator); }
+    .dn-slider { display: flex; gap: 12px; overflow-x: auto; padding-left: 16px; padding-right: 4px; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; }
+    .dn-slider::-webkit-scrollbar { display: none; }
+    .dn-slider-card { flex-shrink: 0; width: calc(75% - 6px); scroll-snap-align: start; cursor: pointer; }
+    .dn-slider-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; }
+    .dn-slider-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .dn-slider-body { padding: 8px 0 0; }
+    .dn-slider-title { margin: 6px 0 0; font-size: 16px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .dn-slider-dots { display: flex; gap: 4px; justify-content: center; padding: 10px 0 4px; }
+    .dn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-divider); transition: background 0.2s; flex-shrink: 0; }
+    .dn-dot.active { background: var(--color-primary); }
+
+    /* SEZIONI CITTÀ */
+    .dn-section-label { font-size: 15px; font-weight: 700; color: var(--color-text); padding: 16px 16px 8px; display: block; }
+    .dn-section-separator { height: 8px; background: var(--color-separator); }
+
+    /* BOTTONE "VEDI ALTRO" */
+    .dn-city-more-wrap { border-top: 1px solid var(--color-divider); }
+    .dn-city-more { display: block; width: 100%; padding: 12px 16px; background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; text-align: center; box-sizing: border-box; }
     .dn-city-more:active { opacity: 0.7; }
 
     /* FEED CONTAINER */
     .dn-feed { background: var(--color-background); }
 
-    /* HERO CARD (prima notizia) */
+    /* HERO CARD */
     .dn-card-hero { cursor: pointer; background: var(--color-card); border-bottom: 1px solid var(--color-divider); }
     .dn-card-hero:active { opacity: 0.8; }
     .dn-card-hero-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; padding: 0 16px; box-sizing: border-box; }
     .dn-card-hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
     .dn-card-hero-body { padding: 12px 16px 16px; }
-    .dn-card-hero-title { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .dn-card-hero-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
     /* LIST CARDS */
     .dn-card-list { display: flex; gap: 12px; padding: 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); cursor: pointer; align-items: flex-start; transition: background 0.1s; }
     .dn-card-list:active { background: #F8F9FA; }
-    .dn-card-list > img { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+    .dn-card-list > img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
     .dn-card-body { flex: 1; min-width: 0; }
-    .dn-card-body h3 { margin: 0 0 6px; font-size: 16px; font-weight: 500; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .dn-card-body h3 { margin: 0 0 6px; font-size: 14px; font-weight: 500; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-    /* CARD BADGES (città + categoria) */
-    .dn-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+    /* CARD BADGES (categoria + città) */
+    .dn-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
     .dn-cat-label { font-size: 11px; font-weight: 500; color: var(--color-primary); background: var(--color-chip-active-bg); padding: 2px 8px; border-radius: 4px; }
     .dn-city-label { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); background: var(--color-chip-inactive-bg); padding: 2px 8px; border-radius: 4px; }
 
     /* TIME */
-    .dn-time { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); display: block; margin-top: 4px; }
+    .dn-time { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); display: block; margin-top: 6px; }
 
     /* CHIPS (tab Città) */
     .dn-chips-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px 16px; scrollbar-width: none; -ms-overflow-style: none; }
     .dn-chips-scroll::-webkit-scrollbar { display: none; }
-    .dn-chip { flex-shrink: 0; padding: 8px 16px; border-radius: 16px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-chip-inactive-bg); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-chip { flex-shrink: 0; height: 32px; padding: 0 12px; line-height: 32px; border-radius: 16px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-chip-inactive-bg); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; }
     .dn-chip.active { background: var(--color-chip-active-bg); color: var(--color-chip-active-text); }
 
     /* CATEGORY GRID */
@@ -471,7 +512,7 @@
       el.addEventListener('click', () => setState({ tab: el.dataset.tab }));
     });
 
-    // City chips
+    // City chips (tab Città)
     document.querySelectorAll('[data-city]').forEach(el => {
       el.addEventListener('click', () => {
         const slug = el.dataset.city;
@@ -487,10 +528,23 @@
       });
     });
 
-    // Home category chips
-    document.querySelectorAll('[data-home-cat]').forEach(el => {
+    // Chip menu città (home) — scroll-to-section, no re-render
+    document.querySelectorAll('[data-home-city]').forEach(el => {
       el.addEventListener('click', () => {
-        setState({ homeCat: el.dataset.homeCat });
+        const slug = el.dataset.homeCity;
+        // Aggiorna active chip senza re-render
+        document.querySelectorAll('[data-home-city]').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        if (!slug) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          const section = document.getElementById('city-section-' + slug);
+          if (section) {
+            // Offset: header (48px) + chip bar (48px) = ~100px
+            const top = section.getBoundingClientRect().top + window.scrollY - 100;
+            window.scrollTo({ top, behavior: 'smooth' });
+          }
+        }
       });
     });
 
@@ -498,6 +552,24 @@
     document.querySelectorAll('[data-goto-city]').forEach(el => {
       el.addEventListener('click', () => setState({ tab: 'cities', selectedCity: el.dataset.gotoCity }));
     });
+
+    // Slider — aggiorna dots al scroll
+    const slider = document.getElementById('dn-slider');
+    const dotsEl = document.getElementById('dn-slider-dots');
+    if (slider && dotsEl) {
+      slider.addEventListener('scroll', () => {
+        const cardEl = slider.firstElementChild;
+        if (!cardEl) return;
+        const cardWidth = cardEl.offsetWidth + 12; // card + gap
+        const index = Math.min(
+          Math.round(slider.scrollLeft / cardWidth),
+          dotsEl.children.length - 1
+        );
+        Array.from(dotsEl.children).forEach((dot, i) => {
+          dot.classList.toggle('active', i === index);
+        });
+      }, { passive: true });
+    }
 
     // Search input
     const searchInput = document.getElementById('dn-search-input');
