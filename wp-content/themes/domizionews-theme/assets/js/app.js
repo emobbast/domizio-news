@@ -38,6 +38,7 @@
     searchQuery: '',
     selectedCity: '',
     selectedCat: '',
+    activeHomeCity: '',     // slug chip attivo nella home ('' = Tutte)
     cityFeed: [],           // post caricati server-side per la città selezionata
     cityFeedLoading: false, // spinner mentre si aspetta la risposta
   };
@@ -167,8 +168,8 @@
   function buildCityChipsBar() {
     return `
       <div class="dn-home-chips" id="dn-city-chips">
-        ${HOME_CITIES.map((c, i) => `
-          <button class="dn-home-chip ${i === 0 ? 'active' : ''}" data-home-city="${c.slug}">${c.name}</button>
+        ${HOME_CITIES.map(c => `
+          <button class="dn-home-chip ${state.activeHomeCity === c.slug ? 'active' : ''}" data-home-city="${c.slug}">${c.name}</button>
         `).join('')}
       </div>`;
   }
@@ -220,8 +221,12 @@
   function buildHome() {
     let citySections = '';
     let cityCount = 0;
+    const activeSlug = state.activeHomeCity; // '' = Tutte
 
     state.cities.forEach(city => {
+      // Chip attivo: mostra solo la sezione della città selezionata
+      if (activeSlug && city.slug !== activeSlug) return;
+
       const cityPosts = state.posts.filter(p => p.cities?.some(c => c.slug === city.slug));
       if (cityPosts.length === 0) return;
       cityCount++;
@@ -590,23 +595,14 @@
       });
     });
 
-    // Chip menu città (home) — scroll-to-section, no re-render
+    // Chip menu città (home) — filtra le sezioni via state (re-render)
     document.querySelectorAll('[data-home-city]').forEach(el => {
       el.addEventListener('click', () => {
         const slug = el.dataset.homeCity;
-        // Aggiorna active chip senza re-render
-        document.querySelectorAll('[data-home-city]').forEach(c => c.classList.remove('active'));
-        el.classList.add('active');
-        if (!slug) {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else {
-          const section = document.getElementById('city-section-' + slug);
-          if (section) {
-            // Offset: header (48px) + chip bar (48px) = ~100px
-            const top = section.getBoundingClientRect().top + window.scrollY - 100;
-            window.scrollTo({ top, behavior: 'smooth' });
-          }
-        }
+        console.log('activeCity:', slug || 'tutte');
+        setState({ activeHomeCity: slug });
+        // Scroll verso l'alto così le sezioni sono subito visibili
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
 
