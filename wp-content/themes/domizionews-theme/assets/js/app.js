@@ -643,7 +643,16 @@
     .dn-vip-badge { font-size: 10px; font-weight: 600; color: #fff; background: var(--color-primary); padding: 2px 7px; border-radius: 4px; letter-spacing: .3px; }
 
     /* SEZIONI CITTÀ */
-    .dn-section-label { font-size: 15px; font-weight: 700; color: var(--color-text); padding: 16px 16px 8px; display: block; }
+    .dn-section-label {
+     font-size: 20px;
+     font-weight: 700;
+     color: var(--color-text);
+     padding: 16px 16px 8px;
+     display: block;
+     border-left: 3px solid #1A73E8;
+     padding-left: 12px;
+     margin-left: 16px;
+   }
     .dn-section-separator { height: 8px; background: var(--color-separator); }
 
     /* BOTTONE "VEDI ALTRO" */
