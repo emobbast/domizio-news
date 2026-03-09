@@ -152,20 +152,26 @@
   }
 
   // ─── AD SLOTS ────────────────────────────────────────────────────────────────
-  function buildNativeAd(num) {
+  const AD_IMAGES = [
+    { img: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800', alt: 'Ristorante sul mare' },
+    { img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800', alt: 'Lido balneare' },
+    { img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800', alt: 'Offerta ristorante' },
+    { img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800', alt: 'Negozio locale' },
+  ];
+  let adIndex = 0;
+
+  function buildNativeAd() {
+    const ad = AD_IMAGES[adIndex % AD_IMAGES.length];
+    adIndex++;
     return `
-      <div class="dn-ad-slot" data-slot="${num}" style="
-        background:#F2F2F2;border-top:1px solid #E0E0E0;border-bottom:1px solid #E0E0E0;
-        height:90px;display:flex;flex-direction:column;align-items:center;
-        justify-content:center;gap:4px;
-      ">
-        <span style="font-size:9px;color:#9AA0A6;letter-spacing:1.5px;text-transform:uppercase;font-weight:500;">SPONSORIZZATO</span>
-        <span style="font-size:13px;color:#9AA0A6;">Pubblicità</span>
+      <div class="dn-ad-card">
+        <span class="dn-ad-badge">Sponsorizzato</span>
+        <img src="${ad.img}" alt="${ad.alt}" loading="lazy">
       </div>`;
   }
 
   function buildCityAd() {
-    return buildNativeAd('city-ad');
+    return buildNativeAd();
   }
 
   // ─── CARD BADGES ─────────────────────────────────────────────────────────────
@@ -558,9 +564,7 @@
             </div>
           </div>
           <div class="dn-detail-content">${post.content}</div>
-          <div class="dn-ad-slot" data-slot="3" style="width:100%;height:100px;background:#F2F2F2;border-top:1px solid #E0E0E0;border-bottom:1px solid #E0E0E0;display:flex;align-items:center;justify-content:center;margin:20px 0;box-sizing:border-box;">
-            <span style="font-size:13px;color:#9AA0A6;">Pubblicità</span>
-          </div>
+          ${buildNativeAd()}
         </div>
       </div>`;
   }
@@ -719,6 +723,11 @@
     .dn-detail-content strong { color: var(--color-text); font-weight: 700; }
     .dn-local-context { background: #E8F0FE; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
 
+    /* AD CARD SPONSORIZZATA */
+    .dn-ad-card { position: relative; padding: 16px; border-top: 8px solid #F2F2F2; border-bottom: 8px solid #F2F2F2; background: var(--color-card); }
+    .dn-ad-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; display: block; }
+    .dn-ad-badge { position: absolute; top: 24px; left: 24px; font-size: 10px; font-weight: 500; color: #5F6368; background: #F2F2F2; padding: 3px 8px; border-radius: 4px; letter-spacing: .3px; z-index: 1; }
+
     /* SCOPRI — griglia categorie */
     .dn-scopri-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
     .dn-scopri-card { position: relative; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; cursor: pointer; }
@@ -765,6 +774,7 @@
     const root = document.getElementById('domizionews-root');
     if (!root) return;
 
+    adIndex = 0; // reset rotazione ad slot ad ogni render
     let content = '';
 
     if (state.loading) {
