@@ -167,6 +167,148 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
 
 /* ============================================================
    REST ENDPOINT
+   GET /wp-json/domizio/v1/scopri?categoria=SLUG&city=SLUG
+   Risultati misti per la sezione Scopri:
+   - type=attivita  (CPT 'attivita', se registrato)
+   - type=articolo  (post normali filtrati per categoria)
+   ============================================================ */
+add_action('rest_api_init', 'dnap_register_scopri_endpoint');
+function dnap_register_scopri_endpoint(): void {
+    register_rest_route('domizio/v1', '/scopri', [
+        'methods'             => WP_REST_Server::READABLE,
+        'callback'            => 'dnap_rest_scopri_handler',
+        'permission_callback' => '__return_true',
+        'args'                => [
+            'categoria' => ['default' => '', 'sanitize_callback' => 'sanitize_text_field'],
+            'city'      => ['default' => '', 'sanitize_callback' => 'sanitize_text_field'],
+            'per_page'  => ['default' => 20, 'sanitize_callback' => 'absint'],
+        ],
+    ]);
+}
+
+function dnap_rest_scopri_handler(WP_REST_Request $request): WP_REST_Response {
+    $categoria = sanitize_text_field($request['categoria']);
+    $city_slug = sanitize_text_field($request['city']);
+    $per_page  = min((int) $request['per_page'], 50);
+    $results   = [];
+
+    // ── Tax query comune (city) ──────────────────────────────────────────────
+    $city_clause = [];
+    if ($city_slug && $city_slug !== 'tutte') {
+        $city_clause = [[
+            'taxonomy' => 'city',
+            'field'    => 'slug',
+            'terms'    => $city_slug,
+        ]];
+    }
+
+    // ── 1. Custom Post Type "attivita" (se registrato) ──────────────────────
+    if (post_type_exists('attivita')) {
+        $att_args = [
+            'post_type'      => 'attivita',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ];
+        if ($categoria) {
+            $att_tax = [[
+                'taxonomy' => 'categoria_attivita',
+                'field'    => 'slug',
+                'terms'    => $categoria,
+            ]];
+            $att_args['tax_query'] = !empty($city_clause)
+                ? array_merge(['relation' => 'AND'], $att_tax, $city_clause)
+                : $att_tax;
+        } elseif (!empty($city_clause)) {
+            $att_args['tax_query'] = $city_clause;
+        }
+
+        foreach ((new WP_Query($att_args))->posts as $p) {
+            $thumb_id  = get_post_thumbnail_id($p->ID);
+            $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
+            $cities    = wp_get_post_terms($p->ID, 'city');
+
+            $results[] = [
+                'type'        => 'attivita',
+                'id'          => $p->ID,
+                'title'       => wp_strip_all_tags($p->post_title),
+                'image'       => $thumb_url,
+                'city'        => !is_wp_error($cities) && !empty($cities) ? $cities[0]->name : '',
+                'city_slug'   => !is_wp_error($cities) && !empty($cities) ? $cities[0]->slug : '',
+                'address'     => get_post_meta($p->ID, '_address', true),
+                'phone'       => get_post_meta($p->ID, '_phone', true),
+                'whatsapp'    => get_post_meta($p->ID, '_whatsapp', true),
+                'website'     => get_post_meta($p->ID, '_website', true),
+                'price_range' => get_post_meta($p->ID, '_price_range', true),
+            ];
+        }
+    }
+
+    // ── 2. Articoli normali filtrati per categoria e città ──────────────────
+    $art_args = [
+        'post_type'      => 'post',
+        'post_status'    => 'publish',
+        'posts_per_page' => $per_page,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+    ];
+    $art_tax = [];
+    if ($categoria) {
+        $art_tax[] = [
+            'taxonomy' => 'category',
+            'field'    => 'slug',
+            'terms'    => $categoria,
+        ];
+    }
+    if (!empty($city_clause)) {
+        $art_tax = array_merge($art_tax, $city_clause);
+    }
+    if (!empty($art_tax)) {
+        $art_args['tax_query'] = count($art_tax) > 1
+            ? array_merge(['relation' => 'AND'], $art_tax)
+            : $art_tax;
+    }
+
+    foreach ((new WP_Query($art_args))->posts as $p) {
+        $thumb_id  = get_post_thumbnail_id($p->ID);
+        $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
+        $cats      = wp_get_post_categories($p->ID, ['fields' => 'all']);
+        $cities    = wp_get_post_terms($p->ID, 'city');
+
+        $diff  = time() - (int) get_post_time('U', false, $p);
+        $mins  = (int) floor($diff / 60);
+        if ($mins < 2)        $time_ago = 'Ora';
+        elseif ($mins < 60)   $time_ago = $mins . ' min fa';
+        elseif ($mins < 1440) { $h = (int) floor($mins / 60); $time_ago = $h === 1 ? '1 ora fa' : $h . ' ore fa'; }
+        else                  { $d = (int) floor($mins / 1440); $time_ago = $d === 1 ? '1 giorno fa' : $d . ' giorni fa'; }
+
+        $cats_arr   = array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cats);
+        $cities_arr = !is_wp_error($cities) ? array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cities) : [];
+
+        $results[] = [
+            'type'       => 'articolo',
+            'id'         => $p->ID,
+            'slug'       => $p->post_name,
+            'date'       => $p->post_date,
+            'title'      => wp_strip_all_tags($p->post_title),
+            'excerpt'    => wp_trim_words(wp_strip_all_tags($p->post_excerpt ?: $p->post_content), 28),
+            'content'    => wp_kses_post($p->post_content),
+            'image'      => $thumb_url,
+            'permalink'  => get_permalink($p->ID),
+            'time_ago'   => $time_ago,
+            'city'       => !empty($cities_arr) ? $cities_arr[0]['name'] : '',
+            'city_slug'  => !empty($cities_arr) ? $cities_arr[0]['slug'] : '',
+            'categories' => $cats_arr,
+            'cities'     => $cities_arr,
+        ];
+    }
+
+    return new WP_REST_Response(['results' => $results], 200);
+}
+
+/* ============================================================
+   REST ENDPOINT
    GET /wp-json/domizio/v1/sticky-news
    Pubblico — nessuna autenticazione richiesta.
    ============================================================ */

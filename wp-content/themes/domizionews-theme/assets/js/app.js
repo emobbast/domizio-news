@@ -45,6 +45,11 @@
     homeCatLoading: false,  // spinner mentre si caricano post per categoria
     cityFeed: [],           // post caricati server-side per la città selezionata (tab Città)
     cityFeedLoading: false, // spinner mentre si aspetta la risposta
+    scopriStep:      'categorie', // 'categorie' | 'risultati'
+    scopriCategoria: null,        // slug categoria Scopri selezionata
+    scopriCity:      'tutte',     // slug città Scopri ('tutte' = nessun filtro)
+    scopriResults:   [],          // risultati da /domizio/v1/scopri
+    scopriLoading:   false,
   };
 
   function setState(patch) {
@@ -205,6 +210,44 @@
       </div>`;
   }
 
+  // ─── SCOPRI: costanti ────────────────────────────────────────────────────────
+  const SCOPRI_CATEGORIES = [
+    { nome: 'Ristoranti & Locali',    slug: 'ristoranti-locali',    img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800' },
+    { nome: 'Eventi & Concerti',      slug: 'eventi-concerti',      img: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800' },
+    { nome: 'Spiagge & Stabilimenti', slug: 'spiagge-stabilimenti', img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800' },
+    { nome: 'Immobiliare',            slug: 'immobiliare',          img: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800' },
+    { nome: 'Negozi',                 slug: 'negozi',               img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800' },
+    { nome: 'Food & Gusto',           slug: 'food-gusto',           img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800' },
+    { nome: 'Turismo & Vacanze',      slug: 'turismo-vacanze',      img: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800' },
+    { nome: 'Shopping',               slug: 'shopping',             img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800' },
+    { nome: 'Benessere',              slug: 'benessere',            img: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800' },
+  ];
+
+  const SCOPRI_CITIES = [
+    { slug: 'tutte',                name: 'Tutte' },
+    { slug: 'mondragone',           name: 'Mondragone' },
+    { slug: 'castel-volturno',      name: 'Castel Volturno' },
+    { slug: 'baia-domizia',         name: 'Baia Domizia' },
+    { slug: 'cellole',              name: 'Cellole' },
+    { slug: 'falciano-del-massico', name: 'Falciano' },
+    { slug: 'carinola',             name: 'Carinola' },
+    { slug: 'sessa-aurunca',        name: 'Sessa Aurunca' },
+  ];
+
+  // Carica risultati Scopri da /wp-json/domizio/v1/scopri?categoria=SLUG&city=SLUG
+  async function loadScopriResults(categoria, city) {
+    setState({ scopriStep: 'risultati', scopriCategoria: categoria, scopriCity: city || 'tutte', scopriResults: [], scopriLoading: true });
+    try {
+      let url = DOMIZIO_API + '/scopri?categoria=' + encodeURIComponent(categoria);
+      if (city && city !== 'tutte') url += '&city=' + encodeURIComponent(city);
+      const data = await fetch(url).then(r => r.json()).catch(() => ({ results: [] }));
+      setState({ scopriResults: data.results || [], scopriLoading: false });
+    } catch (e) {
+      console.error('[DomizioNews] errore fetch scopri:', e);
+      setState({ scopriLoading: false });
+    }
+  }
+
   // ─── CHIP CATEGORIE (home) ───────────────────────────────────────────────────
   const HOME_CATEGORIES = [
     { slug: '',                name: 'Tutte' },
@@ -352,23 +395,94 @@
       </div>`;
   }
 
-  function buildCategories() {
-    const filtered = state.selectedCat
-      ? state.posts.filter(p => p.categories?.some(c => c.slug === state.selectedCat))
-      : state.posts;
+  // ─── SCOPRI: builder ─────────────────────────────────────────────────────────
+  function buildScopriAttivitaCard(item) {
+    const hasBtns = item.phone || item.whatsapp || item.website;
+    return `
+      <div class="dn-card-attivita">
+        ${item.image ? `<div class="dn-card-attivita-img"><img src="${item.image}" alt="" loading="lazy"></div>` : ''}
+        <div class="dn-card-attivita-body">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+            <span class="dn-badge-attivita">Attività</span>
+            ${item.city ? `<span class="dn-city-label">${item.city}</span>` : ''}
+          </div>
+          ${item.price_range ? `<div class="dn-card-attivita-price">${item.price_range}</div>` : ''}
+          <div class="dn-card-attivita-title">${item.title}</div>
+          ${item.address ? `<div class="dn-card-attivita-addr">${item.address}</div>` : ''}
+          ${hasBtns ? `
+          <div class="dn-card-attivita-btns">
+            ${item.phone    ? `<button class="dn-btn-action" data-tel="${item.phone}">Chiama</button>` : ''}
+            ${item.whatsapp ? `<button class="dn-btn-action" data-wa="${item.whatsapp}">WhatsApp</button>` : ''}
+            ${item.website  ? `<a class="dn-btn-action" href="${item.website}" target="_blank" rel="noopener noreferrer">Sito</a>` : ''}
+          </div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function buildScopriArticoloCard(item) {
+    return `
+      <div class="dn-card-scopri-art" data-post-id="${item.id}">
+        ${item.image ? `<div class="dn-card-scopri-art-img"><img src="${item.image}" alt="" loading="lazy"></div>` : ''}
+        <div class="dn-card-scopri-art-body">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+            <span class="dn-badge-articolo">Articolo</span>
+            ${item.city ? `<span class="dn-city-label">${item.city}</span>` : ''}
+          </div>
+          <div class="dn-card-scopri-art-title">${item.title}</div>
+          <span class="dn-time">${item.time_ago || ''}</span>
+        </div>
+      </div>`;
+  }
+
+  function buildScopri() {
+    if (state.scopriStep === 'categorie') {
+      return `
+        <div class="dn-screen">
+          <div class="dn-top-header">
+            <h1 class="dn-site-title">Scopri</h1>
+          </div>
+          <div class="dn-scopri-grid">
+            ${SCOPRI_CATEGORIES.map(c => `
+              <div class="dn-scopri-card" data-scopri-cat="${c.slug}">
+                <img class="dn-scopri-card-img" src="${c.img}" alt="" loading="lazy">
+                <div class="dn-scopri-card-overlay"></div>
+                <div class="dn-scopri-card-name">${c.nome}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
+    }
+
+    // STEP 2 — risultati
+    const cat = SCOPRI_CATEGORIES.find(c => c.slug === state.scopriCategoria);
+    const catNome = cat ? cat.nome : state.scopriCategoria;
+
+    let feedHtml;
+    if (state.scopriLoading) {
+      feedHtml = `<p class="dn-empty" style="padding:40px 16px">Caricamento...</p>`;
+    } else if (state.scopriResults.length === 0) {
+      feedHtml = `<p class="dn-empty" style="padding:40px 16px">Nessun contenuto disponibile per questa categoria.</p>`;
+    } else {
+      feedHtml = state.scopriResults.map(item =>
+        item.type === 'attivita'
+          ? buildScopriAttivitaCard(item)
+          : buildScopriArticoloCard(item)
+      ).join('');
+    }
+
     return `
       <div class="dn-screen">
-        <div class="dn-page-header"><h2>Scopri</h2></div>
-        <div class="dn-cat-grid">
-          ${state.categories.map(c => `
-            <button class="dn-cat-tile ${state.selectedCat === c.slug ? 'active' : ''}" data-cat="${c.slug}">
-              ${c.name}
-            </button>
+        <div class="dn-scopri-header">
+          <button class="dn-scopri-back" data-scopri-back>← Indietro</button>
+          <span class="dn-scopri-title">${catNome}</span>
+          <span style="width:72px"></span>
+        </div>
+        <div class="dn-chips-scroll" style="padding-top:12px">
+          ${SCOPRI_CITIES.map(c => `
+            <button class="dn-chip ${state.scopriCity === c.slug ? 'active' : ''}" data-scopri-city="${c.slug}">${c.name}</button>
           `).join('')}
         </div>
-        <div class="dn-feed">
-          ${filtered.map(p => buildArticleCard(p)).join('')}
-        </div>
+        <div class="dn-feed">${feedHtml}</div>
       </div>`;
   }
 
@@ -586,6 +700,41 @@
     .dn-detail-content strong { color: var(--color-text); font-weight: 700; }
     .dn-local-context { background: #E8F0FE; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
 
+    /* SCOPRI — griglia categorie */
+    .dn-scopri-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+    .dn-scopri-card { position: relative; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; cursor: pointer; }
+    .dn-scopri-card:active { opacity: 0.85; }
+    .dn-scopri-card-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .dn-scopri-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.15) 55%, transparent 100%); }
+    .dn-scopri-card-name { position: absolute; bottom: 12px; left: 12px; right: 12px; color: #fff; font-size: 16px; font-weight: 700; line-height: 1.2; font-family: 'Roboto', Arial, sans-serif; }
+
+    /* SCOPRI — header risultati */
+    .dn-scopri-header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); padding: 14px 16px; display: flex; align-items: center; border-bottom: 1px solid var(--color-divider); }
+    .dn-scopri-back { background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 15px; font-weight: 500; padding: 0; flex-shrink: 0; width: 72px; text-align: left; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-scopri-title { font-size: 16px; font-weight: 700; color: var(--color-text); flex: 1; text-align: center; font-family: 'Roboto', Arial, sans-serif; }
+
+    /* SCOPRI — card attività */
+    .dn-card-attivita { background: var(--color-card); border-bottom: 8px solid var(--color-separator); }
+    .dn-card-attivita-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; }
+    .dn-card-attivita-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 0; display: block; }
+    .dn-card-attivita-body { padding: 12px 16px 16px; }
+    .dn-badge-attivita { font-size: 11px; font-weight: 500; color: #2E7D32; background: #E8F4EA; padding: 2px 8px; border-radius: 4px; }
+    .dn-card-attivita-price { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); margin: 6px 0 2px; }
+    .dn-card-attivita-title { font-size: 16px; font-weight: 700; color: var(--color-text); margin: 8px 0 4px; line-height: 1.3; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-card-attivita-addr { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 12px; }
+    .dn-card-attivita-btns { display: flex; gap: 8px; }
+    .dn-btn-action { flex: 1; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--color-divider); background: var(--color-card); font-size: 13px; font-weight: 500; color: var(--color-primary); cursor: pointer; text-align: center; font-family: 'Roboto', Arial, sans-serif; text-decoration: none; display: inline-block; }
+    .dn-btn-action:active { background: var(--color-chip-active-bg); }
+
+    /* SCOPRI — card articolo */
+    .dn-card-scopri-art { background: var(--color-card); border-bottom: 1px solid var(--color-divider); cursor: pointer; }
+    .dn-card-scopri-art:active { opacity: 0.8; }
+    .dn-card-scopri-art-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; }
+    .dn-card-scopri-art-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .dn-card-scopri-art-body { padding: 12px 16px 16px; }
+    .dn-badge-articolo { font-size: 11px; font-weight: 500; color: var(--color-primary); background: var(--color-chip-active-bg); padding: 2px 8px; border-radius: 4px; }
+    .dn-card-scopri-art-title { font-size: 16px; font-weight: 700; color: var(--color-text); margin: 8px 0 4px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-family: 'Roboto', Arial, sans-serif; }
+
     /* BOTTOM NAV */
     .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--color-card); border-top: 1px solid var(--color-divider); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
     .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 12px 0; color: var(--color-text-secondary); transition: color 0.15s; font-size: 13px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; }
@@ -612,7 +761,7 @@
 
     if (state.tab === 'home')       content = buildHome();
     if (state.tab === 'cities')     content = buildCities();
-    if (state.tab === 'categories') content = buildCategories();
+    if (state.tab === 'categories') content = buildScopri();
     if (state.tab === 'search')     content = buildSearch();
 
     root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildNav()}</div>`;
@@ -628,7 +777,8 @@
         const post = state.posts.find(p => p.id == id)
                   || state.cityFeed.find(p => p.id == id)
                   || Object.values(state.homeCityPosts).flat().find(p => p.id == id)
-                  || Object.values(state.homeCatPosts).flat().find(p => p.id == id);
+                  || Object.values(state.homeCatPosts).flat().find(p => p.id == id)
+                  || state.scopriResults.find(p => p.type === 'articolo' && p.id == id);
         if (post) {
           setState({ selectedPost: post });
         } else if (el.dataset.stickyHref) {
@@ -653,12 +803,44 @@
       });
     });
 
-    // Category tiles
+    // Category tiles (tab Scopri legacy — non più usato, mantenuto per sicurezza)
     document.querySelectorAll('[data-cat]').forEach(el => {
       el.addEventListener('click', () => {
         const slug = el.dataset.cat;
         setState({ selectedCat: state.selectedCat === slug ? '' : slug });
       });
+    });
+
+    // Scopri — click su card categoria (step 1 → step 2)
+    document.querySelectorAll('[data-scopri-cat]').forEach(el => {
+      el.addEventListener('click', () => {
+        loadScopriResults(el.dataset.scopriCat, 'tutte');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+    // Scopri — bottone Indietro (step 2 → step 1)
+    document.querySelector('[data-scopri-back]')?.addEventListener('click', () => {
+      setState({ scopriStep: 'categorie', scopriCategoria: null, scopriResults: [], scopriLoading: false });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // Scopri — chip città (step 2)
+    document.querySelectorAll('[data-scopri-city]').forEach(el => {
+      el.addEventListener('click', () => {
+        const slug = el.dataset.scopriCity;
+        if (slug === state.scopriCity) return;
+        loadScopriResults(state.scopriCategoria, slug);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+    // Scopri — bottoni Chiama / WhatsApp (card attività)
+    document.querySelectorAll('[data-tel]').forEach(el => {
+      el.addEventListener('click', () => { window.location.href = 'tel:' + el.dataset.tel; });
+    });
+    document.querySelectorAll('[data-wa]').forEach(el => {
+      el.addEventListener('click', () => { window.open('https://wa.me/' + el.dataset.wa.replace(/\D/g, ''), '_blank'); });
     });
 
     // Chip categorie (home) — "Tutte" resetta, le altre caricano dal server
