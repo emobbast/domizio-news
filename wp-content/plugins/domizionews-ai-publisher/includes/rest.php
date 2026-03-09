@@ -65,6 +65,77 @@ function dnap_get_sticky_per_city(): array {
 
 /* ============================================================
    REST ENDPOINT
+   GET /wp-json/domizio/v1/posts?city=SLUG&per_page=N&page=N
+   Post filtrati per taxonomy 'city'. Stesso formato di
+   /wp-json/dnapp/v1/feed, ma nel namespace domizio/v1.
+   ============================================================ */
+add_action('rest_api_init', 'dnap_register_posts_endpoint');
+function dnap_register_posts_endpoint(): void {
+    register_rest_route('domizio/v1', '/posts', [
+        'methods'             => WP_REST_Server::READABLE,
+        'callback'            => 'dnap_rest_posts_handler',
+        'permission_callback' => '__return_true',
+        'args'                => [
+            'city'     => ['default' => '', 'sanitize_callback' => 'sanitize_text_field'],
+            'per_page' => ['default' => 10, 'sanitize_callback' => 'absint'],
+            'page'     => ['default' => 1,  'sanitize_callback' => 'absint'],
+        ],
+    ]);
+}
+
+function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
+    $args = [
+        'post_type'      => 'post',
+        'post_status'    => 'publish',
+        'posts_per_page' => min((int) $request['per_page'], 50),
+        'paged'          => (int) $request['page'],
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+    ];
+
+    $city_slug = sanitize_text_field($request['city']);
+    if ($city_slug) {
+        $args['tax_query'] = [[
+            'taxonomy' => 'city',
+            'field'    => 'slug',
+            'terms'    => $city_slug,
+        ]];
+    }
+
+    $query = new WP_Query($args);
+    $posts = [];
+
+    foreach ($query->posts as $p) {
+        $thumb_id  = get_post_thumbnail_id($p->ID);
+        $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
+
+        $cats   = wp_get_post_categories($p->ID, ['fields' => 'all']);
+        $cities = wp_get_post_terms($p->ID, 'city');
+
+        $posts[] = [
+            'id'      => $p->ID,
+            'slug'    => $p->post_name,
+            'date'    => $p->post_date,
+            'title'   => wp_strip_all_tags($p->post_title),
+            'excerpt' => wp_trim_words(wp_strip_all_tags($p->post_excerpt ?: $p->post_content), 28),
+            'content' => wp_kses_post($p->post_content),
+            'image'   => $thumb_url,
+            'meta_description' => get_post_meta($p->ID, '_meta_description', true),
+            'source_url'       => get_post_meta($p->ID, '_source_url', true),
+            'categories' => array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cats),
+            'cities'     => !is_wp_error($cities) ? array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cities) : [],
+        ];
+    }
+
+    return new WP_REST_Response([
+        'posts'       => $posts,
+        'total'       => (int) $query->found_posts,
+        'total_pages' => (int) $query->max_num_pages,
+    ], 200);
+}
+
+/* ============================================================
+   REST ENDPOINT
    GET /wp-json/domizio/v1/sticky-news
    Pubblico — nessuna autenticazione richiesta.
    ============================================================ */

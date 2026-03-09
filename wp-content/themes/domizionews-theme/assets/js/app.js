@@ -7,7 +7,8 @@
   const CFG = window.DNAPP_CONFIG || {};
   const API = CFG.wpBase ? CFG.wpBase.replace(/\/$/, '') : '';
   const CUSTOM_API  = API.replace('/wp/v2', '') + '/dnapp/v1';
-  const STICKY_API  = API.replace('/wp/v2', '') + '/domizio/v1/sticky-news';
+  const DOMIZIO_API = API.replace('/wp/v2', '') + '/domizio/v1';
+  const STICKY_API  = DOMIZIO_API + '/sticky-news';
 
   // ─── UTILS ──────────────────────────────────────────────────────────────────
   function timeAgo(date) {
@@ -39,7 +40,8 @@
     selectedCity: '',
     selectedCat: '',
     activeHomeCity: '',     // slug chip attivo nella home ('' = Tutte)
-    cityFeed: [],           // post caricati server-side per la città selezionata
+    homeCityPosts:  {},     // map slug → posts[] per le sezioni home
+    cityFeed: [],           // post caricati server-side per la città selezionata (tab Città)
     cityFeedLoading: false, // spinner mentre si aspetta la risposta
   };
 
@@ -50,16 +52,25 @@
 
   // ─── API ────────────────────────────────────────────────────────────────────
 
-  // Carica post filtrati per città dal server.
-  // Usa ?city=SLUG sull'endpoint /dnapp/v1/feed (tax_query sulla taxonomy 'city').
-  // Slug corretti: mondragone · castel-volturno · baia-domizia · cellole
-  //               falciano-del-massico · carinola · sessa-aurunca
+  // Slug esatti registrati nel database — usati sia per la home che per il tab Città
+  const CITY_SLUGS = [
+    'mondragone',
+    'castel-volturno',
+    'baia-domizia',
+    'cellole',
+    'falciano-del-massico',
+    'carinola',
+    'sessa-aurunca',
+  ];
+
+  // Carica post filtrati per città (tab Città).
+  // GET /wp-json/domizio/v1/posts?city=SLUG&per_page=20
   async function loadCityFeed(slug) {
     if (!slug) {
       setState({ cityFeed: [], cityFeedLoading: false });
       return;
     }
-    const url = CUSTOM_API + '/feed?city=' + encodeURIComponent(slug) + '&per_page=20';
+    const url = DOMIZIO_API + '/posts?city=' + encodeURIComponent(slug) + '&per_page=20';
     console.log('[DomizioNews] fetch città:', url);
     try {
       const res  = await fetch(url);
@@ -73,20 +84,32 @@
 
   async function loadData() {
     try {
-      const [feedRes, configRes, stickyRes] = await Promise.all([
-        fetch(CUSTOM_API + '/feed?per_page=20'),
-        fetch(CUSTOM_API + '/config'),
-        fetch(STICKY_API),
+      // Fetch feed principale, config, sticky news e i 7 feed città in parallelo.
+      // Le sezioni home usano dati server-side così Cellole/Falciano/Carinola
+      // vengono trovate anche se non rientrano nei primi 20 post generali.
+      const [feed, config, sticky, ...cityResults] = await Promise.all([
+        fetch(CUSTOM_API + '/feed?per_page=20').then(r => r.json()),
+        fetch(CUSTOM_API + '/config').then(r => r.json()),
+        fetch(STICKY_API).then(r => r.ok ? r.json() : []).catch(() => []),
+        ...CITY_SLUGS.map(slug =>
+          fetch(DOMIZIO_API + '/posts?city=' + encodeURIComponent(slug) + '&per_page=5')
+            .then(r => r.json())
+            .catch(() => ({ posts: [] }))
+        ),
       ]);
-      const feed   = await feedRes.json();
-      const config = await configRes.json();
-      const sticky = stickyRes.ok ? await stickyRes.json() : [];
+
+      const homeCityPosts = {};
+      CITY_SLUGS.forEach((slug, i) => {
+        homeCityPosts[slug] = cityResults[i]?.posts || [];
+      });
+
       setState({
-        posts:      feed.posts || [],
-        cities:     config.cities || [],
-        categories: config.categories || [],
-        stickyNews: Array.isArray(sticky) ? sticky : [],
-        loading:    false,
+        posts:         feed.posts || [],
+        cities:        config.cities || [],
+        categories:    config.categories || [],
+        stickyNews:    Array.isArray(sticky) ? sticky : [],
+        homeCityPosts: homeCityPosts,
+        loading:       false,
       });
     } catch (e) {
       console.error('Errore API:', e);
@@ -227,7 +250,8 @@
       // Chip attivo: mostra solo la sezione della città selezionata
       if (activeSlug && city.slug !== activeSlug) return;
 
-      const cityPosts = state.posts.filter(p => p.cities?.some(c => c.slug === city.slug));
+      // Post caricati server-side per questa città (slug esatto nel DB)
+      const cityPosts = state.homeCityPosts[city.slug] || [];
       if (cityPosts.length === 0) return;
       cityCount++;
       if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
