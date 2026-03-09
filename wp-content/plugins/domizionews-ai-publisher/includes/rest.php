@@ -190,121 +190,79 @@ function dnap_rest_scopri_handler(WP_REST_Request $request): WP_REST_Response {
     $categoria = sanitize_text_field($request['categoria']);
     $city_slug = sanitize_text_field($request['city']);
     $per_page  = min((int) $request['per_page'], 50);
-    $results   = [];
 
-    // ── Tax query comune (city) ──────────────────────────────────────────────
-    $city_clause = [];
-    if ($city_slug && $city_slug !== 'tutte') {
-        $city_clause = [[
-            'taxonomy' => 'city',
-            'field'    => 'slug',
-            'terms'    => $city_slug,
-        ]];
-    }
-
-    // ── 1. Custom Post Type "attivita" (se registrato) ──────────────────────
-    if (post_type_exists('attivita')) {
-        $att_args = [
-            'post_type'      => 'attivita',
-            'post_status'    => 'publish',
-            'posts_per_page' => $per_page,
-            'orderby'        => 'date',
-            'order'          => 'DESC',
-        ];
-        if ($categoria) {
-            $att_tax = [[
-                'taxonomy' => 'categoria_attivita',
-                'field'    => 'slug',
-                'terms'    => $categoria,
-            ]];
-            $att_args['tax_query'] = !empty($city_clause)
-                ? array_merge(['relation' => 'AND'], $att_tax, $city_clause)
-                : $att_tax;
-        } elseif (!empty($city_clause)) {
-            $att_args['tax_query'] = $city_clause;
-        }
-
-        foreach ((new WP_Query($att_args))->posts as $p) {
-            $thumb_id  = get_post_thumbnail_id($p->ID);
-            $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
-            $cities    = wp_get_post_terms($p->ID, 'city');
-
-            $results[] = [
-                'type'        => 'attivita',
-                'id'          => $p->ID,
-                'title'       => wp_strip_all_tags($p->post_title),
-                'image'       => $thumb_url,
-                'city'        => !is_wp_error($cities) && !empty($cities) ? $cities[0]->name : '',
-                'city_slug'   => !is_wp_error($cities) && !empty($cities) ? $cities[0]->slug : '',
-                'address'     => get_post_meta($p->ID, '_address', true),
-                'phone'       => get_post_meta($p->ID, '_phone', true),
-                'whatsapp'    => get_post_meta($p->ID, '_whatsapp', true),
-                'website'     => get_post_meta($p->ID, '_website', true),
-                'price_range' => get_post_meta($p->ID, '_price_range', true),
-            ];
-        }
-    }
-
-    // ── 2. Articoli normali filtrati per categoria e città ──────────────────
-    $art_args = [
-        'post_type'      => 'post',
+    // Unica query: solo CPT 'scopri' — mai post_type 'post'
+    $args = [
+        'post_type'      => 'scopri',
         'post_status'    => 'publish',
         'posts_per_page' => $per_page,
         'orderby'        => 'date',
         'order'          => 'DESC',
     ];
-    $art_tax = [];
+
+    $tax_query = [];
+
     if ($categoria) {
-        $art_tax[] = [
-            'taxonomy' => 'category',
+        $tax_query[] = [
+            'taxonomy' => 'scopri_categoria',
             'field'    => 'slug',
             'terms'    => $categoria,
         ];
     }
-    if (!empty($city_clause)) {
-        $art_tax = array_merge($art_tax, $city_clause);
-    }
-    if (!empty($art_tax)) {
-        $art_args['tax_query'] = count($art_tax) > 1
-            ? array_merge(['relation' => 'AND'], $art_tax)
-            : $art_tax;
-    }
 
-    foreach ((new WP_Query($art_args))->posts as $p) {
-        $thumb_id  = get_post_thumbnail_id($p->ID);
-        $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
-        $cats      = wp_get_post_categories($p->ID, ['fields' => 'all']);
-        $cities    = wp_get_post_terms($p->ID, 'city');
-
-        $diff  = time() - (int) get_post_time('U', false, $p);
-        $mins  = (int) floor($diff / 60);
-        if ($mins < 2)        $time_ago = 'Ora';
-        elseif ($mins < 60)   $time_ago = $mins . ' min fa';
-        elseif ($mins < 1440) { $h = (int) floor($mins / 60); $time_ago = $h === 1 ? '1 ora fa' : $h . ' ore fa'; }
-        else                  { $d = (int) floor($mins / 1440); $time_ago = $d === 1 ? '1 giorno fa' : $d . ' giorni fa'; }
-
-        $cats_arr   = array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cats);
-        $cities_arr = !is_wp_error($cities) ? array_map(fn($c) => ['id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug], $cities) : [];
-
-        $results[] = [
-            'type'       => 'articolo',
-            'id'         => $p->ID,
-            'slug'       => $p->post_name,
-            'date'       => $p->post_date,
-            'title'      => wp_strip_all_tags($p->post_title),
-            'excerpt'    => wp_trim_words(wp_strip_all_tags($p->post_excerpt ?: $p->post_content), 28),
-            'content'    => wp_kses_post($p->post_content),
-            'image'      => $thumb_url,
-            'permalink'  => get_permalink($p->ID),
-            'time_ago'   => $time_ago,
-            'city'       => !empty($cities_arr) ? $cities_arr[0]['name'] : '',
-            'city_slug'  => !empty($cities_arr) ? $cities_arr[0]['slug'] : '',
-            'categories' => $cats_arr,
-            'cities'     => $cities_arr,
+    if ($city_slug && $city_slug !== 'tutte') {
+        $tax_query[] = [
+            'taxonomy' => 'city',
+            'field'    => 'slug',
+            'terms'    => $city_slug,
         ];
     }
 
-    return new WP_REST_Response(['results' => $results], 200);
+    if (!empty($tax_query)) {
+        $args['tax_query'] = count($tax_query) > 1
+            ? array_merge(['relation' => 'AND'], $tax_query)
+            : $tax_query;
+    }
+
+    $query   = new WP_Query($args);
+    $results = [];
+
+    foreach ($query->posts as $p) {
+        $thumb_id   = get_post_thumbnail_id($p->ID);
+        $thumb_url  = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
+        $cities     = wp_get_post_terms($p->ID, 'city');
+        $categorie  = wp_get_post_terms($p->ID, 'scopri_categoria');
+
+        $cities_arr    = !is_wp_error($cities)    ? array_map(fn($t) => ['id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug], $cities)    : [];
+        $categorie_arr = !is_wp_error($categorie) ? array_map(fn($t) => ['id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug], $categorie) : [];
+
+        $results[] = [
+            'type'        => 'scopri',
+            'id'          => $p->ID,
+            'slug'        => $p->post_name,
+            'title'       => wp_strip_all_tags($p->post_title),
+            'excerpt'     => wp_trim_words(wp_strip_all_tags($p->post_excerpt ?: $p->post_content), 28),
+            'image'       => $thumb_url,
+            'permalink'   => get_permalink($p->ID),
+            'city'        => !empty($cities_arr)    ? $cities_arr[0]['name']    : '',
+            'city_slug'   => !empty($cities_arr)    ? $cities_arr[0]['slug']    : '',
+            'categoria'   => !empty($categorie_arr) ? $categorie_arr[0]['name'] : '',
+            'cat_slug'    => !empty($categorie_arr) ? $categorie_arr[0]['slug'] : '',
+            'address'     => get_post_meta($p->ID, '_address',     true),
+            'phone'       => get_post_meta($p->ID, '_phone',       true),
+            'whatsapp'    => get_post_meta($p->ID, '_whatsapp',    true),
+            'website'     => get_post_meta($p->ID, '_website',     true),
+            'price_range' => get_post_meta($p->ID, '_price_range', true),
+            'categories'  => $categorie_arr,
+            'cities'      => $cities_arr,
+        ];
+    }
+
+    return new WP_REST_Response([
+        'results'     => $results,
+        'total'       => (int) $query->found_posts,
+        'total_pages' => (int) $query->max_num_pages,
+    ], 200);
 }
 
 /* ============================================================
