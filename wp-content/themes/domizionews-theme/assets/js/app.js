@@ -210,6 +210,9 @@
       </div>`;
   }
 
+  // ─── SEARCH: debounce timer (modulo-level, sopravvive ai re-render) ──────────
+  let searchDebounceTimer = null;
+
   // ─── SCOPRI: costanti ────────────────────────────────────────────────────────
   const SCOPRI_CATEGORIES = [
     { nome: 'Ristoranti & Locali',    slug: 'ristoranti-locali',    img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800' },
@@ -487,29 +490,45 @@
   }
 
   function buildSearch() {
-    const q        = state.searchQuery;
-    const filtered = q.length > 1
-      ? state.posts.filter(p =>
-          p.title.toLowerCase().includes(q.toLowerCase()) ||
-          p.excerpt.toLowerCase().includes(q.toLowerCase()))
-      : [];
+    // L'input è NON controllato: non ha l'attributo value e non viene mai
+    // ricreato durante la digitazione. I risultati vengono aggiornati da
+    // attachEvents() tramite patch diretta del DOM con debounce 300ms,
+    // evitando così il reset del cursore su mobile ad ogni carattere.
     return `
       <div class="dn-screen">
         <div class="dn-page-header"><h2>Cerca</h2></div>
         <div style="padding: 0 16px 16px">
           <div class="dn-search-wrap">
-            <input id="dn-search-input" type="search" placeholder="Cerca notizie..." value="${q}" autocomplete="off">
+            <input id="dn-search-input" type="search" placeholder="Cerca notizie..." autocomplete="off">
           </div>
         </div>
-        <div class="dn-feed">
-          ${q.length < 2
-            ? `<p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>`
-            : filtered.length === 0
-              ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${q}</b>"</p>`
-              : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${filtered.length} risultati</p>
-                 ${filtered.map(p => buildArticleCard(p)).join('')}`}
+        <div class="dn-feed" id="dn-search-results">
+          <p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>
         </div>
       </div>`;
+  }
+
+  function renderSearchResults(q) {
+    const resultsEl = document.getElementById('dn-search-results');
+    if (!resultsEl) return;
+    const filtered = q.length > 1
+      ? state.posts.filter(p =>
+          p.title.toLowerCase().includes(q.toLowerCase()) ||
+          (p.excerpt || '').toLowerCase().includes(q.toLowerCase()))
+      : [];
+    resultsEl.innerHTML = q.length < 2
+      ? `<p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>`
+      : filtered.length === 0
+        ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${q}</b>"</p>`
+        : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${filtered.length} risultati</p>
+           ${filtered.map(p => buildArticleCard(p)).join('')}`;
+    // Ri-aggancia i click handler sulle card appena inserite
+    resultsEl.querySelectorAll('[data-post-id]').forEach(el => {
+      el.addEventListener('click', () => {
+        const post = state.posts.find(p => p.id == el.dataset.postId);
+        if (post) setState({ selectedPost: post });
+      });
+    });
   }
 
   function buildArticleDetail(post) {
@@ -885,12 +904,16 @@
       }, { passive: true });
     }
 
-    // Search input
+    // Search input — input NON controllato + debounce 300ms.
+    // L'handler NON chiama render(): aggiorna solo #dn-search-results
+    // per evitare che il re-render ricrei l'input e resetti il cursore su mobile.
     const searchInput = document.getElementById('dn-search-input');
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        state.searchQuery = e.target.value;
-        render();
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+          renderSearchResults(searchInput.value);
+        }, 300);
       });
       searchInput.focus();
     }
