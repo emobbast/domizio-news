@@ -472,7 +472,10 @@
 
     return `
       <div class="dn-screen">
-        <div class="dn-page-header"><h2>Città</h2></div>
+        <div style="padding:12px 16px;border-bottom:1px solid #E0E0E0;display:flex;align-items:center;gap:8px;background:#fff;">
+          <span class="material-symbols-outlined" style="font-size:20px;color:#202124;cursor:pointer;" id="btn-back-home">arrow_back</span>
+          <span style="font-size:16px;font-weight:500;color:#202124;">Città</span>
+        </div>
         <div class="dn-chips-scroll">
           ${state.cities.map(c => `
             <button class="dn-chip ${state.selectedCity === c.slug ? 'active' : ''}" data-city="${c.slug}">${c.name}</button>
@@ -719,19 +722,19 @@
     .dn-page-header h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
 
     /* CHIP MENU CATEGORIE (home) */
-    .dn-home-chips { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; background: #F2F2F7; scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
+    .dn-home-chips { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; background: #F2F2F7 !important; border: none !important; border-bottom: none !important; box-shadow: none !important; scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
     .dn-home-chips::-webkit-scrollbar { display: none; }
-    .dn-home-chip { flex-shrink: 0; padding: 6px 12px; border-radius: 50px; border: none; cursor: pointer; font-size: 13px; font-weight: 400; background: transparent; color: #202124; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
-    .dn-home-chip.active { background: #C2E7FF; color: #001D35; font-weight: 500; }
+    .dn-home-chip { flex-shrink: 0; padding: 6px 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 13px !important; font-weight: 400 !important; background: transparent !important; color: #202124 !important; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
+    .dn-home-chip.active { background: #C2E7FF !important; color: #001D35 !important; font-weight: 500 !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; }
 
     /* SLIDER NOTIZIE IN EVIDENZA */
-    .dn-slider-wrap { padding: 16px 0 8px; border-bottom: 8px solid var(--color-separator); }
-    .dn-slider { display: flex; gap: 12px; overflow-x: auto; padding-left: 16px; padding-right: 4px; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; }
+    .dn-slider-wrap { padding: 16px 0 8px; border-bottom: 8px solid var(--color-separator); background: transparent !important; box-shadow: none !important; border-left: none !important; border-right: none !important; border-top: none !important; }
+    .dn-slider { display: flex; gap: 12px; overflow-x: auto; padding-left: 16px; padding-right: 4px; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; background: transparent !important; box-shadow: none !important; }
     .dn-slider::-webkit-scrollbar { display: none; }
-    .dn-slider-card { flex-shrink: 0; width: calc(75% - 6px); scroll-snap-align: start; cursor: pointer; background: transparent; border: none; box-shadow: none; }
-    .dn-slider-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; }
+    .dn-slider-card { flex-shrink: 0; width: calc(75% - 6px); scroll-snap-align: start; cursor: pointer; background: transparent !important; border: none !important; box-shadow: none !important; }
+    .dn-slider-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; background: transparent !important; }
     .dn-slider-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .dn-slider-body { padding: 8px 0 0; }
+    .dn-slider-body { padding: 8px 0 0; background: transparent !important; box-shadow: none !important; border: none !important; }
     .dn-slider-title { margin: 6px 0 0; font-size: 16px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .dn-slider-dots { display: flex; gap: 4px; justify-content: center; padding: 10px 0 4px; }
     .dn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-divider); transition: background 0.2s; flex-shrink: 0; }
@@ -930,6 +933,12 @@
         loadCityFeed(slug);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
+    });
+
+    // Pulsante indietro tab Città → torna alla Home
+    document.getElementById('btn-back-home')?.addEventListener('click', () => {
+      setState({ tab: 'home' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
     // Bottom nav
