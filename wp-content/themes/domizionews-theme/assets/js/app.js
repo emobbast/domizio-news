@@ -50,6 +50,7 @@
     scopriCity:      'tutte',     // slug città Scopri ('tutte' = nessun filtro)
     scopriResults:   [],          // risultati da /domizio/v1/scopri
     scopriLoading:   false,
+    searchMode:      false,  // true = header trasformato in barra di ricerca
   };
 
   function setState(patch) {
@@ -267,6 +268,29 @@
     { slug: 'benessere',       name: 'Benessere' },
   ];
 
+  // ─── HEADER ─────────────────────────────────────────────────────────────────
+  // Normale: lente a sinistra · "Domizio News" centrato · avatar "D" a destra
+  // Search mode: freccia ← + input full-width (non controllato)
+  function buildHeader() {
+    if (state.searchMode) {
+      return `
+        <div class="dn-top-header dn-search-active">
+          <button class="dn-search-back-btn" id="dn-search-back" aria-label="Indietro">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="#5F6368"/></svg>
+          </button>
+          <input id="dn-search-input" type="search" placeholder="Cerca argomenti, località e fonti" autocomplete="off">
+        </div>`;
+    }
+    return `
+      <div class="dn-top-header">
+        <button class="dn-header-btn" id="dn-header-search" aria-label="Cerca">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="#5F6368"/></svg>
+        </button>
+        <h1 class="dn-site-title">Domizio News</h1>
+        <div class="dn-header-avatar">D</div>
+      </div>`;
+  }
+
   function buildCategoryChipsBar() {
     return `
       <div class="dn-home-chips" id="dn-cat-chips">
@@ -321,6 +345,17 @@
 
   // ─── HOME: sezioni per città filtrate per categoria ──────────────────────────
   function buildHome() {
+    // Search mode: solo header trasformato + risultati ricerca
+    if (state.searchMode) {
+      return `
+        <div class="dn-screen" id="screen-home">
+          ${buildHeader()}
+          <div class="dn-feed" id="dn-search-results">
+            <p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>
+          </div>
+        </div>`;
+    }
+
     const activeCat = state.activeHomeCat; // '' = Tutte
 
     let citySections = '';
@@ -343,9 +378,9 @@
         const shown = cityPosts.slice(0, 3);
         citySections += `
           <div class="dn-city-section" id="city-section-${city.slug}">
-            <div class="dn-section-label">${city.name}</div>
+            <div class="dn-section-label" data-goto-city="${city.slug}">${city.name} ›</div>
             <div class="dn-feed">
-              ${shown.map(p => buildArticleCard(p)).join('')}
+              ${shown.map((p, idx) => idx === 0 ? buildHeroCard(p) : buildArticleCard(p)).join('')}
             </div>
             <div class="dn-city-more-wrap">
               <button class="dn-city-more" data-goto-city="${city.slug}">Vedi altro</button>
@@ -360,9 +395,7 @@
 
     return `
       <div class="dn-screen" id="screen-home">
-        <div class="dn-top-header">
-          <h1 class="dn-site-title">Domizio News</h1>
-        </div>
+        ${buildHeader()}
         ${buildCategoryChipsBar()}
         ${buildSlider()}
         ${citySections}
@@ -565,19 +598,27 @@
   }
 
   function buildNav() {
+    if (state.searchMode) return ''; // bottom nav nascosta in modalità cerca
+
+    const SVG_HOME    = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>`;
+    const SVG_CITIES  = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+    const SVG_SCOPRI  = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`;
+
     const tabs = [
-      { id: 'home',       label: 'Home' },
-      { id: 'cities',     label: 'Città' },
-      { id: 'categories', label: 'Scopri' },
-      { id: 'search',     label: 'Cerca' },
+      { id: 'home',       label: 'Home',  icon: SVG_HOME },
+      { id: 'cities',     label: 'Città', icon: SVG_CITIES },
+      { id: 'categories', label: 'Scopri', icon: SVG_SCOPRI },
     ];
     return `
       <nav class="dn-bottom-nav">
-        ${tabs.map(t => `
-          <button class="dn-nav-tab ${state.tab === t.id ? 'active' : ''}" data-tab="${t.id}">
+        ${tabs.map(t => {
+          const isActive = state.tab === t.id;
+          return `
+          <button class="dn-nav-tab ${isActive ? 'active' : ''}" data-tab="${t.id}">
+            <div class="dn-nav-icon-wrap ${isActive ? 'active' : ''}">${t.icon}</div>
             <span>${t.label}</span>
-          </button>
-        `).join('')}
+          </button>`;
+        }).join('')}
       </nav>`;
   }
 
@@ -616,17 +657,22 @@
 
     /* TOP HEADER */
     .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: var(--color-card); border-bottom: 1px solid var(--color-divider); }
-    .dn-site-title { margin: 0; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1; }
+    .dn-top-header.dn-search-active { padding: 10px 16px; gap: 12px; }
+    .dn-site-title { margin: 0; font-size: 20px; font-weight: 400; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1; }
+    .dn-header-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; color: var(--color-text-secondary); }
+    .dn-header-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; flex-shrink: 0; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-search-back-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; flex-shrink: 0; }
+    #dn-search-input { flex: 1; padding: 10px 14px; border-radius: 24px; border: none; background: #F2F2F2; font-size: 16px; outline: none; font-family: 'Roboto', Arial, sans-serif; color: var(--color-text); width: 100%; box-sizing: border-box; }
 
     /* PAGE HEADER (tabs secondari) */
     .dn-page-header { padding: 16px 16px 0; }
     .dn-page-header h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
 
-    /* CHIP MENU CITTÀ (home) */
-    .dn-home-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
+    /* CHIP MENU CATEGORIE (home) */
+    .dn-home-chips { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
     .dn-home-chips::-webkit-scrollbar { display: none; }
-    .dn-home-chip { flex-shrink: 0; height: 32px; padding: 0 12px; line-height: 32px; border-radius: 16px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-chip-inactive-bg); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
-    .dn-home-chip.active { background: var(--color-chip-active-bg); color: var(--color-chip-active-text); }
+    .dn-home-chip { flex-shrink: 0; padding: 6px 16px; border-radius: 20px; border: none; cursor: pointer; font-size: 14px; font-weight: 400; background: transparent; color: #202124; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
+    .dn-home-chip.active { background: #E8F0FE; color: #1A73E8; font-weight: 500; }
 
     /* SLIDER NOTIZIE IN EVIDENZA */
     .dn-slider-wrap { padding: 16px 0 8px; border-bottom: 8px solid var(--color-separator); }
@@ -643,16 +689,7 @@
     .dn-vip-badge { font-size: 10px; font-weight: 600; color: #fff; background: var(--color-primary); padding: 2px 7px; border-radius: 4px; letter-spacing: .3px; }
 
     /* SEZIONI CITTÀ */
-    .dn-section-label {
-     font-size: 20px;
-     font-weight: 700;
-     color: var(--color-text);
-     padding: 16px 16px 8px;
-     display: block;
-     border-left: 3px solid #1A73E8;
-     padding-left: 12px;
-     margin-left: 16px;
-   }
+    .dn-section-label { font-size: 22px; font-weight: 700; color: #1A73E8; padding: 16px 16px 8px 16px; display: block; cursor: pointer; }
     .dn-section-separator { height: 8px; background: var(--color-separator); }
 
     /* BOTTONE "VEDI ALTRO" */
@@ -669,14 +706,14 @@
     .dn-card-hero-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; padding: 0 16px; box-sizing: border-box; }
     .dn-card-hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
     .dn-card-hero-body { padding: 12px 16px 16px; }
-    .dn-card-hero-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .dn-card-hero-title { margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #202124; font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
     /* LIST CARDS */
     .dn-card-list { display: flex; gap: 12px; padding: 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); cursor: pointer; align-items: flex-start; transition: background 0.1s; }
     .dn-card-list:active { background: #F8F9FA; }
     .dn-card-list > img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
     .dn-card-body { flex: 1; min-width: 0; }
-    .dn-card-body h3 { margin: 0 0 6px; font-size: 14px; font-weight: 500; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .dn-card-body h3 { margin: 0 0 6px; font-size: 15px; font-weight: 500; color: #202124; font-family: 'Roboto', Arial, sans-serif; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
     /* CARD BADGES (categoria + città) */
     .dn-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -684,7 +721,7 @@
     .dn-city-label { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); background: var(--color-chip-inactive-bg); padding: 2px 8px; border-radius: 4px; }
 
     /* TIME */
-    .dn-time { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); display: block; margin-top: 6px; }
+    .dn-time { font-size: 13px; font-weight: 400; color: #5F6368; display: block; margin-top: 6px; }
 
     /* CHIPS (tab Città) */
     .dn-chips-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px 16px; scrollbar-width: none; -ms-overflow-style: none; }
@@ -697,10 +734,8 @@
     .dn-cat-tile { padding: 14px 8px; border-radius: 8px; border: 1px solid var(--color-divider); cursor: pointer; font-size: 13px; font-weight: 500; line-height: 1.3; background: var(--color-card); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; text-align: center; }
     .dn-cat-tile.active { background: var(--color-chip-active-bg); border-color: var(--color-primary); color: var(--color-primary); }
 
-    /* SEARCH */
+    /* SEARCH (tab Cerca legacy) */
     .dn-search-wrap { position: relative; }
-    #dn-search-input { width: 100%; padding: 12px 14px; border-radius: 24px; border: 1px solid var(--color-divider); background: #F1F3F4; font-size: 16px; outline: none; font-family: 'Roboto', Arial, sans-serif; box-sizing: border-box; color: var(--color-text); }
-    #dn-search-input:focus { border-color: var(--color-primary); background: var(--color-card); }
 
     /* EMPTY */
     .dn-empty { color: var(--color-text-secondary); text-align: center; font-size: 15px; }
@@ -769,8 +804,10 @@
 
     /* BOTTOM NAV */
     .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--color-card); border-top: 1px solid var(--color-divider); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
-    .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 12px 0; color: var(--color-text-secondary); transition: color 0.15s; font-size: 13px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-nav-tab.active { color: var(--color-primary); border-top: 2px solid var(--color-primary); padding-top: 10px; }
+    .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 10px 0 6px; gap: 2px; color: #5F6368; transition: color 0.15s; font-size: 12px; font-weight: 400; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-nav-tab.active { color: #1A73E8; font-weight: 500; }
+    .dn-nav-icon-wrap { display: flex; align-items: center; justify-content: center; padding: 4px 16px; border-radius: 16px; transition: background 0.15s; }
+    .dn-nav-icon-wrap.active { background: #E8F0FE; }
   `;
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
@@ -817,6 +854,27 @@
           // Post sticky non nel feed locale: apri permalink
           window.location.href = el.dataset.stickyHref;
         }
+      });
+    });
+
+    // Header: click icona lente → attiva search mode
+    document.getElementById('dn-header-search')?.addEventListener('click', () => {
+      setState({ searchMode: true });
+    });
+
+    // Header search mode: freccia ← → torna alla vista normale
+    document.getElementById('dn-search-back')?.addEventListener('click', () => {
+      clearTimeout(searchDebounceTimer);
+      setState({ searchMode: false });
+    });
+
+    // Section label città cliccabile → tab Città
+    document.querySelectorAll('.dn-section-label[data-goto-city]').forEach(el => {
+      el.addEventListener('click', () => {
+        const slug = el.dataset.gotoCity;
+        setState({ tab: 'cities', selectedCity: slug, cityFeed: [], cityFeedLoading: true });
+        loadCityFeed(slug);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
 
