@@ -435,7 +435,7 @@
               }).join('')}
             </div>
             <div class="dn-city-more-wrap">
-              <button class="dn-city-more" data-goto-city="${slug}">Vedi altro</button>
+              <button class="dn-city-more" data-goto-city="${slug}"><span class="material-symbols-outlined" style="font-size:18px;">newspaper</span>Vedi altro</button>
             </div>
           </div>
           <div class="dn-section-separator"></div>`;
@@ -706,7 +706,7 @@
     .dn-loading p { color: var(--color-primary); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
 
     /* TOP HEADER */
-    .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: var(--color-card); border-bottom: 1px solid var(--color-divider); }
+    .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: #F2F2F7; }
     .dn-top-header.dn-search-active { padding: 10px 16px; gap: 12px; }
     .dn-site-title { margin: 0; font-size: 20px; font-weight: 400; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1; }
     .dn-header-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; color: var(--color-text-secondary); }
@@ -719,16 +719,16 @@
     .dn-page-header h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
 
     /* CHIP MENU CATEGORIE (home) */
-    .dn-home-chips { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid #E0E0E0; background: #F2F2F7; scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
+    .dn-home-chips { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; background: #F2F2F7; scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
     .dn-home-chips::-webkit-scrollbar { display: none; }
-    .dn-home-chip { flex-shrink: 0; padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 400; background: transparent; color: #202124; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
+    .dn-home-chip { flex-shrink: 0; padding: 6px 12px; border-radius: 50px; border: none; cursor: pointer; font-size: 13px; font-weight: 400; background: transparent; color: #202124; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
     .dn-home-chip.active { background: #C2E7FF; color: #001D35; font-weight: 500; }
 
     /* SLIDER NOTIZIE IN EVIDENZA */
     .dn-slider-wrap { padding: 16px 0 8px; border-bottom: 8px solid var(--color-separator); }
     .dn-slider { display: flex; gap: 12px; overflow-x: auto; padding-left: 16px; padding-right: 4px; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; }
     .dn-slider::-webkit-scrollbar { display: none; }
-    .dn-slider-card { flex-shrink: 0; width: calc(75% - 6px); scroll-snap-align: start; cursor: pointer; }
+    .dn-slider-card { flex-shrink: 0; width: calc(75% - 6px); scroll-snap-align: start; cursor: pointer; background: transparent; border: none; box-shadow: none; }
     .dn-slider-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; }
     .dn-slider-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .dn-slider-body { padding: 8px 0 0; }
@@ -744,7 +744,7 @@
 
     /* BOTTONE "VEDI ALTRO" */
     .dn-city-more-wrap { padding: 4px 0 8px; background: var(--color-card); }
-    .dn-city-more { display: inline-block; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 4px; cursor: pointer; color: #1A73E8; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; text-align: center; margin: 4px 16px 8px; }
+    .dn-city-more { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #1A73E8; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; margin: 12px 16px; }
     .dn-city-more:active { opacity: 0.7; }
 
     /* FEED CONTAINER */
