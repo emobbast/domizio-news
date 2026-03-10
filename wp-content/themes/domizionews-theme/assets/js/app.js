@@ -315,7 +315,7 @@
       return `
         <div class="dn-top-header dn-search-active">
           <button class="dn-search-back-btn" id="dn-search-back" aria-label="Indietro">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="#5F6368"/></svg>
+            <span class="material-symbols-outlined" style="font-size:24px;color:#202124;">arrow_back</span>
           </button>
           <input id="dn-search-input" type="search" placeholder="Cerca argomenti, località e fonti" autocomplete="off">
         </div>`;
@@ -323,7 +323,7 @@
     return `
       <div class="dn-top-header">
         <button class="dn-header-btn" id="dn-header-search" aria-label="Cerca">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="#5F6368"/></svg>
+          <span class="material-symbols-outlined" style="font-size:24px;color:#202124;">search</span>
         </button>
         <h1 class="dn-site-title">Domizio News</h1>
         <div class="dn-header-avatar">D</div>
@@ -369,7 +369,6 @@
                 <div class="dn-card-badges">
                   ${item.category ? `<span class="dn-cat-label">${item.category}</span>` : ''}
                   ${item.city     ? `<span class="dn-city-label">${item.city}</span>` : ''}
-                  ${item.is_vip   ? `<span class="dn-vip-badge">In evidenza</span>` : ''}
                 </div>
                 <h3 class="dn-slider-title">${item.title}</h3>
                 <span class="dn-time">${item.time_ago}</span>
@@ -653,14 +652,10 @@
   function buildNav() {
     if (state.searchMode) return ''; // bottom nav nascosta in modalità cerca
 
-    const SVG_HOME    = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>`;
-    const SVG_CITIES  = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
-    const SVG_SCOPRI  = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`;
-
     const tabs = [
-      { id: 'home',       label: 'Home',  icon: SVG_HOME },
-      { id: 'cities',     label: 'Città', icon: SVG_CITIES },
-      { id: 'categories', label: 'Scopri', icon: SVG_SCOPRI },
+      { id: 'home',       label: 'Home',  icon: 'home' },
+      { id: 'cities',     label: 'Città', icon: 'location_city' },
+      { id: 'categories', label: 'Scopri', icon: 'explore' },
     ];
     return `
       <nav class="dn-bottom-nav">
@@ -668,8 +663,10 @@
           const isActive = state.tab === t.id;
           return `
           <button class="dn-nav-tab ${isActive ? 'active' : ''}" data-tab="${t.id}">
-            <div class="dn-nav-icon-wrap ${isActive ? 'active' : ''}">${t.icon}</div>
-            <span>${t.label}</span>
+            <div class="dn-nav-icon-wrap ${isActive ? 'active' : ''}">
+              <span class="material-symbols-outlined">${t.icon}</span>
+            </div>
+            <span class="dn-nav-label">${t.label}</span>
           </button>`;
         }).join('')}
       </nav>`;
@@ -722,9 +719,9 @@
     .dn-page-header h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
 
     /* CHIP MENU CATEGORIE (home) */
-    .dn-home-chips { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
+    .dn-home-chips { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid #E0E0E0; background: #F2F2F7; scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
     .dn-home-chips::-webkit-scrollbar { display: none; }
-    .dn-home-chip { flex-shrink: 0; padding: 6px 16px; border-radius: 50px; border: none; cursor: pointer; font-size: 14px; font-weight: 400; background: transparent; color: #202124; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
+    .dn-home-chip { flex-shrink: 0; padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 400; background: transparent; color: #202124; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
     .dn-home-chip.active { background: #C2E7FF; color: #001D35; font-weight: 500; }
 
     /* SLIDER NOTIZIE IN EVIDENZA */
@@ -746,8 +743,8 @@
     .dn-section-separator { border-top: 8px solid #F2F2F2; }
 
     /* BOTTONE "VEDI ALTRO" */
-    .dn-city-more-wrap { padding: 4px 16px 16px; background: var(--color-card); }
-    .dn-city-more { display: block; width: 100%; padding: 12px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #202124; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; text-align: center; box-sizing: border-box; }
+    .dn-city-more-wrap { padding: 4px 0 8px; background: var(--color-card); }
+    .dn-city-more { display: inline-block; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 4px; cursor: pointer; color: #1A73E8; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; text-align: center; margin: 4px 16px 8px; }
     .dn-city-more:active { opacity: 0.7; }
 
     /* FEED CONTAINER */
@@ -859,10 +856,12 @@
 
     /* BOTTOM NAV */
     .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--color-card); border-top: 1px solid var(--color-divider); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
-    .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 10px 0 6px; gap: 2px; color: #5F6368; transition: color 0.15s; font-size: 12px; font-weight: 400; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-nav-tab.active { color: #001D35; font-weight: 500; }
-    .dn-nav-icon-wrap { display: flex; align-items: center; justify-content: center; padding: 4px 16px; border-radius: 16px; transition: background 0.15s; }
+    .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 10px 0 6px; gap: 2px; color: #5F6368; transition: color 0.15s; }
+    .dn-nav-tab.active { color: #001D35; }
+    .dn-nav-icon-wrap { display: flex; align-items: center; justify-content: center; padding: 4px 16px; border-radius: 50px; transition: background 0.15s; }
+    .dn-nav-icon-wrap .material-symbols-outlined { font-size: 24px; }
     .dn-nav-icon-wrap.active { background: #C2E7FF; }
+    .dn-nav-label { font-size: 12px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; }
   `;
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────

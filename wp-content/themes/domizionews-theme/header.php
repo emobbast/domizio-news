@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="<?php bloginfo('name'); ?>">
     <title><?php bloginfo('name'); ?></title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     <?php wp_head(); ?>
 </head>
 <body <?php body_class('dnapp-body'); ?>>
