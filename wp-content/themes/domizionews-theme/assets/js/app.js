@@ -694,9 +694,9 @@
       --color-divider: #E0E0E0;
       --color-background: #FFFFFF;
       --color-card: #FFFFFF;
-      --color-chip-inactive-bg: #F2F2F2;
-      --color-chip-active-bg: #E8F0FE;
-      --color-chip-active-text: #1A73E8;
+      --color-chip-inactive-bg: transparent;
+      --color-chip-active-bg: #C2E7FF;
+      --color-chip-active-text: #001D35;
       --color-separator: #F2F2F2;
     }
 
@@ -778,11 +778,11 @@
     /* TIME */
     .dn-time { font-size: 13px; font-weight: 400; color: #5F6368; display: block; margin-top: 6px; }
 
-    /* CHIPS (tab Città) */
-    .dn-chips-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px 16px; scrollbar-width: none; -ms-overflow-style: none; }
+    /* CHIPS (tab Città e Scopri) — stesso stile dei chip home */
+    .dn-chips-scroll { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; background: #F2F2F7; border: none; box-shadow: none; scrollbar-width: none; -ms-overflow-style: none; }
     .dn-chips-scroll::-webkit-scrollbar { display: none; }
-    .dn-chip { flex-shrink: 0; height: 32px; padding: 0 12px; line-height: 32px; border-radius: 16px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--color-chip-inactive-bg); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-chip.active { background: var(--color-chip-active-bg); color: var(--color-chip-active-text); }
+    .dn-chip { flex-shrink: 0; padding: 6px 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 13px !important; font-weight: 400 !important; background: transparent !important; color: #202124 !important; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; height: auto; line-height: normal; }
+    .dn-chip.active { background: #C2E7FF !important; color: #001D35 !important; font-weight: 500 !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; }
 
     /* CATEGORY GRID */
     .dn-cat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 0 16px 20px; }
