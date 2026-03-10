@@ -27,6 +27,20 @@
     return d.textContent || '';
   }
 
+  // ─── CLEAN TITLE: rimuove prefisso nome città ────────────────────────────────
+  const CITY_NAMES_FOR_CLEAN = [
+    'Mondragone', 'Castel Volturno', 'Baia Domizia', 'Cellole',
+    'Falciano', 'Carinola', 'Sessa Aurunca', 'Pinetamare', 'Villaggio Coppola',
+  ];
+  function cleanTitle(title) {
+    let t = title || '';
+    CITY_NAMES_FOR_CLEAN.forEach(city => {
+      const regex = new RegExp('^' + city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s]*[–—,:]+[\\s]*', 'i');
+      t = t.replace(regex, '');
+    });
+    return t.trim();
+  }
+
   // ─── STATE ──────────────────────────────────────────────────────────────────
   let state = {
     tab: 'home',
@@ -61,15 +75,25 @@
   // ─── API ────────────────────────────────────────────────────────────────────
 
   // Slug esatti registrati nel database — usati sia per la home che per il tab Città
+  // 'cellole-baia-domizia' è uno slug virtuale: carica entrambe le città
   const CITY_SLUGS = [
     'mondragone',
     'castel-volturno',
-    'baia-domizia',
-    'cellole',
+    'cellole-baia-domizia',   // sezione unificata Cellole + Baia Domizia
     'falciano-del-massico',
     'carinola',
     'sessa-aurunca',
   ];
+
+  // Nomi visualizzati per slug (incluso quello virtuale)
+  const CITY_SLUG_LABELS = {
+    'mondragone':           'Mondragone',
+    'castel-volturno':      'Castel Volturno',
+    'cellole-baia-domizia': 'Cellole e Baia Domizia',
+    'falciano-del-massico': 'Falciano del Massico',
+    'carinola':             'Carinola',
+    'sessa-aurunca':        'Sessa Aurunca',
+  };
 
   // Carica post filtrati per città (tab Città).
   // GET /wp-json/domizio/v1/posts?city=SLUG&per_page=20
@@ -119,18 +143,29 @@
 
   async function loadData() {
     try {
-      // Fetch feed principale, config, sticky news e i 7 feed città in parallelo.
-      // Le sezioni home usano dati server-side così Cellole/Falciano/Carinola
-      // vengono trovate anche se non rientrano nei primi 20 post generali.
+      // Fetch feed principale, config, sticky news e i feed città in parallelo.
+      // 'cellole-baia-domizia' richiede due fetch separate poi merge per data.
+      const fetchCityPosts = (slug) => {
+        if (slug === 'cellole-baia-domizia') {
+          return Promise.all([
+            fetch(DOMIZIO_API + '/posts?city=cellole&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
+            fetch(DOMIZIO_API + '/posts?city=baia-domizia&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
+          ]).then(([a, b]) => {
+            const merged = [...(a.posts || []), ...(b.posts || [])];
+            merged.sort((x, y) => new Date(y.date) - new Date(x.date));
+            return { posts: merged };
+          });
+        }
+        return fetch(DOMIZIO_API + '/posts?city=' + encodeURIComponent(slug) + '&per_page=5')
+          .then(r => r.json())
+          .catch(() => ({ posts: [] }));
+      };
+
       const [feed, config, sticky, ...cityResults] = await Promise.all([
         fetch(CUSTOM_API + '/feed?per_page=20').then(r => r.json()),
         fetch(CUSTOM_API + '/config').then(r => r.json()),
         fetch(STICKY_API).then(r => r.ok ? r.json() : []).catch(() => []),
-        ...CITY_SLUGS.map(slug =>
-          fetch(DOMIZIO_API + '/posts?city=' + encodeURIComponent(slug) + '&per_page=5')
-            .then(r => r.json())
-            .catch(() => ({ posts: [] }))
-        ),
+        ...CITY_SLUGS.map(slug => fetchCityPosts(slug)),
       ]);
 
       const homeCityPosts = {};
@@ -184,27 +219,29 @@
   // ─── HTML BUILDERS ──────────────────────────────────────────────────────────
 
   // Hero card: immagine full-width 16/9
-  function buildHeroCard(post) {
+  // isLast = true → nessun border-bottom (evita doppio bordo con separatore sezione)
+  function buildHeroCard(post, isLast) {
     const img = post.image || '';
     return `
-      <div class="dn-card-hero" data-post-id="${post.id}">
+      <div class="dn-card-hero${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
         ${img ? `<div class="dn-card-hero-img"><img src="${img}" alt="" loading="lazy"></div>` : ''}
         <div class="dn-card-hero-body">
-          <h3 class="dn-card-hero-title">${post.title}</h3>
           ${buildCardBadges(post)}
+          <h3 class="dn-card-hero-title">${cleanTitle(post.title)}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
       </div>`;
   }
 
   // List card: thumbnail 80x80 a destra
-  function buildArticleCard(post) {
+  // isLast = true → nessun border-bottom
+  function buildArticleCard(post, isLast) {
     const img = post.image || '';
     return `
-      <div class="dn-card-list" data-post-id="${post.id}">
+      <div class="dn-card-list${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
         <div class="dn-card-body">
-          <h3>${post.title}</h3>
           ${buildCardBadges(post)}
+          <h3>${cleanTitle(post.title)}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
         ${img ? `<img src="${img}" alt="" loading="lazy">` : ''}
@@ -253,6 +290,8 @@
   }
 
   // ─── CHIP CATEGORIE (home) ───────────────────────────────────────────────────
+  // Nota: i chip sono per categoria notizie (cronaca, sport…), NON per città.
+  // Le città sono le sezioni nella home; i chip filtrano per categoria editoriale.
   const HOME_CATEGORIES = [
     { slug: '',                name: 'Tutte' },
     { slug: 'cronaca',         name: 'Cronaca' },
@@ -364,26 +403,40 @@
     } else {
       let cityCount = 0;
       let adIdx = 0;
-      state.cities.forEach(city => {
-        // "Tutte" → homeCityPosts (caricati al boot per città)
+      CITY_SLUGS.forEach(slug => {
+        const label = CITY_SLUG_LABELS[slug] || slug;
+        // "Tutte" → homeCityPosts (caricati al boot)
         // Categoria specifica → homeCatPosts (raggruppati per città)
-        const cityPosts = activeCat
-          ? (state.homeCatPosts[city.slug] || [])
-          : (state.homeCityPosts[city.slug] || []);
-        if (cityPosts.length === 0) return; // città senza post in questa categoria: nascosta
+        // Per la sezione unificata in homeCatPosts cerchiamo entrambi gli slug
+        let cityPosts;
+        if (activeCat) {
+          if (slug === 'cellole-baia-domizia') {
+            const a = state.homeCatPosts['cellole'] || [];
+            const b = state.homeCatPosts['baia-domizia'] || [];
+            cityPosts = [...a, ...b].sort((x, y) => new Date(y.date) - new Date(x.date));
+          } else {
+            cityPosts = state.homeCatPosts[slug] || [];
+          }
+        } else {
+          cityPosts = state.homeCityPosts[slug] || [];
+        }
+        if (cityPosts.length === 0) return;
         cityCount++;
         if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
           citySections += renderAdSlot(adIdx++);
         }
         const shown = cityPosts.slice(0, 3);
         citySections += `
-          <div class="dn-city-section" id="city-section-${city.slug}">
-            <div class="dn-section-label" data-goto-city="${city.slug}">${city.name} ›</div>
+          <div class="dn-city-section" id="city-section-${slug}">
+            <div class="dn-section-label" data-goto-city="${slug}">${label} ›</div>
             <div class="dn-feed">
-              ${shown.map((p, idx) => idx === 0 ? buildHeroCard(p) : buildArticleCard(p)).join('')}
+              ${shown.map((p, idx) => {
+                const isLast = idx === shown.length - 1;
+                return idx === 0 ? buildHeroCard(p, isLast) : buildArticleCard(p, isLast);
+              }).join('')}
             </div>
             <div class="dn-city-more-wrap">
-              <button class="dn-city-more" data-goto-city="${city.slug}">Vedi altro</button>
+              <button class="dn-city-more" data-goto-city="${slug}">Vedi altro</button>
             </div>
           </div>
           <div class="dn-section-separator"></div>`;
@@ -648,7 +701,7 @@
     }
 
     * { font-family: 'Roboto', Arial, sans-serif; }
-    .dn-app { font-family: 'Roboto', Arial, sans-serif; background: var(--color-background); min-height: 100vh; padding-bottom: 64px; }
+    .dn-app { font-family: 'Roboto', Arial, sans-serif; background: #F2F2F7; min-height: 100vh; padding-bottom: 64px; }
 
     /* LOADING */
     .dn-loading { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--color-text); color: #fff; gap: 8px; }
@@ -671,8 +724,8 @@
     /* CHIP MENU CATEGORIE (home) */
     .dn-home-chips { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
     .dn-home-chips::-webkit-scrollbar { display: none; }
-    .dn-home-chip { flex-shrink: 0; padding: 6px 16px; border-radius: 20px; border: none; cursor: pointer; font-size: 14px; font-weight: 400; background: transparent; color: #202124; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
-    .dn-home-chip.active { background: #E8F0FE; color: #1A73E8; font-weight: 500; }
+    .dn-home-chip { flex-shrink: 0; padding: 6px 16px; border-radius: 50px; border: none; cursor: pointer; font-size: 14px; font-weight: 400; background: transparent; color: #202124; transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; }
+    .dn-home-chip.active { background: #C2E7FF; color: #001D35; font-weight: 500; }
 
     /* SLIDER NOTIZIE IN EVIDENZA */
     .dn-slider-wrap { padding: 16px 0 8px; border-bottom: 8px solid var(--color-separator); }
@@ -689,31 +742,33 @@
     .dn-vip-badge { font-size: 10px; font-weight: 600; color: #fff; background: var(--color-primary); padding: 2px 7px; border-radius: 4px; letter-spacing: .3px; }
 
     /* SEZIONI CITTÀ */
-    .dn-section-label { font-size: 22px; font-weight: 700; color: #1A73E8; padding: 16px 16px 8px 16px; display: block; cursor: pointer; }
-    .dn-section-separator { height: 8px; background: var(--color-separator); }
+    .dn-section-label { font-size: 22px; font-weight: 700; color: #1A73E8; padding: 16px 16px 8px 16px; display: block; cursor: pointer; background: var(--color-card); }
+    .dn-section-separator { border-top: 8px solid #F2F2F2; }
 
     /* BOTTONE "VEDI ALTRO" */
-    .dn-city-more-wrap { border-top: 1px solid var(--color-divider); }
-    .dn-city-more { display: block; width: 100%; padding: 12px 16px; background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; text-align: center; box-sizing: border-box; }
+    .dn-city-more-wrap { padding: 4px 16px 16px; background: var(--color-card); }
+    .dn-city-more { display: block; width: 100%; padding: 12px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #202124; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; text-align: center; box-sizing: border-box; }
     .dn-city-more:active { opacity: 0.7; }
 
     /* FEED CONTAINER */
     .dn-feed { background: var(--color-background); }
 
     /* HERO CARD */
-    .dn-card-hero { cursor: pointer; background: var(--color-card); border-bottom: 1px solid var(--color-divider); }
+    .dn-card-hero { cursor: pointer; background: var(--color-card); border-bottom: 1px solid #E0E0E0; }
+    .dn-card-hero.dn-card-last { border-bottom: none; }
     .dn-card-hero:active { opacity: 0.8; }
     .dn-card-hero-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; padding: 0 16px; box-sizing: border-box; }
     .dn-card-hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
     .dn-card-hero-body { padding: 12px 16px 16px; }
-    .dn-card-hero-title { margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #202124; font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .dn-card-hero-title { margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #202124; font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: break-word; }
 
     /* LIST CARDS */
-    .dn-card-list { display: flex; gap: 12px; padding: 16px; border-bottom: 1px solid var(--color-divider); background: var(--color-card); cursor: pointer; align-items: flex-start; transition: background 0.1s; }
+    .dn-card-list { display: flex; gap: 12px; padding: 16px; border-bottom: 1px solid #E0E0E0; background: var(--color-card); cursor: pointer; align-items: flex-start; transition: background 0.1s; }
+    .dn-card-list.dn-card-last { border-bottom: none; }
     .dn-card-list:active { background: #F8F9FA; }
     .dn-card-list > img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
     .dn-card-body { flex: 1; min-width: 0; }
-    .dn-card-body h3 { margin: 0 0 6px; font-size: 15px; font-weight: 500; color: #202124; font-family: 'Roboto', Arial, sans-serif; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .dn-card-body h3 { margin: 0 0 6px; font-size: 15px; font-weight: 500; color: #202124; font-family: 'Roboto', Arial, sans-serif; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: break-word; }
 
     /* CARD BADGES (categoria + città) */
     .dn-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -805,9 +860,9 @@
     /* BOTTOM NAV */
     .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--color-card); border-top: 1px solid var(--color-divider); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
     .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 10px 0 6px; gap: 2px; color: #5F6368; transition: color 0.15s; font-size: 12px; font-weight: 400; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-nav-tab.active { color: #1A73E8; font-weight: 500; }
+    .dn-nav-tab.active { color: #001D35; font-weight: 500; }
     .dn-nav-icon-wrap { display: flex; align-items: center; justify-content: center; padding: 4px 16px; border-radius: 16px; transition: background 0.15s; }
-    .dn-nav-icon-wrap.active { background: #E8F0FE; }
+    .dn-nav-icon-wrap.active { background: #C2E7FF; }
   `;
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
