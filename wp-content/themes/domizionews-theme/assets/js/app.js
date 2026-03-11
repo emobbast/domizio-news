@@ -427,7 +427,7 @@
         const shown = cityPosts.slice(0, 3);
         citySections += `
           <div class="dn-city-section" id="city-section-${slug}">
-            <div class="dn-section-label" data-goto-city="${slug}">${label} ›</div>
+            <div class="dn-section-label" data-goto-city="${slug}">${label}</div>
             <div class="dn-feed">
               ${shown.map((p, idx) => {
                 const isLast = idx === shown.length - 1;
@@ -693,7 +693,7 @@
       --color-primary: #1A73E8;
       --color-brand: #1a1a2e;
       --color-divider: #E0E0E0;
-      --color-background: #F8F9FA;
+      --color-background: #F2F2F7;
       --color-card: #FFFFFF;
       --color-chip-inactive-bg: transparent;
       --color-chip-active-bg: #D3E3FD;
@@ -745,7 +745,8 @@
     .dn-vip-badge { font-size: 10px; font-weight: 600; color: #fff; background: var(--color-primary); padding: 2px 7px; border-radius: 4px; letter-spacing: .3px; }
 
     /* SEZIONI CITTÀ */
-    .dn-section-label { font-size: 22px; font-weight: 700; color: #1A73E8; padding: 16px 16px 8px 16px; display: block; cursor: pointer; background: transparent; }
+    .dn-city-section { background: #FFFFFF; border-radius: 8px; overflow: hidden; margin: 8px 0; }
+    .dn-section-label { font-size: 12px; font-weight: 700; color: #202124; text-transform: uppercase; letter-spacing: 0.8px; padding: 12px 16px 8px 16px; display: block; cursor: pointer; background: transparent; border-left: none; }
     .dn-section-separator { border-top: 8px solid #F2F2F2; }
 
     /* BOTTONE "VEDI ALTRO" */
