@@ -745,12 +745,12 @@
     .dn-vip-badge { font-size: 10px; font-weight: 600; color: #fff; background: var(--color-primary); padding: 2px 7px; border-radius: 4px; letter-spacing: .3px; }
 
     /* SEZIONI CITTÀ */
-    .dn-city-section { background: #FFFFFF; border-radius: 8px; overflow: hidden; margin: 8px 0; }
-    .dn-section-label { font-size: 12px; font-weight: 700; color: #202124; text-transform: uppercase; letter-spacing: 0.8px; padding: 12px 16px 8px 16px; display: block; cursor: pointer; background: transparent; border-left: none; }
-    .dn-section-separator { border-top: 8px solid #F2F2F2; }
+    .dn-city-section { background: #FFFFFF; border-radius: 12px; overflow: hidden; margin: 8px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .dn-section-label { font-size: 16px; font-weight: 500; color: #202124; letter-spacing: 0.15px; padding: 16px 16px 8px 16px; display: block; cursor: pointer; background: transparent; border-left: none; text-transform: none; }
+    .dn-section-separator { display: none; }
 
     /* BOTTONE "VEDI ALTRO" */
-    .dn-city-more-wrap { padding: 4px 0 8px; background: transparent; }
+    .dn-city-more-wrap { padding: 8px 16px 16px; background: transparent; display: flex; justify-content: center; }
     .dn-city-more { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #1A73E8; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; margin: 12px 16px; }
     .dn-city-more:active { opacity: 0.7; }
 
