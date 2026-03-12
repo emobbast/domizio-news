@@ -2,7 +2,7 @@
 /*
 Plugin Name: Domizio News AI Publisher
 Description: v7.1 — Sicurezza, scraping intelligente, AI avanzata, anti-duplicato, SEO automation
-Version: 7.0
+Version: 7.1
 Author: Domizio News
 */
 

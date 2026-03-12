@@ -13,7 +13,7 @@ function dnap_call_gpt(string $prompt, int $max_tokens = 1200, float $temperatur
     }
 
     $body = wp_json_encode([
-        'model'       => 'gpt-4.1-mini',
+        'model'       => 'gpt-4o-mini',
         'max_tokens'  => $max_tokens,
         'temperature' => $temperature,
         'messages'    => [

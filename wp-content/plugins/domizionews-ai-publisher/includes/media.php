@@ -119,7 +119,9 @@ function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $ima
 
     $attach_id = media_handle_sideload($file_array, $post_id, $title);
 
-    @unlink($tmp);
+    if (file_exists($tmp)) {
+        unlink($tmp);
+    }
 
     if (is_wp_error($attach_id)) {
         dnap_log("Errore sideload immagine: " . $attach_id->get_error_message());
@@ -149,7 +151,7 @@ function dnap_fetch_article_image($url) {
             'Accept'          => 'text/html,application/xhtml+xml',
             'Referer'         => 'https://www.google.it/',
         ),
-        'sslverify'  => false,
+        'sslverify'  => true,
     ));
 
     if (is_wp_error($response)) return '';
