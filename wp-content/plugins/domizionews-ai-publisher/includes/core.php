@@ -217,7 +217,6 @@ function dnap_scrape_meta(string $url): array {
         $gr = wp_remote_get($url, [
             'timeout'     => 20,
             'redirection' => 5,
-            'sslverify'   => false,
             'user-agent'  => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
             'headers'     => ['Accept-Language' => 'it-IT,it;q=0.9'],
         ]);
