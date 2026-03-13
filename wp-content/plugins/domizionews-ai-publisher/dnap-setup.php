@@ -9,8 +9,44 @@
  * 4. CANCELLA il file dopo l'uso (per sicurezza)
  */
 
-// Protezione base — richiede conferma via POST
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['run'])) {
+// ============================================================
+// CARICA WORDPRESS (richiesto sia per il form che per l'esecuzione)
+// ============================================================
+define('ABSPATH_SEARCH', true);
+$wp_load = '';
+$paths = array(
+    __DIR__ . '/wp-load.php',
+    __DIR__ . '/../wp-load.php',
+    __DIR__ . '/../../wp-load.php',
+);
+foreach ($paths as $p) {
+    if (file_exists($p)) { $wp_load = $p; break; }
+}
+
+if (!$wp_load) {
+    die('<p style="color:red;font-family:sans-serif;padding:20px;">Errore: wp-load.php non trovato. Assicurati di aver messo questo file nella root di WordPress.</p>');
+}
+
+require_once $wp_load;
+
+if (!function_exists('wp_insert_term')) {
+    die('<p style="color:red;font-family:sans-serif;padding:20px;">Errore: WordPress non caricato correttamente.</p>');
+}
+
+// ============================================================
+// POST HANDLER — verifica nonce CSRF prima di eseguire
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['run'])) {
+    if (empty($_POST['dnap_nonce']) || !wp_verify_nonce($_POST['dnap_nonce'], 'dnap_setup_run')) {
+        wp_die(
+            'Azione non autorizzata. Ricarica la pagina e riprova.',
+            'Errore di sicurezza',
+            array('response' => 403)
+        );
+    }
+    // Continua con l'esecuzione del setup (vedi sotto)
+} else {
+    // Mostra il form con nonce
     ?>
     <!DOCTYPE html>
     <html lang="it">
@@ -68,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['run'])) {
         </div>
 
         <form method="post">
+            <?php wp_nonce_field('dnap_setup_run', 'dnap_nonce'); ?>
             <button type="submit" name="run" value="1">▶ Esegui Setup</button>
         </form>
         <p class="note">Dopo l'esecuzione, cancella questo file dal server.</p>
@@ -81,28 +118,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['run'])) {
 // ============================================================
 // ESECUZIONE
 // ============================================================
-
-// Carica WordPress
-define('ABSPATH_SEARCH', true);
-$wp_load = '';
-$paths = array(
-    __DIR__ . '/wp-load.php',
-    __DIR__ . '/../wp-load.php',
-    __DIR__ . '/../../wp-load.php',
-);
-foreach ($paths as $p) {
-    if (file_exists($p)) { $wp_load = $p; break; }
-}
-
-if (!$wp_load) {
-    die('<p style="color:red;font-family:sans-serif;padding:20px;">Errore: wp-load.php non trovato. Assicurati di aver messo questo file nella root di WordPress.</p>');
-}
-
-require_once $wp_load;
-
-if (!function_exists('wp_insert_term')) {
-    die('<p style="color:red;font-family:sans-serif;padding:20px;">Errore: WordPress non caricato correttamente.</p>');
-}
 
 // ============================================================
 // DEFINIZIONE CATEGORIE
