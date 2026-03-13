@@ -1,0 +1,53 @@
+/* Domizio News App — Base CSS */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #FFFFFF;
+  font-family: 'Roboto', Arial, sans-serif;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+body.dnapp-body {
+  /* Nasconde tutto il chrome di WordPress al pubblico */
+  /* La admin bar rimane visibile solo per gli admin */
+}
+
+/* Nasconde la admin bar solo in visualizzazione mobile */
+@media (max-width: 600px) {
+  #wpadminbar {
+    display: none !important;
+  }
+  html {
+    margin-top: 0 !important;
+  }
+}
+
+/* Root dell'app React */
+#domizionews-root {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Scrollbar nascosta globalmente */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area per notch iOS */
+#domizionews-root {
+  padding-top: env(safe-area-inset-top);
+}

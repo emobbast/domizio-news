@@ -23,10 +23,10 @@ wp-config-local.php
 
 # Plugin e temi di terze parti — li gestisci separatamente
 /wp-content/plugins/
-!/wp-content/plugins/domizionews-ai-publisher-fix/
+!/wp-content/plugins/domizionews-ai-publisher/
 
 /wp-content/themes/
-!/wp-content/themes/domizionews-theme-v2/
+!/wp-content/themes/domizionews-theme/
 
 # Sistema operativo
 .DS_Store
@@ -44,3 +44,8 @@ desktop.ini
 
 # Node
 node_modules/
+
+# File locali di sviluppo
+local-xdebuginfo.php
+script.php
+/wp-content/index.php
