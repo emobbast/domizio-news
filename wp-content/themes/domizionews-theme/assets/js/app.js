@@ -353,7 +353,7 @@
           city:      p.cities?.[0]?.name || '',
           city_slug: p.cities?.[0]?.slug || '',
           time_ago:  timeAgo(p.date),
-          permalink: p.link || '',
+          permalink: p.permalink || '',
           is_vip:    !!p.sticky,
         }));
 
