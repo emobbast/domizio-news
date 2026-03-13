@@ -1,0 +1,26 @@
+name: Deploy Domizio News
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  deploy:
+    name: Deploy su VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/html/wp-content/themes/domizionews-theme
+            sudo git pull origin develop
+            cd /var/www/html/wp-content/plugins/domizionews-ai-publisher
+            sudo git pull origin develop
+            sudo chown -R www-data:www-data /var/www/html/wp-content
+            echo "Deploy completato!"
