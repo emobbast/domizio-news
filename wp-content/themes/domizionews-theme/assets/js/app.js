@@ -36,6 +36,12 @@
       .replace(/'/g, '&#39;');
   }
 
+  function decodeHtml(str) {
+    const d = document.createElement('div');
+    d.innerHTML = str || '';
+    return d.textContent || '';
+  }
+
   // ─── CLEAN TITLE: rimuove prefisso nome città ────────────────────────────────
   const CITY_NAMES_FOR_CLEAN = [
     'Mondragone', 'Castel Volturno', 'Baia Domizia', 'Cellole',
@@ -220,8 +226,8 @@
     if (!cat && !city) return '';
     return `
       <div class="dn-card-badges">
-        ${cat  ? `<span class="dn-cat-label">${escHtml(cat.name)}</span>` : ''}
-        ${city ? `<span class="dn-city-label">${escHtml(city.name)}</span>` : ''}
+        ${cat  ? `<span class="dn-cat-label">${escHtml(decodeHtml(cat.name))}</span>` : ''}
+        ${city ? `<span class="dn-city-label">${escHtml(decodeHtml(city.name))}</span>` : ''}
       </div>`;
   }
 
@@ -236,7 +242,7 @@
         ${img ? `<div class="dn-card-hero-img"><img src="${img}" alt="" loading="lazy"></div>` : ''}
         <div class="dn-card-hero-body">
           ${buildCardBadges(post)}
-          <h3 class="dn-card-hero-title">${escHtml(cleanTitle(post.title))}</h3>
+          <h3 class="dn-card-hero-title">${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
       </div>`;
@@ -250,7 +256,7 @@
       <div class="dn-card-list${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
         <div class="dn-card-body">
           ${buildCardBadges(post)}
-          <h3>${escHtml(cleanTitle(post.title))}</h3>
+          <h3>${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
         ${img ? `<img src="${img}" alt="" loading="lazy">` : ''}
@@ -375,10 +381,10 @@
               ${item.image ? `<div class="dn-slider-img"><img src="${item.image}" alt="" loading="lazy"></div>` : ''}
               <div class="dn-slider-body">
                 <div class="dn-card-badges">
-                  ${item.category ? `<span class="dn-cat-label">${escHtml(item.category)}</span>` : ''}
-                  ${item.city     ? `<span class="dn-city-label">${escHtml(item.city)}</span>` : ''}
+                  ${item.category ? `<span class="dn-cat-label">${escHtml(decodeHtml(item.category))}</span>` : ''}
+                  ${item.city     ? `<span class="dn-city-label">${escHtml(decodeHtml(item.city))}</span>` : ''}
                 </div>
-                <h3 class="dn-slider-title">${escHtml(item.title)}</h3>
+                <h3 class="dn-slider-title">${escHtml(decodeHtml(item.title))}</h3>
                 <span class="dn-time">${item.time_ago}</span>
               </div>
             </div>`).join('')}
@@ -504,10 +510,10 @@
         <div class="dn-card-attivita-body">
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
             <span class="dn-badge-attivita">Attività</span>
-            ${item.city ? `<span class="dn-city-label">${escHtml(item.city)}</span>` : ''}
+            ${item.city ? `<span class="dn-city-label">${escHtml(decodeHtml(item.city))}</span>` : ''}
           </div>
           ${item.price_range ? `<div class="dn-card-attivita-price">${escHtml(item.price_range)}</div>` : ''}
-          <div class="dn-card-attivita-title">${escHtml(item.title)}</div>
+          <div class="dn-card-attivita-title">${escHtml(decodeHtml(item.title))}</div>
           ${item.address ? `<div class="dn-card-attivita-addr">${escHtml(item.address)}</div>` : ''}
           ${hasBtns ? `
           <div class="dn-card-attivita-btns">
@@ -526,9 +532,9 @@
         <div class="dn-card-scopri-art-body">
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
             <span class="dn-badge-articolo">Articolo</span>
-            ${item.city ? `<span class="dn-city-label">${escHtml(item.city)}</span>` : ''}
+            ${item.city ? `<span class="dn-city-label">${escHtml(decodeHtml(item.city))}</span>` : ''}
           </div>
-          <div class="dn-card-scopri-art-title">${escHtml(item.title)}</div>
+          <div class="dn-card-scopri-art-title">${escHtml(decodeHtml(item.title))}</div>
           <span class="dn-time">${item.time_ago || ''}</span>
         </div>
       </div>`;
@@ -643,10 +649,10 @@
           </div>` : ''}
         <div class="dn-detail-body">
           <div class="dn-badges">
-            ${post.categories?.map(c => `<span class="dn-badge-cat">${escHtml(c.name)}</span>`).join('') || ''}
-            ${post.cities?.map(c => `<span class="dn-badge-city">${escHtml(c.name)}</span>`).join('') || ''}
+            ${post.categories?.map(c => `<span class="dn-badge-cat">${escHtml(decodeHtml(c.name))}</span>`).join('') || ''}
+            ${post.cities?.map(c => `<span class="dn-badge-city">${escHtml(decodeHtml(c.name))}</span>`).join('') || ''}
           </div>
-          <h1 class="dn-detail-title">${escHtml(post.title)}</h1>
+          <h1 class="dn-detail-title">${escHtml(decodeHtml(post.title))}</h1>
           <div class="dn-detail-byline">
             <div class="dn-avatar">R</div>
             <div>
