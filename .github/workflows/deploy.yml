@@ -19,8 +19,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /var/www/html/wp-content/themes/domizionews-theme
-            sudo git pull origin develop
+            sudo git pull origin main
             cd /var/www/html/wp-content/plugins/domizionews-ai-publisher
-            sudo git pull origin develop
+            sudo git pull origin main
             sudo chown -R www-data:www-data /var/www/html/wp-content
             echo "Deploy completato!"
