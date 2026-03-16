@@ -304,16 +304,15 @@
   const HOME_CATEGORIES = [
     { slug: '',                name: 'Tutte' },
     { slug: 'cronaca',         name: 'Cronaca' },
-    { slug: 'sport',           name: 'Sport' },
-    { slug: 'politica',        name: 'Politica' },
-    { slug: 'economia',        name: 'Economia' },
-    { slug: 'ambiente',        name: 'Ambiente' },
-    { slug: 'eventi',          name: 'Eventi' },
-    { slug: 'salute',          name: 'Salute' },
-    { slug: 'food-gusto',      name: 'Food & Gusto' },
-    { slug: 'turismo-vacanze', name: 'Turismo & Vacanze' },
-    { slug: 'shopping',        name: 'Shopping' },
-    { slug: 'benessere',       name: 'Benessere' },
+    { slug: 'sport',     name: 'Sport' },
+    { slug: 'politica',  name: 'Politica' },
+    { slug: 'economia',  name: 'Economia' },
+    { slug: 'ambiente',  name: 'Ambiente' },
+    { slug: 'eventi',    name: 'Eventi' },
+    { slug: 'salute',    name: 'Salute' },
+    // 'food-gusto', 'turismo-vacanze', 'shopping', 'benessere' rimossi:
+    // appartengono alla tassonomia scopri_categoria (CPT scopri), non alle
+    // categorie editoriali delle notizie.
   ];
 
   // ─── HEADER ─────────────────────────────────────────────────────────────────
