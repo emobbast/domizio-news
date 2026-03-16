@@ -24,9 +24,11 @@ wp-config-local.php
 # Plugin e temi di terze parti — li gestisci separatamente
 /wp-content/plugins/
 !/wp-content/plugins/domizionews-ai-publisher/
+!/wp-content/plugins/domizionews-ai-publisher/**
 
 /wp-content/themes/
 !/wp-content/themes/domizionews-theme/
+!/wp-content/themes/domizionews-theme/**
 
 # Sistema operativo
 .DS_Store
