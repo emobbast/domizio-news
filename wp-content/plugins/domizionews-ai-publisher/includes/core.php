@@ -444,7 +444,14 @@ function dnap_import_now() {
         $feed_url = esc_url_raw(sanitize_text_field($feed['url']));
         dnap_log("Feed: {$feed_url}");
 
+        // Forza un fetch fresco ad ogni run: la cache SimplePie (default 12h) può
+        // diventare stantia se WP-Cron non gira regolarmente, bloccando il feed
+        // sugli stessi articoli già importati. Con 30 minuti, ogni esecuzione oraria
+        // ottiene dati aggiornati dal feed RSS remoto.
+        $short_feed_cache = fn() => 30 * MINUTE_IN_SECONDS;
+        add_filter( 'wp_feed_cache_transient_lifetime', $short_feed_cache, 99 );
         $rss = fetch_feed($feed_url);
+        remove_filter( 'wp_feed_cache_transient_lifetime', $short_feed_cache, 99 );
         if (is_wp_error($rss)) {
             dnap_log("ERRORE feed: {$feed_url} — " . $rss->get_error_message());
             $total_errors++;
