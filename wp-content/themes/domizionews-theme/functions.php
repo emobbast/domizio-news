@@ -171,7 +171,25 @@ function dnapp_rest_feed( WP_REST_Request $req ): WP_REST_Response {
 
 function dnapp_rest_config(): WP_REST_Response {
 
-    $cats   = get_categories( [ 'hide_empty' => true ] );
+    // Fetch only categories actually used by standard 'post' posts.
+    // get_categories() with hide_empty returns terms used by ANY post type,
+    // including 'scopri' CPT, which causes scopri_categoria-equivalent terms
+    // to bleed into the home chip menu. A raw JOIN ensures we only surface
+    // editorial news categories.
+    global $wpdb;
+    $post_cat_ids = $wpdb->get_col( "
+        SELECT DISTINCT tt.term_id
+        FROM {$wpdb->term_taxonomy} tt
+        INNER JOIN {$wpdb->term_relationships} tr ON tt.term_taxonomy_id = tr.term_taxonomy_id
+        INNER JOIN {$wpdb->posts} p ON tr.object_id = p.ID
+        WHERE tt.taxonomy = 'category'
+          AND p.post_type  = 'post'
+          AND p.post_status = 'publish'
+    " );
+    $cats = ! empty( $post_cat_ids )
+        ? get_terms( [ 'taxonomy' => 'category', 'include' => $post_cat_ids, 'hide_empty' => true ] )
+        : [];
+
     $cities = get_terms( [ 'taxonomy' => 'city', 'hide_empty' => false ] );
 
     return new WP_REST_Response( [

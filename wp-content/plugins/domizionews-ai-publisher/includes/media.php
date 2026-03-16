@@ -149,7 +149,6 @@ function dnap_fetch_article_image($url) {
             'Accept'          => 'text/html,application/xhtml+xml',
             'Referer'         => 'https://www.google.it/',
         ),
-        'sslverify'  => false,
     ));
 
     if (is_wp_error($response)) return '';
