@@ -565,9 +565,13 @@
 
     return `
       <div class="dn-screen">
-        <div style="padding:12px 16px;border-bottom:1px solid #E0E0E0;display:flex;align-items:center;gap:8px;background:#fff;">
-          <span class="material-symbols-outlined" style="font-size:20px;color:#202124;cursor:pointer;" id="btn-back-home">arrow_back</span>
-          <span style="font-size:16px;font-weight:500;color:#202124;">Città</span>
+        ${buildHeader()}
+        <div class="dn-detail-header">
+          <button class="dn-back-btn" id="btn-back-home">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <span style="font-size:16px;font-weight:500;color:var(--color-text);">Città</span>
+          <div style="width:32px;"></div>
         </div>
         <div class="dn-chips-scroll">
           ${state.cities.map(c => `
@@ -623,8 +627,11 @@
     if (state.scopriStep === 'categorie') {
       return `
         <div class="dn-screen">
-          <div class="dn-top-header">
-            <h1 class="dn-site-title">Scopri</h1>
+          ${buildHeader()}
+          <div class="dn-detail-header">
+            <div style="width:32px;"></div>
+            <span style="font-size:16px;font-weight:500;color:var(--color-text);">Scopri</span>
+            <div style="width:32px;"></div>
           </div>
           <div class="dn-scopri-grid">
             ${SCOPRI_CATEGORIES.map(c => `
@@ -657,10 +664,13 @@
 
     return `
       <div class="dn-screen">
-        <div class="dn-scopri-header">
-          <button class="dn-scopri-back" data-scopri-back>← Indietro</button>
-          <span class="dn-scopri-title">${catNome}</span>
-          <span style="width:72px"></span>
+        ${buildHeader()}
+        <div class="dn-detail-header">
+          <button class="dn-back-btn" data-scopri-back>
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <span style="font-size:16px;font-weight:500;color:var(--color-text);">${catNome}</span>
+          <div style="width:32px;"></div>
         </div>
         <div class="dn-chips-scroll" style="padding-top:12px">
           ${SCOPRI_CITIES.map(c => `
