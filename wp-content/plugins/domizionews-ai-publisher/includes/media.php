@@ -111,10 +111,23 @@ function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $ima
         return;
     }
 
-    // Estensione
-    $ext     = strtolower(pathinfo(parse_url($img_url, PHP_URL_PATH), PATHINFO_EXTENSION));
-    $ext     = preg_replace('/[^a-z0-9]/', '', $ext);
-    $allowed = array('jpg', 'jpeg', 'png', 'webp', 'gif');
+    // Estensione: usa il MIME type del file scaricato (segue i redirect),
+    // non l'URL originale che per Unsplash non ha estensione nel path.
+    $mime_map = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp',
+        'image/gif'  => 'gif',
+        'image/avif' => 'avif',
+    ];
+    $mime = function_exists('mime_content_type') ? mime_content_type($tmp) : '';
+    $ext  = isset($mime_map[$mime]) ? $mime_map[$mime] : '';
+    if (!$ext) {
+        // Fallback: prova dal path dell'URL originale
+        $ext = strtolower(pathinfo(parse_url($img_url, PHP_URL_PATH), PATHINFO_EXTENSION));
+        $ext = preg_replace('/[^a-z0-9]/', '', $ext);
+    }
+    $allowed = array('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif');
     if (!in_array($ext, $allowed)) $ext = 'jpg';
 
     $filename   = sanitize_file_name(mb_substr($title, 0, 50)) . '-' . $post_id . '.' . $ext;
