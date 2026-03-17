@@ -1073,7 +1073,7 @@
 
     // Bottom nav
     document.querySelectorAll('[data-tab]').forEach(el => {
-      el.addEventListener('click', () => setState({ tab: el.dataset.tab }));
+      el.addEventListener('click', () => setState({ tab: el.dataset.tab, selectedLegalPage: null }));
     });
 
     // City chips (tab Città) — fetch server-side per slug corretto
