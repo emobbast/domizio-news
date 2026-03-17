@@ -69,16 +69,19 @@ function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $ima
 
     // 6. Immagine di fallback per categoria
     if (!$img_url) {
+        // Usa /800x450/ invece di /featured/ per evitare il redirect cached
+        // server-side di Unsplash che restituisce sempre la stessa foto.
         $category_images = [
-            'sport'               => 'https://source.unsplash.com/featured/?sport',
-            'cronaca'             => 'https://source.unsplash.com/featured/?news',
-            'ambiente-mare'       => 'https://source.unsplash.com/featured/?sea,nature',
-            'eventi-cultura'      => 'https://source.unsplash.com/featured/?culture,event',
-            'economia-lavoro'     => 'https://source.unsplash.com/featured/?business,economy',
-            'politica'            => 'https://source.unsplash.com/featured/?politics',
-            'incidenti-sicurezza' => 'https://source.unsplash.com/featured/?safety,emergency',
+            'cronaca'             => 'https://source.unsplash.com/800x450/?crime,news,italy',
+            'sport'               => 'https://source.unsplash.com/800x450/?sport,athletics',
+            'politica'            => 'https://source.unsplash.com/800x450/?politics,government',
+            'economia-lavoro'     => 'https://source.unsplash.com/800x450/?business,economy',
+            'ambiente-mare'       => 'https://source.unsplash.com/800x450/?sea,nature,beach',
+            'eventi-cultura'      => 'https://source.unsplash.com/800x450/?culture,event,art',
+            'salute'              => 'https://source.unsplash.com/800x450/?health,medicine',
+            'incidenti-sicurezza' => 'https://source.unsplash.com/800x450/?emergency,safety',
         ];
-        $default_image = 'https://source.unsplash.com/featured/?news';
+        $default_image = 'https://source.unsplash.com/800x450/?italy,landscape';
 
         $categories  = get_the_category($post_id);
         $matched_slug = 'default';
