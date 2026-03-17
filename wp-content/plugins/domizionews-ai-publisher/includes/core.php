@@ -551,10 +551,6 @@ function dnap_import_now() {
                 dnap_log("⭐ Post in evidenza: {$rewritten['title']}");
             }
 
-            // Immagine in evidenza: priorità og:image dallo scraping
-            $image_url = !empty($meta['image']) ? $meta['image'] : '';
-            dnap_set_featured_image($post_id, $rewritten['title'], $item, $source_url, $image_url);
-
             // ── CATEGORIA ────────────────────────────────────────────
             $assigned_cat = false;
             if (!empty($rewritten['category'])) {
@@ -571,6 +567,12 @@ function dnap_import_now() {
                     wp_set_post_categories($post_id, [$cat_obj->term_id]);
                 }
             }
+
+            // Immagine in evidenza: priorità og:image dallo scraping.
+            // DEVE essere chiamata dopo wp_set_post_categories() perché il
+            // fallback Unsplash usa get_the_category() per scegliere la keyword.
+            $image_url = !empty($meta['image']) ? $meta['image'] : '';
+            dnap_set_featured_image($post_id, $rewritten['title'], $item, $source_url, $image_url);
 
             // ── CITTÀ ────────────────────────────────────────────────
             $city_text  = $title_raw . ' ' . $feed_text . ' ' . $meta['description'];
