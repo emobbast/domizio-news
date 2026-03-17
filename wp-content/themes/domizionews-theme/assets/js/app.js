@@ -204,20 +204,84 @@
   }
 
   // ─── AD SLOTS ────────────────────────────────────────────────────────────────
-  function renderAdSlot(index) {
-    const ads = [
-      { img: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800', alt: 'Ristorante sul mare' },
-      { img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800', alt: 'Lido balneare' },
-      { img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800', alt: 'Offerta ristorante' },
-      { img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800', alt: 'Negozio locale' }
-    ];
-    const ad = ads[index % ads.length];
+  const AD_CONFIG = {
+    enabled: true,
+    adsenseClientId: 'ca-pub-6979338420884576',
+    slots: {
+      'home-feed': {
+        id:           'home-feed',
+        enabled:      true,
+        adsenseSlot:  '6860504195',
+        adsenseFormat: 'fluid',
+        adsenseLayoutKey: '-6t+d2-39-3c+r7',
+        admobUnitId:  null,
+      },
+      'article-bottom': {
+        id:           'article-bottom',
+        enabled:      true,
+        adsenseSlot:  '3708427948',
+        adsenseFormat: 'fluid',
+        adsenseLayout: 'in-article',
+        admobUnitId:  null,
+      },
+      'banner-nav': {
+        id:           'banner-nav',
+        enabled:      true,
+        adsenseSlot:  '7559376761',
+        adsenseFormat: 'auto',
+        adsenseFullWidth: true,
+        admobUnitId:  null,
+      },
+    },
+  };
+
+  function renderAd(slotId) {
+    if (!AD_CONFIG.enabled) return '';
+    const slot = AD_CONFIG.slots[slotId];
+    if (!slot || !slot.enabled) return '';
+    // ── Future: AdMob (Capacitor native) ─────────────────
+    // if (window.Capacitor && slot.admobUnitId) {
+    //   AdMob.showBanner({ adId: slot.admobUnitId });
+    //   return '';
+    // }
+    // ── AdSense (web) ─────────────────────────────────────
+    const layoutKey = slot.adsenseLayoutKey
+      ? `data-ad-layout-key="${slot.adsenseLayoutKey}"`
+      : '';
+    const layout = slot.adsenseLayout
+      ? `data-ad-layout="${slot.adsenseLayout}"`
+      : '';
+    const fullWidth = slot.adsenseFullWidth
+      ? `data-full-width-responsive="true"`
+      : '';
+    const style = slotId === 'banner-nav'
+      ? 'display:block;'
+      : slotId === 'article-bottom'
+      ? 'display:block;text-align:center;'
+      : 'display:block;';
     return `
-      <div style="padding:16px;border-top:8px solid #F2F2F2;border-bottom:8px solid #F2F2F2;position:relative;">
-        <span style="position:absolute;top:20px;left:20px;background:#F2F2F2;color:#5F6368;font-size:11px;padding:2px 6px;border-radius:4px;z-index:1;">Sponsorizzato</span>
-        <img src="${escHtml(ad.img)}" alt="${escHtml(ad.alt)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;display:block;" />
+      <div class="dn-ad-card">
+        <span class="dn-ad-badge">ADV</span>
+        <ins class="adsbygoogle"
+             style="${style}"
+             data-ad-client="${AD_CONFIG.adsenseClientId}"
+             data-ad-slot="${slot.adsenseSlot}"
+             data-ad-format="${slot.adsenseFormat}"
+             ${layoutKey}
+             ${layout}
+             ${fullWidth}>
+        </ins>
       </div>
     `;
+  }
+
+  function initAds() {
+    try {
+      const ads = document.querySelectorAll('.adsbygoogle:not([data-adsbygoogle-status])');
+      ads.forEach(() => {
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      });
+    } catch(e) {}
   }
 
   // ─── CARD BADGES ─────────────────────────────────────────────────────────────
@@ -416,7 +480,6 @@
       citySections = `<p class="dn-empty" style="padding:40px 16px">Caricamento...</p>`;
     } else {
       let cityCount = 0;
-      let adIdx = 0;
       CITY_SLUGS.forEach(slug => {
         const label = CITY_SLUG_LABELS[slug] || slug;
         // "Tutte" → homeCityPosts (caricati al boot)
@@ -437,7 +500,7 @@
         if (cityPosts.length === 0) return;
         cityCount++;
         if (cityCount > 1 && (cityCount - 1) % 2 === 0) {
-          citySections += renderAdSlot(adIdx++);
+          citySections += renderAd('home-feed');
         }
         const shown = cityPosts.slice(0, 3);
         citySections += `
@@ -677,7 +740,7 @@
             </div>
           </div>
           <div class="dn-detail-content">${post.content}</div>
-          ${renderAdSlot(0)}
+          ${renderAd('article-bottom')}
         </div>
       </div>`;
   }
@@ -1007,6 +1070,7 @@
       buildLegalPage(state.selectedLegalPage).then(html => {
         root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}${html}${buildNav()}</div>`;
         attachEvents();
+        initAds();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }).catch(() => {
         root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}<div style="padding:32px 16px;text-align:center;color:#5F6368;">Contenuto non disponibile.<br><br><button class="dn-back-btn" data-action="back-legal" style="color:#1A73E8;">← Torna indietro</button></div>${buildNav()}</div>`;
@@ -1020,7 +1084,7 @@
     if (state.tab === 'categories') content = buildScopri();
     if (state.tab === 'search')     content = buildSearch();
 
-    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${buildNav()}</div>`;
+    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${renderAd('banner-nav')}${buildNav()}</div>`;
     attachEvents();
   }
 
@@ -1197,6 +1261,8 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
+
+    initAds();
   }
 
   // ─── BOOT ───────────────────────────────────────────────────────────────────
