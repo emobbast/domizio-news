@@ -678,81 +678,22 @@
       </div>`;
   }
 
-  function buildLegalPage(slug) {
-  const pages = {
-    'privacy-policy': {
-      title: 'Privacy Policy',
-      content: `
-        <p><strong>Titolare del trattamento</strong><br>La Redazione di Domizio News<br>Email: privacy@domizionews.it</p>
-        <p><strong>Dati raccolti</strong><br>Questo sito non raccoglie dati personali degli utenti in modo diretto. Vengono utilizzati cookie tecnici necessari al funzionamento del sito e, previo consenso, cookie di profilazione pubblicitaria tramite Google AdSense.</p>
-        <p><strong>Cookie pubblicitari</strong><br>Questo sito utilizza Google AdSense per la pubblicazione di annunci pubblicitari. Google può utilizzare cookie per mostrare annunci basati sulle visite precedenti. Per maggiori informazioni: google.com/settings/ads</p>
-        <p><strong>Diritti dell utente</strong><br>L utente può richiedere informazioni, rettifica o cancellazione dei propri dati scrivendo a privacy@domizionews.it</p>
-        <p><strong>Base giuridica</strong><br>Il trattamento è basato sul consenso dell utente (art. 6 GDPR) per i cookie pubblicitari, e sul legittimo interesse per i cookie tecnici.</p>
-        <p><em>Ultimo aggiornamento: marzo 2025</em></p>
-      `
-    },
-    'note-legali': {
-      title: 'Note Legali',
-      content: `
-        <p><strong>Proprietà del sito</strong><br>Domizio News (domizionews.it) è una testata giornalistica online non registrata, gestita da La Redazione di Domizio News.</p>
-        <p><strong>Contenuti</strong><br>I contenuti pubblicati su questo sito sono generati automaticamente da fonti pubbliche tramite sistemi di intelligenza artificiale. La redazione non è responsabile di eventuali imprecisioni. Per segnalazioni: privacy@domizionews.it</p>
-        <p><strong>Proprietà intellettuale</strong><br>I contenuti originali del sito sono di proprietà di Domizio News. È vietata la riproduzione senza autorizzazione.</p>
-        <p><strong>Limitazione di responsabilità</strong><br>Domizio News non si assume responsabilità per eventuali danni derivanti dall uso del sito o dei contenuti pubblicati.</p>
-        <p><strong>Foro competente</strong><br>Per qualsiasi controversia è competente il Tribunale di Caserta.</p>
-      `
-    },
-    'cookie-policy': {
-      title: 'Cookie Policy',
-      content: `
-        <p><strong>Cosa sono i cookie</strong><br>I cookie sono piccoli file di testo che i siti visitati salvano sul dispositivo dell utente.</p>
-        <p><strong>Cookie tecnici (sempre attivi)</strong><br>Necessari al funzionamento del sito. Non richiedono consenso.</p>
-        <p><strong>Cookie pubblicitari (previo consenso)</strong><br>Utilizzati da Google AdSense per mostrare annunci pertinenti. Per gestire le preferenze: google.com/settings/ads - Per opt-out: aboutads.info</p>
-        <p><strong>Come gestire i cookie</strong><br>Puoi modificare le preferenze sui cookie in qualsiasi momento tramite il banner presente sul sito, oppure dalle impostazioni del tuo browser.</p>
-        <p>Contatti: privacy@domizionews.it</p>
-        <p><em>Ultimo aggiornamento: marzo 2025</em></p>
-      `
-    },
-    'contatti': {
-      title: 'Contatti',
-      content: `
-        <p>Domizio News è una testata giornalistica online che copre le notizie del Litorale Domizio e dei comuni di Mondragone, Castel Volturno, Baia Domizia, Cellole, Falciano del Massico, Carinola e Sessa Aurunca.</p>
-        <p><strong>Email redazione</strong><br><a href="mailto:redazione@domizionews.it">redazione@domizionews.it</a></p>
-        <p><strong>Segnalazioni e rettifiche</strong><br>Per segnalare inesattezze o richiedere la rimozione di contenuti scrivere a <a href="mailto:redazione@domizionews.it">redazione@domizionews.it</a></p>
-      `
-    },
-    'chi-siamo': {
-      title: 'Chi Siamo',
-      content: `
-        <p>Domizio News è una testata giornalistica online dedicata alle notizie del Litorale Domizio, in provincia di Caserta.</p>
-        <p>Copriamo i comuni di Mondragone, Castel Volturno, Baia Domizia, Cellole, Falciano del Massico, Carinola e Sessa Aurunca con aggiornamenti quotidiani su cronaca, eventi, cultura e attualità locale.</p>
-        <p><strong>La nostra missione</strong><br>Portare le notizie del territorio direttamente ai cittadini, in modo rapido, accessibile e gratuito.</p>
-        <p><strong>Come lavoriamo</strong><br>Le notizie vengono raccolte automaticamente dalle principali fonti locali e nazionali tramite tecnologia di intelligenza artificiale, e revisionate dalla redazione prima della pubblicazione.</p>
-        <p>Contatti: <a href="mailto:redazione@domizionews.it">redazione@domizionews.it</a></p>
-      `
-    },
-    'disclaimer': {
-      title: 'Disclaimer',
-      content: `
-        <p><strong>Contenuti generati con intelligenza artificiale</strong><br>Gli articoli pubblicati su Domizio News sono elaborati con il supporto di sistemi di intelligenza artificiale (AI) a partire da fonti giornalistiche pubbliche. La redazione verifica i contenuti prima della pubblicazione, ma non garantisce l assoluta accuratezza delle informazioni.</p>
-        <p><strong>Limitazione di responsabilità</strong><br>Domizio News non si assume responsabilità per eventuali errori, omissioni o imprecisioni nei contenuti pubblicati. Per segnalare un errore: privacy@domizionews.it</p>
-        <p><strong>Fonti</strong><br>I contenuti sono elaborati a partire da agenzie di stampa, testate giornalistiche locali e nazionali e comunicati ufficiali di enti pubblici.</p>
-        <p><strong>Diritto di rettifica</strong><br>Chiunque si ritenga danneggiato da un contenuto pubblicato può richiederne la rettifica o la rimozione scrivendo a privacy@domizionews.it. La redazione risponderà entro 48 ore.</p>
-        <p><strong>Proprietà intellettuale</strong><br>I contenuti originali elaborati dalla redazione sono di proprietà di Domizio News. È vietata la riproduzione senza autorizzazione scritta.</p>
-      `
-    }
-  };
-  const page = pages[slug];
-  if (!page) return '';
+  async function buildLegalPage(slug) {
+  const base = window.DNAPP_CONFIG.siteUrl;
+  const res = await fetch(`${base}/wp-json/wp/v2/pages?slug=${slug}&_fields=title,content`);
+  const data = await res.json();
+  if (!data || !data.length) return '';
+  const page = data[0];
   return `
     <div class="dn-legal-page">
       <div class="dn-article-header">
         <button class="dn-back-btn" data-action="back-legal">
           <span class="material-symbols-outlined">arrow_back</span>
         </button>
-        <span class="dn-article-header-title">${escHtml(page.title)}</span>
+        <span class="dn-article-header-title">${escHtml(page.title.rendered)}</span>
       </div>
       <div class="dn-legal-content">
-        ${page.content}
+        ${page.content.rendered}
       </div>
     </div>
   `;
@@ -1041,8 +982,11 @@
     }
 
     if (state.selectedLegalPage) {
-      html = buildLegalPage(state.selectedLegalPage);
-      root.innerHTML = STYLES + buildHeader() + html + buildNav();
+      root.innerHTML = STYLES + buildHeader() + buildLoading() + buildNav();
+      buildLegalPage(state.selectedLegalPage).then(html => {
+        root.innerHTML = STYLES + buildHeader() + html + buildNav();
+        attachEvents();
+      });
       attachEvents();
       return;
     }
