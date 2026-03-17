@@ -466,18 +466,22 @@
         ${buildCategoryChipsBar()}
         ${buildSlider()}
         ${citySections}
-        <footer class="dn-footer">
-  <div class="dn-footer-links">
-    <a href="#" data-legal="chi-siamo">Chi Siamo</a>
-    <a href="#" data-legal="contatti">Contatti</a>
-    <a href="#" data-legal="privacy-policy">Privacy Policy</a>
-    <a href="#" data-legal="cookie-policy">Cookie Policy</a>
-    <a href="#" data-legal="note-legali">Note Legali</a>
-    <a href="#" data-legal="disclaimer">Disclaimer</a>
-  </div>
-  <p class="dn-footer-copy">© 2025 Domizio News</p>
-</footer>
       </div>`;
+  }
+
+  function buildFooter() {
+    return `
+      <footer class="dn-footer">
+        <div class="dn-footer-links">
+          <a href="#" data-legal="chi-siamo">Chi Siamo</a>
+          <a href="#" data-legal="contatti">Contatti</a>
+          <a href="#" data-legal="privacy-policy">Privacy Policy</a>
+          <a href="#" data-legal="cookie-policy">Cookie Policy</a>
+          <a href="#" data-legal="note-legali">Note Legali</a>
+          <a href="#" data-legal="disclaimer">Disclaimer</a>
+        </div>
+        <p class="dn-footer-copy">© 2025 Domizio News</p>
+      </footer>`;
   }
 
   function buildCities() {
@@ -679,25 +683,41 @@
   }
 
   async function buildLegalPage(slug) {
-  const base = window.DNAPP_CONFIG.siteUrl;
-  const res = await fetch(`${base}/wp-json/wp/v2/pages?slug=${slug}&_fields=title,content`);
-  const data = await res.json();
-  if (!data || !data.length) return '';
-  const page = data[0];
-  return `
-    <div class="dn-legal-page">
-      <div class="dn-article-header">
-        <button class="dn-back-btn" data-action="back-legal">
-          <span class="material-symbols-outlined">arrow_back</span>
-        </button>
-        <span class="dn-article-header-title">${escHtml(page.title.rendered)}</span>
-      </div>
-      <div class="dn-legal-content">
-        ${page.content.rendered}
-      </div>
-    </div>
-  `;
-}
+    try {
+      const res = await fetch(`${API}/pages?slug=${slug}&_fields=title,content`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data || !data.length) throw new Error('Page not found');
+      const page = data[0];
+      return `
+        <div class="dn-legal-page">
+          <div class="dn-detail-header">
+            <button class="dn-back-btn" data-action="back-legal">
+              <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+            <span style="font-size:16px;font-weight:500;color:var(--color-text);">${escHtml(page.title.rendered)}</span>
+            <div style="width:32px;"></div>
+          </div>
+          <div class="dn-legal-content">
+            ${page.content.rendered}
+          </div>
+        </div>
+      `;
+    } catch(e) {
+      return `
+        <div class="dn-legal-page">
+          <div class="dn-detail-header">
+            <button class="dn-back-btn" data-action="back-legal">
+              <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+          </div>
+          <div style="padding:32px 16px;text-align:center;color:#5F6368;">
+            Contenuto non disponibile.
+          </div>
+        </div>
+      `;
+    }
+  }
 
   function buildNav() {
     if (state.searchMode) return ''; // bottom nav nascosta in modalità cerca
@@ -982,12 +1002,16 @@
     }
 
     if (state.selectedLegalPage) {
-      root.innerHTML = STYLES + buildHeader() + buildLoading() + buildNav();
+      root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}${buildLoading()}${buildNav()}</div>`;
+      attachEvents();
       buildLegalPage(state.selectedLegalPage).then(html => {
-        root.innerHTML = STYLES + buildHeader() + html + buildNav();
+        root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}${html}${buildNav()}</div>`;
+        attachEvents();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }).catch(() => {
+        root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}<div style="padding:32px 16px;text-align:center;color:#5F6368;">Contenuto non disponibile.<br><br><button class="dn-back-btn" data-action="back-legal" style="color:#1A73E8;">← Torna indietro</button></div>${buildNav()}</div>`;
         attachEvents();
       });
-      attachEvents();
       return;
     }
 
@@ -996,7 +1020,7 @@
     if (state.tab === 'categories') content = buildScopri();
     if (state.tab === 'search')     content = buildSearch();
 
-    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildNav()}</div>`;
+    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${buildNav()}</div>`;
     attachEvents();
   }
 
@@ -1170,6 +1194,7 @@
     document.querySelectorAll('[data-action="back-legal"]').forEach(el => {
       el.addEventListener('click', () => {
         setState({ selectedLegalPage: null });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
   }
