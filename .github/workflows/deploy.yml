@@ -18,10 +18,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /var/www/html/wp-content/themes/domizionews-theme
-            sudo git fetch origin
-            sudo git reset --hard origin/main
-            cd /var/www/html/wp-content/plugins/domizionews-ai-publisher
+            cd /var/www/html
             sudo git fetch origin
             sudo git reset --hard origin/main
             sudo chown -R www-data:www-data /var/www/html/wp-content
