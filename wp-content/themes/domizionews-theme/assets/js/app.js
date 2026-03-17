@@ -567,9 +567,7 @@
       <div class="dn-screen">
         ${buildHeader()}
         <div class="dn-detail-header">
-          <button class="dn-back-btn" id="btn-back-home">
-            <span class="material-symbols-outlined">arrow_back</span>
-          </button>
+          <div style="width:32px;"></div>
           <span style="font-size:16px;font-weight:500;color:var(--color-text);">Città</span>
           <div style="width:32px;"></div>
         </div>
