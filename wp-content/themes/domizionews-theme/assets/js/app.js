@@ -333,15 +333,15 @@
 
   // ─── SCOPRI: costanti ────────────────────────────────────────────────────────
   const SCOPRI_CATEGORIES = [
-    { nome: 'Ristoranti & Locali',    slug: 'ristoranti-locali',    img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800' },
-    { nome: 'Eventi & Concerti',      slug: 'eventi-concerti',      img: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800' },
-    { nome: 'Spiagge & Stabilimenti', slug: 'spiagge-stabilimenti', img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800' },
-    { nome: 'Immobiliare',            slug: 'immobiliare',          img: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800' },
-    { nome: 'Negozi',                 slug: 'negozi',               img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800' },
-    { nome: 'Food & Gusto',           slug: 'food-gusto',           img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800' },
-    { nome: 'Turismo & Vacanze',      slug: 'turismo-vacanze',      img: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800' },
-    { nome: 'Shopping',               slug: 'shopping',             img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800' },
-    { nome: 'Benessere',              slug: 'benessere',            img: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800' },
+    { nome: 'Ristoranti & Locali',    slug: 'ristoranti-locali',    icon: 'restaurant' },
+    { nome: 'Eventi & Concerti',      slug: 'eventi-concerti',      icon: 'event' },
+    { nome: 'Spiagge & Stabilimenti', slug: 'spiagge-stabilimenti', icon: 'beach_access' },
+    { nome: 'Immobiliare',            slug: 'immobiliare',          icon: 'home' },
+    { nome: 'Negozi',                 slug: 'negozi',               icon: 'storefront' },
+    { nome: 'Food & Gusto',           slug: 'food-gusto',           icon: 'lunch_dining' },
+    { nome: 'Turismo & Vacanze',      slug: 'turismo-vacanze',      icon: 'luggage' },
+    { nome: 'Shopping',               slug: 'shopping',             icon: 'shopping_bag' },
+    { nome: 'Benessere',              slug: 'benessere',            icon: 'spa' },
   ];
 
   const SCOPRI_CITIES = [
@@ -634,8 +634,7 @@
           <div class="dn-scopri-grid">
             ${SCOPRI_CATEGORIES.map(c => `
               <div class="dn-scopri-card" data-scopri-cat="${c.slug}">
-                <img class="dn-scopri-card-img" src="${c.img}" alt="" loading="lazy">
-                <div class="dn-scopri-card-overlay"></div>
+                <span class="material-symbols-outlined" style="font-size:48px;color:#5F6368;">${c.icon}</span>
                 <div class="dn-scopri-card-name">${c.nome}</div>
               </div>
             `).join('')}
@@ -966,11 +965,9 @@
 
     /* SCOPRI — griglia categorie */
     .dn-scopri-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
-    .dn-scopri-card { position: relative; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; cursor: pointer; }
+    .dn-scopri-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; border-radius: 8px; overflow: hidden; cursor: pointer; background: #F2F2F7; }
     .dn-scopri-card:active { opacity: 0.85; }
-    .dn-scopri-card-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-    .dn-scopri-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.15) 55%, transparent 100%); }
-    .dn-scopri-card-name { position: absolute; bottom: 12px; left: 12px; right: 12px; color: #fff; font-size: 16px; font-weight: 700; line-height: 1.2; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-scopri-card-name { color: #202124; font-size: 14px; font-weight: 600; line-height: 1.2; text-align: center; font-family: 'Roboto', Arial, sans-serif; }
 
     /* SCOPRI — header risultati */
     .dn-scopri-header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); padding: 14px 16px; display: flex; align-items: center; border-bottom: 1px solid var(--color-divider); }
