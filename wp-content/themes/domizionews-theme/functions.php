@@ -23,6 +23,8 @@ add_action( 'init', function () {
 add_action( 'after_setup_theme', function () {
     add_theme_support( 'title-tag' );
     add_theme_support( 'post-thumbnails' );
+    add_image_size( 'domizio-card',  600, 338, true ); // 16:9 hero/slider
+    add_image_size( 'domizio-thumb',  80,  80, true ); // list card thumbnail
 } );
 
 // ─── ABILITA REST API TASSONOMIA CITY ────────────────────────────────────────
@@ -142,7 +144,10 @@ function dnapp_rest_feed( WP_REST_Request $req ): WP_REST_Response {
 
     foreach ( $query->posts as $p ) {
         $thumb     = get_post_thumbnail_id( $p->ID );
-        $thumb_url = $thumb ? wp_get_attachment_image_url( $thumb, 'large' ) : '';
+        $thumb_url = $thumb ? wp_get_attachment_image_url( $thumb, 'domizio-card' ) : '';
+        if ( ! $thumb_url ) {
+            $thumb_url = (string) get_post_meta( $p->ID, '_dnap_external_image', true );
+        }
 
         $cats   = wp_get_post_categories( $p->ID, [ 'fields' => 'all' ] );
         $cities = wp_get_post_terms( $p->ID, 'city' );

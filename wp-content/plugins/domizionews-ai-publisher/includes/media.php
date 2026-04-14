@@ -11,6 +11,9 @@ if (!defined('ABSPATH')) exit;
  *   4. og:image della pagina sorgente (fondamentale per Google News)
  *   5. Prima <img> nel body della pagina sorgente
  *   6. Immagine di fallback per categoria (Unsplash, ultimo tentativo)
+ *
+ * Per URL Unsplash: salva come meta _dnap_external_image senza scaricare.
+ * Per tutti gli altri: sideload con media_sideload_image() + conversione WebP.
  */
 function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $image_url = '') {
 
@@ -83,7 +86,7 @@ function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $ima
         ];
         $default_image = 'https://source.unsplash.com/800x450/?italy,landscape';
 
-        $categories  = get_the_category($post_id);
+        $categories   = get_the_category($post_id);
         $matched_slug = 'default';
         foreach ($categories as $cat) {
             if (isset($category_images[$cat->slug])) {
@@ -100,50 +103,113 @@ function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $ima
 
     dnap_log("Immagine trovata: " . mb_substr($img_url, 0, 80));
 
-    // Scarica e importa
+    // URL Unsplash: non scaricare — salva come meta esterno e termina.
+    $host = parse_url($img_url, PHP_URL_HOST);
+    if ($host && strpos($host, 'unsplash.com') !== false) {
+        update_post_meta($post_id, '_dnap_external_image', esc_url_raw($img_url));
+        dnap_log("Immagine Unsplash salvata come meta esterno");
+        return;
+    }
+
+    // Scarica e importa con media_sideload_image() (gestisce thumbnails in automatico).
     require_once ABSPATH . 'wp-admin/includes/media.php';
     require_once ABSPATH . 'wp-admin/includes/file.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
 
-    $tmp = download_url($img_url, 30);
-    if (is_wp_error($tmp)) {
-        dnap_log("Errore download immagine: " . $tmp->get_error_message());
-        return;
-    }
-
-    // Estensione: usa il MIME type del file scaricato (segue i redirect),
-    // non l'URL originale che per Unsplash non ha estensione nel path.
-    $mime_map = [
-        'image/jpeg' => 'jpg',
-        'image/png'  => 'png',
-        'image/webp' => 'webp',
-        'image/gif'  => 'gif',
-        'image/avif' => 'avif',
-    ];
-    $mime = function_exists('mime_content_type') ? mime_content_type($tmp) : '';
-    $ext  = isset($mime_map[$mime]) ? $mime_map[$mime] : '';
-    if (!$ext) {
-        // Fallback: prova dal path dell'URL originale
-        $ext = strtolower(pathinfo(parse_url($img_url, PHP_URL_PATH), PATHINFO_EXTENSION));
-        $ext = preg_replace('/[^a-z0-9]/', '', $ext);
-    }
-    $allowed = array('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif');
-    if (!in_array($ext, $allowed)) $ext = 'jpg';
-
-    $filename   = sanitize_file_name(mb_substr($title, 0, 50)) . '-' . $post_id . '.' . $ext;
-    $file_array = array('name' => $filename, 'tmp_name' => $tmp);
-
-    $attach_id = media_handle_sideload($file_array, $post_id, $title);
-
-    @unlink($tmp);
+    $attach_id = media_sideload_image($img_url, $post_id, $title, 'id');
 
     if (is_wp_error($attach_id)) {
         dnap_log("Errore sideload immagine: " . $attach_id->get_error_message());
         return;
     }
 
+    // Converti JPG/PNG → WebP e rimuovi l'originale.
+    dnap_convert_attachment_to_webp($attach_id);
+
     set_post_thumbnail($post_id, $attach_id);
     dnap_log("Immagine impostata [attachment {$attach_id}]");
+}
+
+/**
+ * Converte un attachment JPG/PNG in WebP usando PHP GD.
+ * Converte il file originale e tutte le dimensioni intermedie generate da WP,
+ * quindi elimina i file sorgente e aggiorna i metadati dell'attachment.
+ */
+function dnap_convert_attachment_to_webp($attach_id) {
+    if (!function_exists('imagewebp')) {
+        dnap_log("GD WebP non supportato — conversione saltata");
+        return;
+    }
+
+    $file_path = get_attached_file($attach_id);
+    if (!$file_path || !file_exists($file_path)) return;
+
+    $mime = get_post_mime_type($attach_id);
+    if (!in_array($mime, ['image/jpeg', 'image/png'], true)) return;
+
+    $meta       = wp_get_attachment_metadata($attach_id);
+    $upload_dir = dirname($file_path);
+
+    // Raccogli file originale + tutte le dimensioni intermedie.
+    $files_to_convert = [$file_path];
+    if (!empty($meta['sizes'])) {
+        foreach ($meta['sizes'] as $size_data) {
+            $size_file = $upload_dir . '/' . $size_data['file'];
+            if (file_exists($size_file)) {
+                $files_to_convert[] = $size_file;
+            }
+        }
+    }
+
+    // Converti ogni file in WebP ed elimina l'originale.
+    foreach ($files_to_convert as $src_path) {
+        $webp_path = preg_replace('/\.(jpe?g|png)$/i', '.webp', $src_path);
+        if ($webp_path === $src_path) continue;
+
+        if ($mime === 'image/jpeg') {
+            $img = @imagecreatefromjpeg($src_path);
+        } else {
+            $img = @imagecreatefrompng($src_path);
+            if ($img) {
+                imagepalettetotruecolor($img);
+                imagealphablending($img, true);
+                imagesavealpha($img, true);
+            }
+        }
+
+        if (!$img) continue;
+
+        if (imagewebp($img, $webp_path, 82)) {
+            @unlink($src_path);
+        }
+        imagedestroy($img);
+    }
+
+    // Aggiorna i metadati dell'attachment per puntare ai file WebP.
+    $new_file_path = preg_replace('/\.(jpe?g|png)$/i', '.webp', $file_path);
+    if (!file_exists($new_file_path)) return;
+
+    update_attached_file($attach_id, $new_file_path);
+
+    global $wpdb;
+    $wpdb->update($wpdb->posts, ['post_mime_type' => 'image/webp'], ['ID' => $attach_id]);
+    clean_post_cache($attach_id);
+
+    if (!empty($meta['sizes'])) {
+        foreach ($meta['sizes'] as &$size_data) {
+            $new_size_file = preg_replace('/\.(jpe?g|png)$/i', '.webp', $size_data['file']);
+            if (file_exists($upload_dir . '/' . $new_size_file)) {
+                $size_data['file']      = $new_size_file;
+                $size_data['mime-type'] = 'image/webp';
+            }
+        }
+        unset($size_data);
+    }
+    $meta['file']      = _wp_relative_upload_path($new_file_path);
+    $meta['mime-type'] = 'image/webp';
+    wp_update_attachment_metadata($attach_id, $meta);
+
+    dnap_log("Conversione WebP completata [attachment {$attach_id}]");
 }
 
 /**

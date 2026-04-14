@@ -121,7 +121,10 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
 
     foreach ($query->posts as $p) {
         $thumb_id  = get_post_thumbnail_id($p->ID);
-        $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
+        $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'domizio-card') : '';
+        if (!$thumb_url) {
+            $thumb_url = (string) get_post_meta($p->ID, '_dnap_external_image', true);
+        }
 
         $cats   = wp_get_post_categories($p->ID, ['fields' => 'all']);
         $cities = wp_get_post_terms($p->ID, 'city');
@@ -228,8 +231,11 @@ function dnap_rest_scopri_handler(WP_REST_Request $request): WP_REST_Response {
     $results = [];
 
     foreach ($query->posts as $p) {
-        $thumb_id   = get_post_thumbnail_id($p->ID);
-        $thumb_url  = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
+        $thumb_id  = get_post_thumbnail_id($p->ID);
+        $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'domizio-thumb') : '';
+        if (!$thumb_url) {
+            $thumb_url = (string) get_post_meta($p->ID, '_dnap_external_image', true);
+        }
         $cities     = wp_get_post_terms($p->ID, 'city');
         $categorie  = wp_get_post_terms($p->ID, 'scopri_categoria');
 
@@ -303,15 +309,15 @@ function dnap_rest_sticky_news_handler(WP_REST_Request $request): WP_REST_Respon
         $cats     = get_the_category($post->ID);
         $category = !empty($cats) ? $cats[0]->name : '';
 
-        // Immagine in evidenza: thumbnail → meta _og_image
+        // Immagine in evidenza: thumbnail → meta _dnap_external_image
         $image    = '';
         $thumb_id = get_post_thumbnail_id($post->ID);
         if ($thumb_id) {
-            $img_src = wp_get_attachment_image_src($thumb_id, 'large');
+            $img_src = wp_get_attachment_image_src($thumb_id, 'domizio-card');
             $image   = $img_src ? $img_src[0] : '';
         }
         if (!$image) {
-            $image = (string) get_post_meta($post->ID, '_og_image', true);
+            $image = (string) get_post_meta($post->ID, '_dnap_external_image', true);
         }
 
         // Excerpt
