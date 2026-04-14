@@ -88,4 +88,7 @@ function dnap_load_modules() {
     require_once DNAP_DIR . 'includes/scopri.php';
     require_once DNAP_DIR . 'admin/dashboard.php';
     require_once DNAP_DIR . 'admin/feeds.php';
+    if ( defined('WP_CLI') && WP_CLI ) {
+        require_once DNAP_DIR . 'includes/cli.php';
+    }
 }
