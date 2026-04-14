@@ -304,7 +304,7 @@
     const img = post.image || '';
     return `
       <div class="dn-card-hero${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
-        ${img ? `<div class="dn-card-hero-img"><img src="${img}" alt="" loading="lazy"></div>` : ''}
+        ${img ? `<div class="dn-card-hero-img"><img src="${img}" alt="" loading="eager"></div>` : ''}
         <div class="dn-card-hero-body">
           ${buildCardBadges(post)}
           <h3 class="dn-card-hero-title">${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
@@ -432,7 +432,7 @@
           city:      p.cities?.[0]?.name || '',
           city_slug: p.cities?.[0]?.slug || '',
           time_ago:  timeAgo(p.date),
-          permalink: p.link || '',
+          permalink: p.source_url || '',
           is_vip:    !!p.sticky,
         }));
 
@@ -443,7 +443,7 @@
         <div class="dn-slider" id="dn-slider">
           ${items.map(item => `
             <div class="dn-slider-card" data-sticky-href="${item.permalink}" data-post-id="${item.post_id}">
-              ${item.image ? `<div class="dn-slider-img"><img src="${item.image}" alt="" loading="lazy"></div>` : ''}
+              ${item.image ? `<div class="dn-slider-img"><img src="${item.image}" alt="" loading="eager"></div>` : ''}
               <div class="dn-slider-body">
                 <div class="dn-card-badges">
                   ${item.category ? `<span class="dn-cat-label">${escHtml(decodeHtml(item.category))}</span>` : ''}
@@ -1066,6 +1066,22 @@
     if (state.selectedPost) {
       root.innerHTML = `<style>${STYLES}</style><div class="dn-app" style="padding-bottom:0">${buildArticleDetail(state.selectedPost)}</div>`;
       document.getElementById('dn-back')?.addEventListener('click', () => setState({ selectedPost: null }));
+      document.getElementById('dn-share')?.addEventListener('click', () => {
+        const post = state.selectedPost;
+        const shareData = {
+          title: post.title,
+          text:  post.excerpt || post.title,
+          url:   post.source_url || window.location.href,
+        };
+        if (navigator.share) {
+          navigator.share(shareData).catch(() => {});
+        } else {
+          navigator.clipboard?.writeText(shareData.url).then(() => {
+            alert('Link copiato negli appunti');
+          }).catch(() => {});
+        }
+      });
+      initAds();
       return;
     }
 
