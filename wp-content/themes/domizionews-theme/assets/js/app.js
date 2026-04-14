@@ -1089,7 +1089,7 @@
     if (state.tab === 'categories') content = buildScopri();
     if (state.tab === 'search')     content = buildSearch();
 
-    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${renderAd('banner-nav')}${buildNav()}</div>`;
+    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${!state.loading ? renderAd('banner-nav') : ''}${buildNav()}</div>`;
     attachEvents();
   }
 
