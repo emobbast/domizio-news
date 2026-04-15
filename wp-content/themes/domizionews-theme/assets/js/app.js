@@ -298,13 +298,20 @@
 
   // ─── HTML BUILDERS ──────────────────────────────────────────────────────────
 
+  function buildImagePlaceholder() {
+    return `
+      <div style="background:#E8F0FE;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
+        <span class="material-symbols-outlined" style="font-size:48px;color:#1A73E8;">article</span>
+      </div>`;
+  }
+
   // Hero card: immagine full-width 16/9
   // isLast = true → nessun border-bottom (evita doppio bordo con separatore sezione)
   function buildHeroCard(post, isLast) {
     const img = post.image || '';
     return `
       <div class="dn-card-hero${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
-        ${img ? `<div class="dn-card-hero-img"><img src="${img}" alt="" loading="eager"></div>` : ''}
+        <div class="dn-card-hero-img">${img ? `<img src="${img}" alt="" loading="eager">` : buildImagePlaceholder()}</div>
         <div class="dn-card-hero-body">
           ${buildCardBadges(post)}
           <h3 class="dn-card-hero-title">${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
@@ -324,7 +331,7 @@
           <h3>${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
-        ${img ? `<img src="${img}" alt="" loading="lazy">` : ''}
+        ${img ? `<img src="${img}" alt="" loading="lazy">` : buildImagePlaceholder()}
       </div>`;
   }
 
@@ -443,7 +450,7 @@
         <div class="dn-slider" id="dn-slider">
           ${items.map(item => `
             <div class="dn-slider-card" data-sticky-href="${item.permalink}" data-post-id="${item.post_id}">
-              ${item.image ? `<div class="dn-slider-img"><img src="${item.image}" alt="" loading="eager"></div>` : ''}
+              <div class="dn-slider-img">${item.image ? `<img src="${item.image}" alt="" loading="eager">` : buildImagePlaceholder()}</div>
               <div class="dn-slider-body">
                 <div class="dn-card-badges">
                   ${item.category ? `<span class="dn-cat-label">${escHtml(decodeHtml(item.category))}</span>` : ''}
@@ -728,11 +735,9 @@
           <button class="dn-back-btn" id="dn-back">Indietro</button>
           <button class="dn-share-btn" id="dn-share">Condividi</button>
         </div>
-        ${post.image ? `
-          <div class="dn-detail-img-wrap">
-            <img src="${post.image}" alt="">
-            <div class="dn-detail-img-fade"></div>
-          </div>` : ''}
+        <div class="dn-detail-img-wrap">
+          ${post.image ? `<img src="${post.image}" alt=""><div class="dn-detail-img-fade"></div>` : buildImagePlaceholder()}
+        </div>
         <div class="dn-detail-body">
           <div class="dn-badges">
             ${post.categories?.map(c => `<span class="dn-badge-cat">${escHtml(decodeHtml(c.name))}</span>`).join('') || ''}
