@@ -62,6 +62,7 @@ class DNAP_CLI_Command {
         $progress = WP_CLI\Utils\make_progress_bar( 'Reimport immagini', $total );
 
         $count_success  = 0;
+        $count_external = 0;
         $count_skipped  = 0;
         $count_failed   = 0;
 
@@ -82,8 +83,9 @@ class DNAP_CLI_Command {
                 WP_CLI::log( "  [#{$post_id}] success  — {$title}" );
                 $count_success++;
             } elseif ( $result === 'external' ) {
-                WP_CLI::log( "  [#{$post_id}] external — URL Unsplash salvato come meta: {$title}" );
-                $count_skipped++;
+                WP_CLI::log( "  [#{$post_id}] external — immagine salvata come meta esterno: {$title}" );
+                $count_external++;
+                $count_success++;
             } else {
                 WP_CLI::log( "  [#{$post_id}] failed   — {$title}" );
                 $count_failed++;
@@ -97,7 +99,7 @@ class DNAP_CLI_Command {
         WP_CLI::log( '' );
         WP_CLI::log( '─────────────────────────────────' );
         WP_CLI::log( "Totale processati : {$total}" );
-        WP_CLI::log( "Successo          : {$count_success}" );
+        WP_CLI::log( "Successo          : {$count_success} (di cui esterni: {$count_external})" );
         WP_CLI::log( "Saltati           : {$count_skipped}" );
         WP_CLI::log( "Falliti           : {$count_failed}" );
         WP_CLI::log( '─────────────────────────────────' );
@@ -127,7 +129,12 @@ function dnap_cli_reimport_image( $post_id, $source_url, $title ) {
     $img_url = dnap_fetch_article_image( $source_url );
 
     if ( empty( $img_url ) ) {
-        WP_CLI::debug( "[#{$post_id}] Nessuna immagine trovata per: {$source_url}", 'dnap' );
+        WP_CLI::debug( "[#{$post_id}] Nessuna immagine trovata via scraping — provo Unsplash API", 'dnap' );
+        if ( dnap_unsplash_api_fallback( $post_id ) ) {
+            WP_CLI::debug( "[#{$post_id}] Unsplash API: immagine salvata come meta esterno", 'dnap' );
+            return 'external';
+        }
+        WP_CLI::debug( "[#{$post_id}] Nessuna immagine disponibile (scraping + Unsplash API falliti)", 'dnap' );
         return false;
     }
 
