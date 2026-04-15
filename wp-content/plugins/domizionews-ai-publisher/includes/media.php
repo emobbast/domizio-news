@@ -1,6 +1,12 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// Unsplash API key — override in wp-config.php with:
+//   define('DNAP_UNSPLASH_KEY', 'your_real_access_key');
+if (!defined('DNAP_UNSPLASH_KEY')) {
+    define('DNAP_UNSPLASH_KEY', 'YOUR_ACCESS_KEY');
+}
+
 /**
  * Cerca e imposta l'immagine in evidenza.
  * Strategia (in ordine di priorità):
@@ -70,40 +76,18 @@ function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $ima
         }
     }
 
-    // 6. Immagine di fallback per categoria
+    // 6. Unsplash API fallback — cerca un'immagine per categoria tramite API ufficiale.
     if (!$img_url) {
-        // Usa /800x450/ invece di /featured/ per evitare il redirect cached
-        // server-side di Unsplash che restituisce sempre la stessa foto.
-        $category_images = [
-            'cronaca'             => 'https://source.unsplash.com/800x450/?crime,news,italy',
-            'sport'               => 'https://source.unsplash.com/800x450/?sport,athletics',
-            'politica'            => 'https://source.unsplash.com/800x450/?politics,government',
-            'economia-lavoro'     => 'https://source.unsplash.com/800x450/?business,economy',
-            'ambiente-mare'       => 'https://source.unsplash.com/800x450/?sea,nature,beach',
-            'eventi-cultura'      => 'https://source.unsplash.com/800x450/?culture,event,art',
-            'salute'              => 'https://source.unsplash.com/800x450/?health,medicine',
-            'incidenti-sicurezza' => 'https://source.unsplash.com/800x450/?emergency,safety',
-        ];
-        $default_image = 'https://source.unsplash.com/800x450/?italy,landscape';
-
-        $categories   = get_the_category($post_id);
-        $matched_slug = 'default';
-        foreach ($categories as $cat) {
-            if (isset($category_images[$cat->slug])) {
-                $matched_slug = $cat->slug;
-                $img_url      = $category_images[$cat->slug] . '&sig=' . $post_id;
-                break;
-            }
+        if (dnap_unsplash_api_fallback($post_id)) {
+            return; // meta salvati direttamente dalla funzione
         }
-        if (!$img_url) {
-            $img_url = $default_image . '&sig=' . $post_id;
-        }
-        dnap_log("Immagine fallback categoria: {$matched_slug}");
+        dnap_log("Nessuna immagine trovata per il post {$post_id}");
+        return;
     }
 
     dnap_log("Immagine trovata: " . mb_substr($img_url, 0, 80));
 
-    // URL Unsplash: non scaricare — salva come meta esterno e termina.
+    // URL Unsplash trovato durante scraping (step 0-5): salva come meta esterno, non scaricare.
     $host = parse_url($img_url, PHP_URL_HOST);
     if ($host && strpos($host, 'unsplash.com') !== false) {
         update_post_meta($post_id, '_dnap_external_image', esc_url_raw($img_url));
@@ -128,6 +112,93 @@ function dnap_set_featured_image($post_id, $title, $item, $source_url = '', $ima
 
     set_post_thumbnail($post_id, $attach_id);
     dnap_log("Immagine impostata [attachment {$attach_id}]");
+}
+
+/**
+ * Recupera un'immagine casuale da Unsplash API basata sulla categoria del post.
+ * Salva l'URL come meta _dnap_external_image (hotlink, non scaricato).
+ * Salva il credito fotografo come meta _dnap_unsplash_credit.
+ * Attiva il download endpoint richiesto dalle linee guida Unsplash API.
+ *
+ * @param int $post_id Post ID.
+ * @return bool True se l'immagine è stata trovata e i meta salvati.
+ */
+function dnap_unsplash_api_fallback($post_id) {
+    if (!defined('DNAP_UNSPLASH_KEY') || DNAP_UNSPLASH_KEY === 'YOUR_ACCESS_KEY' || empty(DNAP_UNSPLASH_KEY)) {
+        dnap_log("Unsplash API: chiave non configurata — fallback saltato");
+        return false;
+    }
+
+    $query_map = [
+        'cronaca'             => 'city news italy',
+        'sport'               => 'sport',
+        'politica'            => 'politics government',
+        'economia-lavoro'     => 'business economy',
+        'ambiente-mare'       => 'nature environment',
+        'eventi-cultura'      => 'event concert',
+        'salute'              => 'health medicine',
+        'incidenti-sicurezza' => 'emergency safety',
+    ];
+
+    $categories = get_the_category($post_id);
+    $query      = 'coastal italy'; // default
+    foreach ($categories as $cat) {
+        if (isset($query_map[$cat->slug])) {
+            $query = $query_map[$cat->slug];
+            break;
+        }
+    }
+
+    $api_url = add_query_arg([
+        'query'       => $query,
+        'orientation' => 'landscape',
+        'client_id'   => DNAP_UNSPLASH_KEY,
+    ], 'https://api.unsplash.com/photos/random');
+
+    $response = wp_remote_get($api_url, ['timeout' => 15]);
+
+    if (is_wp_error($response)) {
+        dnap_log("Unsplash API errore: " . $response->get_error_message());
+        return false;
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    if ($code !== 200) {
+        dnap_log("Unsplash API risposta HTTP {$code}");
+        return false;
+    }
+
+    $data = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (empty($data['urls']['regular']) || empty($data['id'])) {
+        dnap_log("Unsplash API: risposta JSON non valida");
+        return false;
+    }
+
+    $photo_id     = $data['id'];
+    $img_url      = $data['urls']['regular'];
+    $photographer = isset($data['user']['name'])       ? $data['user']['name']             : 'Unknown';
+    $profile_url  = isset($data['user']['links']['html']) ? $data['user']['links']['html'] : 'https://unsplash.com';
+
+    // Trigger del download endpoint — obbligatorio per le linee guida Unsplash API.
+    wp_remote_get(
+        'https://api.unsplash.com/photos/' . $photo_id . '/download?client_id=' . DNAP_UNSPLASH_KEY,
+        ['timeout' => 10, 'blocking' => false]
+    );
+
+    // Salva l'immagine come hotlink (non scaricare).
+    update_post_meta($post_id, '_dnap_external_image', esc_url_raw($img_url));
+
+    // Salva il credito fotografo con link UTM come richiesto da Unsplash.
+    $credit = sprintf(
+        'Photo by <a href="%s" rel="noopener noreferrer">%s</a> on <a href="https://unsplash.com/?utm_source=domizio_news&utm_medium=referral" rel="noopener noreferrer">Unsplash</a>',
+        esc_url(add_query_arg(['utm_source' => 'domizio_news', 'utm_medium' => 'referral'], $profile_url)),
+        esc_html($photographer)
+    );
+    update_post_meta($post_id, '_dnap_unsplash_credit', $credit);
+
+    dnap_log("Unsplash API: immagine salvata [{$photo_id}] — query: {$query} — by {$photographer}");
+    return true;
 }
 
 /**
