@@ -76,7 +76,7 @@ class DNAP_CLI_Command {
                 continue;
             }
 
-            $result = dnap_cli_reimport_image( $post_id, $title, $source_url );
+            $result = dnap_cli_reimport_image( $post_id, $source_url, $title );
 
             if ( $result === true ) {
                 WP_CLI::log( "  [#{$post_id}] success  — {$title}" );
@@ -115,37 +115,42 @@ class DNAP_CLI_Command {
  * Used by the WP-CLI reimport command; does not require a SimplePie item object.
  *
  * @param int    $post_id    Post ID.
- * @param string $title      Post title (used as attachment description).
  * @param string $source_url Original article URL stored in _source_url meta.
+ * @param string $title      Post title (used as attachment description).
  *
  * @return true       Image sideloaded and set as post thumbnail.
  * @return 'external' Unsplash URL saved as _dnap_external_image meta.
  * @return false      No image found or sideload error.
  */
-function dnap_cli_reimport_image( $post_id, $title, $source_url ) {
+function dnap_cli_reimport_image( $post_id, $source_url, $title ) {
 
     $img_url = dnap_fetch_article_image( $source_url );
 
     if ( empty( $img_url ) ) {
+        WP_CLI::debug( "[#{$post_id}] Nessuna immagine trovata per: {$source_url}", 'dnap' );
         return false;
     }
 
     // Unsplash: never download — store as external meta.
     $host = parse_url( $img_url, PHP_URL_HOST );
     if ( $host && strpos( $host, 'unsplash.com' ) !== false ) {
+        WP_CLI::debug( "[#{$post_id}] URL Unsplash rilevato, salvato come meta: {$img_url}", 'dnap' );
         update_post_meta( $post_id, '_dnap_external_image', esc_url_raw( $img_url ) );
         return 'external';
     }
 
+    WP_CLI::debug( "[#{$post_id}] Sideload da: {$img_url}", 'dnap' );
     $attach_id = media_sideload_image( $img_url, $post_id, $title, 'id' );
 
     if ( is_wp_error( $attach_id ) ) {
+        WP_CLI::debug( "[#{$post_id}] Errore sideload: " . $attach_id->get_error_message(), 'dnap' );
         return false;
     }
 
     dnap_convert_attachment_to_webp( $attach_id );
     set_post_thumbnail( $post_id, $attach_id );
 
+    WP_CLI::debug( "[#{$post_id}] Immagine impostata [attachment {$attach_id}]", 'dnap' );
     return true;
 }
 
