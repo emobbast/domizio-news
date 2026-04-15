@@ -74,12 +74,12 @@ function dnap_source_exists(string $source_url, string $hash, string $new_title)
         return true;
     }
 
-    // 3. Titolo simile nelle ultime 48h (similar_text ≥ 70%)
+    // 3. Titolo simile negli ultimi 7 giorni (similar_text ≥ 80%)
     $recent = get_posts([
         'post_type'      => 'post',
         'posts_per_page' => 100,
         'fields'         => 'ids',
-        'date_query'     => [['after' => '48 hours ago']],
+        'date_query'     => [['after' => '7 days ago']],
     ]);
 
     foreach ($recent as $pid) {
@@ -89,7 +89,7 @@ function dnap_source_exists(string $source_url, string $hash, string $new_title)
             mb_strtolower($existing_title),
             $pct
         );
-        if ($pct >= 70) {
+        if ($pct >= 80) {
             dnap_log("Duplicato titolo ({$pct}%): \"{$new_title}\" ~ \"{$existing_title}\"");
             return true;
         }
@@ -493,8 +493,8 @@ function dnap_import_now() {
             }
 
             // Filtra articoli non locali (PRIMA di chiamare GPT)
-            $local_text = $title_raw . ' ' . $feed_text . ' ' . $meta['description'];
-            if (!dnap_is_local_content($local_text)) {
+            // Controlla solo titolo + primi 200 chars del body + og:description
+            if (!dnap_is_local_content($title_raw . ' ' . mb_substr($feed_text, 0, 200) . ' ' . $meta['description'])) {
                 dnap_log("⏭ Saltato (non locale): {$title_raw}");
                 $total_skipped++;
                 continue;
@@ -575,7 +575,8 @@ function dnap_import_now() {
             dnap_set_featured_image($post_id, $rewritten['title'], $item, $source_url, $image_url);
 
             // ── CITTÀ ────────────────────────────────────────────────
-            $city_text  = $title_raw . ' ' . $feed_text . ' ' . $meta['description'];
+            // Solo titolo + og:description per evitare falsi match dal corpo della fonte
+            $city_text  = $title_raw . ' ' . $meta['description'];
             $city_slugs = dnap_get_cities_from_text($city_text);
             if ($city_slugs) {
                 wp_set_object_terms($post_id, $city_slugs, 'city');

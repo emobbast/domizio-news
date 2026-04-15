@@ -91,7 +91,7 @@ function dnap_get_city_labels(): string {
 /* ============================================================
    RISCRITTURA GPT v7
    Genera: titolo, body, excerpt, meta_description, slug,
-           category, cities, tags, contesto_locale
+           category, cities, tags
    ============================================================ */
 function dnap_gpt_rewrite(string $text, string $original_title = '', string $source_url = '') {
 
@@ -107,12 +107,11 @@ Riscrivi questa notizia come articolo giornalistico originale. Cambia struttura 
 
 Rispondi SOLO con questo JSON (niente altro):
 {
-  "title": "Titolo SEO accattivante, max 65 caratteri, diverso dall'originale",
+  "title": "Titolo giornalistico breve e diretto, massimo 75 caratteri, mai troncare parole a metà, diverso dall'originale",
   "slug": "slug-url-ottimizzato-max-6-parole",
   "excerpt": "Sommario 1-2 frasi, max 160 caratteri",
   "meta_description": "Meta description per Google, 140-155 caratteri, includi parola chiave principale",
-  "content": "Articolo completo, minimo 5 paragrafi, struttura diversa dalla fonte. Primo paragrafo: il fatto principale. Paragrafi 2-3: contesto e dettagli. Paragrafo 4: impatto locale sul litorale domizio / provincia di Caserta. Ultimo paragrafo: conclusione o prossimi sviluppi. Solo tag HTML: <p> e <strong>.",
-  "contesto_locale": "1-2 frasi che collegano la notizia al territorio del litorale domizio",
+  "content": "Articolo completo, minimo 5 paragrafi, struttura diversa dalla fonte. Primo paragrafo: il fatto principale. Paragrafi 2-3: contesto e dettagli. Paragrafo 4: impatto locale sul litorale domizio / provincia di Caserta. Penultimo paragrafo: commento critico editoriale che collega la notizia al territorio del litorale domizio, scritto in prima persona editoriale, tono critico e costruttivo (es. 'Nel litorale domizio questo episodio...'). Non usare etichette come 'Contesto locale:'. Il commento deve sembrare parte naturale dell'articolo. Ultimo paragrafo: conclusione o prossimi sviluppi. Solo tag HTML: <p> e <strong>.",
   "category": "UNO SOLO tra: {$cat_list}",
   "cities": ["slug ESATTO tra: {$city_list} — [] se non riguarda città specifiche"],
   "tags": ["3-5 tag pertinenti, singole parole o brevi frasi, no luoghi già nelle cities"]
@@ -130,7 +129,7 @@ PROMPT;
 
     if (!$data || empty($data['title']) || empty($data['content'])) {
         dnap_log('JSON GPT non valido, retry semplificato…');
-        $retry = 'Rispondi SOLO con JSON. Campi obbligatori: title (max 65 car), slug, excerpt (max 160 car), meta_description (140-155 car), content (min 5 paragrafi con <p>), category (uno tra: ' . $cat_list . '), cities (array slug: ' . $city_list . '), tags (array 3-5 elementi).'
+        $retry = 'Rispondi SOLO con JSON. Campi obbligatori: title (max 75 car, non troncare parole), slug, excerpt (max 160 car), meta_description (140-155 car), content (min 5 paragrafi con <p>, includi commento editoriale locale nel penultimo paragrafo), category (uno tra: ' . $cat_list . '), cities (array slug: ' . $city_list . '), tags (array 3-5 elementi).'
                  . "\nTitolo: {$original_title}\nTesto:\n{$text_input}";
         $raw2 = dnap_call_gpt($retry, 1200, 0.65);
         if (!$raw2) return false;
@@ -142,7 +141,12 @@ PROMPT;
     }
 
     // ── Sanitizza ────────────────────────────────────────────────
-    $data['title']            = wp_strip_all_tags(mb_substr(trim($data['title']), 0, 65));
+    $t = wp_strip_all_tags(trim($data['title']));
+    if (mb_strlen($t) > 75) {
+        $t = mb_substr($t, 0, 75);
+        $t = mb_substr($t, 0, mb_strrpos($t, ' '));
+    }
+    $data['title']            = $t;
     $data['slug']             = sanitize_title($data['slug'] ?? $data['title']);
     $data['excerpt']          = wp_strip_all_tags(mb_substr(trim($data['excerpt']), 0, 160));
     $data['meta_description'] = wp_strip_all_tags(mb_substr(trim($data['meta_description'] ?? ''), 0, 155));
@@ -158,12 +162,6 @@ PROMPT;
         'li'         => [],
         'blockquote' => [],
     ]);
-
-    // Aggiungi contesto locale come ultimo paragrafo se presente
-    if (!empty($data['contesto_locale'])) {
-        $cl = wp_strip_all_tags($data['contesto_locale']);
-        $data['content'] .= '<p class="dn-local-context"><strong>Contesto locale:</strong> ' . esc_html($cl) . '</p>';
-    }
 
     // ── Categoria ────────────────────────────────────────────────
     $cat_raw = sanitize_title(trim($data['category'] ?? ''));
