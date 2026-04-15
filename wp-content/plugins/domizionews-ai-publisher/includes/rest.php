@@ -156,6 +156,7 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
             'city_slug'        => !empty($cities_arr) ? $cities_arr[0]['slug'] : '',
             'meta_description' => get_post_meta($p->ID, '_meta_description', true),
             'source_url'       => get_post_meta($p->ID, '_source_url', true),
+            'unsplash_credit'  => get_post_meta($p->ID, '_dnap_unsplash_credit', true) ?: '',
             'categories'       => $cats_arr,
             'cities'           => $cities_arr,
         ];
@@ -347,11 +348,12 @@ function dnap_rest_sticky_news_handler(WP_REST_Request $request): WP_REST_Respon
             'post_id'   => $post->ID,
             'title'     => get_the_title($post),
             'excerpt'   => sanitize_text_field($excerpt),
-            'image'     => esc_url_raw($image),
-            'category'  => $category,
-            'time_ago'  => $time_ago,
-            'permalink' => get_permalink($post->ID),
-            'is_vip'    => $is_vip,
+            'image'          => esc_url_raw($image),
+            'category'       => $category,
+            'time_ago'       => $time_ago,
+            'permalink'      => get_permalink($post->ID),
+            'is_vip'         => $is_vip,
+            'unsplash_credit' => get_post_meta($post->ID, '_dnap_unsplash_credit', true) ?: '',
         ];
     }
 

@@ -129,49 +129,140 @@ function dnap_unsplash_api_fallback($post_id) {
         return false;
     }
 
-    $query_map = [
+    // ── Traduzione keyword italiane → inglesi per query titolo ──────────────────
+    $title_word_map = [
+        'cronaca'   => 'news italy',
+        'sport'     => 'sport italy',
+        'arresti'   => 'arrest italy',
+        'arrestato' => 'arrest italy',
+        'incendio'  => 'fire italy',
+        'incendi'   => 'fire italy',
+        'alluvione' => 'flood italy',
+        'politica'  => 'politics italy',
+        'economia'  => 'economy italy',
+        'lavoro'    => 'work italy',
+        'salute'    => 'health italy',
+        'cultura'   => 'culture italy',
+        'ambiente'  => 'nature italy',
+        'mare'      => 'sea coast italy',
+        'traffico'  => 'traffic italy',
+        'comune'    => 'city hall italy',
+        'elezioni'  => 'elections italy',
+        'calcio'    => 'football italy',
+        'scuola'    => 'school italy',
+        'tribunale' => 'court italy',
+        'ospedale'  => 'hospital italy',
+        'polizia'   => 'police italy',
+        'vigili'    => 'firefighters italy',
+    ];
+
+    // Italian stopwords to remove from title query
+    $it_stopwords = ['di', 'del', 'della', 'dei', 'degli', 'delle', 'il', 'lo', 'la',
+                     'gli', 'le', 'un', 'una', 'uno', 'che', 'con', 'per', 'nel', 'nella',
+                     'nei', 'nelle', 'sul', 'sulla', 'sui', 'sulle', 'tra', 'fra', 'dal',
+                     'dalla', 'dai', 'dalle', 'dal', 'alle', 'alla', 'agli', 'allo', 'agli',
+                     'non', 'sono', 'era', 'stato', 'stato', 'viene', 'dopo', 'prima', 'ogni',
+                     'anche', 'come', 'quando', 'dove', 'che', 'chi', 'piu', 'sua', 'suo',
+                     'loro', 'questo', 'questa', 'questi', 'queste', 'nuovo', 'nuova'];
+
+    // ── Categoria → query inglese ────────────────────────────────────────────────
+    $category_query_map = [
         'cronaca'             => 'city news italy',
-        'sport'               => 'sport',
-        'politica'            => 'politics government',
-        'economia-lavoro'     => 'business economy',
-        'ambiente-mare'       => 'nature environment',
-        'eventi-cultura'      => 'event concert',
-        'salute'              => 'health medicine',
-        'incidenti-sicurezza' => 'emergency safety',
+        'sport'               => 'sport italy',
+        'politica'            => 'politics government italy',
+        'economia-lavoro'     => 'business economy italy',
+        'ambiente-mare'       => 'nature environment italy',
+        'eventi-cultura'      => 'event concert italy',
+        'salute'              => 'health medicine italy',
+        'incidenti-sicurezza' => 'emergency safety italy',
     ];
 
     $categories = get_the_category($post_id);
-    $query      = 'coastal italy'; // default
+
+    // ── Attempt 1: query from post title ────────────────────────────────────────
+    $post_title = get_the_title($post_id);
+    $title_query = '';
+    if ($post_title) {
+        $words = preg_split('/\s+/', strtolower(wp_strip_all_tags($post_title)));
+        $filtered = [];
+        foreach ($words as $w) {
+            $w_clean = preg_replace('/[^a-z\x{00C0}-\x{024F}]/u', '', $w);
+            if (strlen($w_clean) > 3 && !in_array($w_clean, $it_stopwords, true)) {
+                // Translate if in map, else keep original (may be useful in English)
+                if (isset($title_word_map[$w_clean])) {
+                    $filtered[] = $title_word_map[$w_clean];
+                    break; // mapped term already provides full context
+                } else {
+                    $filtered[] = $w_clean;
+                }
+            }
+            if (count($filtered) >= 3) break;
+        }
+        $title_query = implode(' ', $filtered);
+    }
+
+    // ── Attempt 2: category-based English query ──────────────────────────────────
+    $category_query = 'italy news coastal'; // fallback default
     foreach ($categories as $cat) {
-        if (isset($query_map[$cat->slug])) {
-            $query = $query_map[$cat->slug];
+        if (isset($category_query_map[$cat->slug])) {
+            $category_query = $category_query_map[$cat->slug];
             break;
         }
     }
 
-    $api_url = add_query_arg([
-        'query'       => $query,
-        'orientation' => 'landscape',
-        'client_id'   => DNAP_UNSPLASH_KEY,
-    ], 'https://api.unsplash.com/photos/random');
+    // ── Attempt 3: final fallback ────────────────────────────────────────────────
+    $fallback_query = 'italy news coastal';
 
-    $response = wp_remote_get($api_url, ['timeout' => 15]);
-
-    if (is_wp_error($response)) {
-        dnap_log("Unsplash API errore: " . $response->get_error_message());
-        return false;
+    $queries_to_try = array_filter([$title_query, $category_query, $fallback_query]);
+    // deduplicate while preserving order
+    $seen = [];
+    $unique_queries = [];
+    foreach ($queries_to_try as $q) {
+        if (!isset($seen[$q])) {
+            $seen[$q] = true;
+            $unique_queries[] = $q;
+        }
     }
 
-    $code = wp_remote_retrieve_response_code($response);
-    if ($code !== 200) {
-        dnap_log("Unsplash API risposta HTTP {$code}");
-        return false;
+    $data = null;
+    $query = '';
+    foreach ($unique_queries as $attempt_query) {
+        $api_url = add_query_arg([
+            'query'       => $attempt_query,
+            'orientation' => 'landscape',
+            'client_id'   => DNAP_UNSPLASH_KEY,
+        ], 'https://api.unsplash.com/photos/random');
+
+        $response = wp_remote_get($api_url, ['timeout' => 15]);
+
+        if (is_wp_error($response)) {
+            dnap_log("Unsplash API errore (query: {$attempt_query}): " . $response->get_error_message());
+            continue;
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code === 422) {
+            dnap_log("Unsplash API: nessuna foto per query '{$attempt_query}' (422) — provo prossima");
+            continue;
+        }
+        if ($code !== 200) {
+            dnap_log("Unsplash API risposta HTTP {$code} (query: {$attempt_query})");
+            continue;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (empty($body['urls']['regular']) || empty($body['id'])) {
+            dnap_log("Unsplash API: risposta JSON non valida (query: {$attempt_query})");
+            continue;
+        }
+
+        $data  = $body;
+        $query = $attempt_query;
+        break;
     }
 
-    $data = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (empty($data['urls']['regular']) || empty($data['id'])) {
-        dnap_log("Unsplash API: risposta JSON non valida");
+    if (!$data) {
+        dnap_log("Unsplash API: tutte le query fallite");
         return false;
     }
 
