@@ -42,6 +42,34 @@
     return d.textContent || '';
   }
 
+  // ─── CANONICAL / TITLE MANAGEMENT ───────────────────────────────────────────
+  const _origTitle = document.title;
+  const _origCanonicalEl = document.querySelector('link[rel="canonical"]');
+  const _origCanonicalHref = _origCanonicalEl ? _origCanonicalEl.href : '';
+
+  function updateArticleHead(post) {
+    document.title = decodeHtml(post.title) + ' | Domizio News';
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = post.source_url || 'https://domizionews.it/';
+  }
+
+  function restoreHead() {
+    document.title = _origTitle;
+    const canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical) {
+      if (_origCanonicalHref) {
+        canonical.href = _origCanonicalHref;
+      } else {
+        canonical.remove();
+      }
+    }
+  }
+
   // ─── CLEAN TITLE: rimuove prefisso nome città ────────────────────────────────
   const CITY_NAMES_FOR_CLEAN = [
     'Mondragone', 'Castel Volturno', 'Baia Domizia', 'Cellole',
@@ -308,31 +336,33 @@
   // Hero card: immagine full-width 16/9
   // isLast = true → nessun border-bottom (evita doppio bordo con separatore sezione)
   function buildHeroCard(post, isLast) {
-    const img = post.image || '';
+    const img    = post.image || '';
+    const altTxt = escHtml(decodeHtml(cleanTitle(post.title)));
     return `
-      <div class="dn-card-hero${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
-        <div class="dn-card-hero-img">${img ? `<img src="${img}" alt="" loading="eager">` : buildImagePlaceholder()}</div>
+      <article class="dn-card-hero${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
+        <div class="dn-card-hero-img">${img ? `<img src="${img}" alt="${altTxt}" loading="eager">` : buildImagePlaceholder()}</div>
         <div class="dn-card-hero-body">
           ${buildCardBadges(post)}
           <h3 class="dn-card-hero-title">${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
-      </div>`;
+      </article>`;
   }
 
   // List card: thumbnail 80x80 a destra
   // isLast = true → nessun border-bottom
   function buildArticleCard(post, isLast) {
-    const img = post.image || '';
+    const img    = post.image || '';
+    const altTxt = escHtml(decodeHtml(cleanTitle(post.title)));
     return `
-      <div class="dn-card-list${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
+      <article class="dn-card-list${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
         <div class="dn-card-body">
           ${buildCardBadges(post)}
           <h3>${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
-        ${img ? `<img src="${img}" alt="" loading="lazy">` : buildImagePlaceholder()}
-      </div>`;
+        ${img ? `<img src="${img}" alt="${altTxt}" loading="lazy">` : buildImagePlaceholder()}
+      </article>`;
   }
 
   // ─── SEARCH: debounce timer (modulo-level, sopravvive ai re-render) ──────────
@@ -450,7 +480,7 @@
         <div class="dn-slider" id="dn-slider">
           ${items.map(item => `
             <div class="dn-slider-card" data-sticky-href="${item.permalink}" data-post-id="${item.post_id}">
-              <div class="dn-slider-img">${item.image ? `<img src="${item.image}" alt="" loading="eager">` : buildImagePlaceholder()}</div>
+              <div class="dn-slider-img">${item.image ? `<img src="${item.image}" alt="${escHtml(decodeHtml(item.title))}" loading="eager">` : buildImagePlaceholder()}</div>
               <div class="dn-slider-body">
                 <div class="dn-card-badges">
                   ${item.category ? `<span class="dn-cat-label">${escHtml(decodeHtml(item.category))}</span>` : ''}
@@ -736,7 +766,7 @@
           <button class="dn-share-btn" id="dn-share">Condividi</button>
         </div>
         <div class="dn-detail-img-wrap">
-          ${post.image ? `<img src="${post.image}" alt=""><div class="dn-detail-img-fade"></div>` : buildImagePlaceholder()}
+          ${post.image ? `<img src="${post.image}" alt="${escHtml(decodeHtml(post.title))}"><div class="dn-detail-img-fade"></div>` : buildImagePlaceholder()}
         </div>
         ${post.unsplash_credit ? `<div class="dn-photo-credit">${post.unsplash_credit}</div>` : ''}
         <div class="dn-detail-body">
@@ -1072,8 +1102,12 @@
     }
 
     if (state.selectedPost) {
+      updateArticleHead(state.selectedPost);
       root.innerHTML = `<style>${STYLES}</style><div class="dn-app" style="padding-bottom:0">${buildArticleDetail(state.selectedPost)}</div>`;
-      document.getElementById('dn-back')?.addEventListener('click', () => setState({ selectedPost: null }));
+      document.getElementById('dn-back')?.addEventListener('click', () => {
+        restoreHead();
+        setState({ selectedPost: null });
+      });
       document.getElementById('dn-share')?.addEventListener('click', () => {
         const post = state.selectedPost;
         const shareData = {

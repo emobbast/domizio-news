@@ -205,6 +205,34 @@ function dnapp_rest_config(): WP_REST_Response {
     ], 200 );
 }
 
+// ─── SITEMAP REWRITE ─────────────────────────────────────────────────────────
+add_action( 'init', function () {
+    add_rewrite_rule( '^sitemap\.xml$', 'index.php?dnapp_sitemap=1', 'top' );
+} );
+
+add_filter( 'query_vars', function ( $vars ) {
+    $vars[] = 'dnapp_sitemap';
+    return $vars;
+} );
+
+// Priorità 1: eseguito prima del redirect 404 generico
+add_action( 'template_redirect', function () {
+    if ( get_query_var( 'dnapp_sitemap' ) ) {
+        include get_template_directory() . '/sitemap.php';
+        exit;
+    }
+}, 1 );
+
+// ─── ROBOTS.TXT ──────────────────────────────────────────────────────────────
+add_filter( 'robots_txt', function ( $output ) {
+    $output  = "User-agent: *\n";
+    $output .= "Allow: /\n";
+    $output .= "Sitemap: https://domizionews.it/sitemap.xml\n";
+    $output .= "Disallow: /wp-admin/\n";
+    $output .= "Disallow: /wp-login.php\n";
+    return $output;
+}, 10, 2 );
+
 // ─── REDIRECT SPA: tutte le URL → index.php ──────────────────────────────────
 // Così i link interni della React app non danno 404
 add_action( 'template_redirect', function () {
