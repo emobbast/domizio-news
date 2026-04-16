@@ -428,7 +428,10 @@
         <button class="dn-header-btn" id="dn-header-search" aria-label="Cerca">
           <span class="material-symbols-outlined" style="font-size:24px;color:#FFFFFF;">search</span>
         </button>
-        <h1 class="dn-site-title">Domizio News</h1>
+        <div class="dn-logo">
+          <span class="dn-logo-domizio">Domizio</span>
+          <span class="dn-logo-news">news</span>
+        </div>
         <div class="dn-header-avatar">D</div>
       </header>`;
   }
@@ -511,7 +514,7 @@
 
     let citySections = '';
     if (state.homeCatLoading) {
-      citySections = `<p class="dn-empty" style="padding:40px 16px">Caricamento...</p>`;
+      citySections = `<div style="display:flex;justify-content:center;padding:40px 16px"><div class="dn-spinner"></div></div>`;
     } else {
       let cityCount = 0;
       CITY_SLUGS.forEach(slug => {
@@ -592,7 +595,7 @@
         ? `<p class="dn-empty" style="padding:40px 16px">Nessuna notizia disponibile.</p>`
         : state.posts.map(p => buildArticleCard(p)).join('');
     } else if (state.cityFeedLoading) {
-      feedHtml = `<p class="dn-empty" style="padding:40px 16px">Caricamento...</p>`;
+      feedHtml = `<div style="display:flex;justify-content:center;padding:40px 16px"><div class="dn-spinner"></div></div>`;
     } else if (state.cityFeed.length === 0) {
       feedHtml = `<p class="dn-empty" style="padding:40px 16px">Nessun articolo per questa città.</p>`;
     } else {
@@ -688,7 +691,7 @@
 
     let feedHtml;
     if (state.scopriLoading) {
-      feedHtml = `<p class="dn-empty" style="padding:40px 16px">Caricamento...</p>`;
+      feedHtml = `<div style="display:flex;justify-content:center;padding:40px 16px"><div class="dn-spinner"></div></div>`;
     } else if (state.scopriResults.length === 0) {
       feedHtml = `<p class="dn-empty" style="padding:40px 16px">Nessun contenuto disponibile per questa categoria.</p>`;
     } else {
@@ -856,14 +859,17 @@
   function buildLoading() {
     return `
       <div class="dn-loading">
-        <h2>Domizio News</h2>
-        <p>Caricamento notizie...</p>
+        <div class="dn-logo" style="position:relative;margin-bottom:32px;">
+          <span class="dn-logo-domizio">Domizio</span>
+          <span class="dn-logo-news">news</span>
+        </div>
+        <div class="dn-spinner"></div>
       </div>`;
   }
 
   // ─── STYLES ─────────────────────────────────────────────────────────────────
   const STYLES = `
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
 
     :root {
       --color-text: #202124;
@@ -890,14 +896,20 @@
     .dn-app { font-family: 'Roboto', Arial, sans-serif; background: var(--color-background); min-height: 100vh; padding-bottom: 64px; }
 
     /* LOADING */
-    .dn-loading { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--color-text); color: #fff; gap: 8px; }
-    .dn-loading h2 { font-family: 'Roboto', Arial, sans-serif; font-weight: 700; font-size: 26px; margin: 0; }
-    .dn-loading p { color: var(--color-primary); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
+    .dn-loading { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #FEF7FF; color: #1C1B1F; gap: 8px; }
+
+    /* SPINNER MD3 */
+    .dn-spinner { width: 48px; height: 48px; border: 4px solid #EADDFF; border-top-color: #6750A4; border-radius: 50%; animation: dn-spin 0.8s linear infinite; }
+    @keyframes dn-spin { to { transform: rotate(360deg); } }
+
+    /* LOGO */
+    .dn-logo { display: flex; align-items: baseline; gap: 3px; pointer-events: none; position: absolute; left: 0; right: 0; justify-content: center; }
+    .dn-logo-domizio { font-family: 'Roboto', Arial, sans-serif; font-weight: 700; font-size: 24px; color: #6750A4; letter-spacing: -0.02em; line-height: 1; }
+    .dn-logo-news { font-family: 'Roboto', Arial, sans-serif; font-weight: 300; font-size: 24px; color: #49454F; letter-spacing: -0.02em; line-height: 1; }
 
     /* TOP HEADER — M3 */
     .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: #FEF7FF; }
     .dn-top-header.dn-search-active { padding: 10px 16px; gap: 12px; background: #FFFFFF; box-shadow: var(--elevation-1); }
-    .dn-site-title { margin: 0; font-size: 20px; font-weight: 500; color: #FFFFFF; font-family: 'Roboto', Arial, sans-serif; line-height: 1; }
     .dn-header-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; }
     .dn-header-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; flex-shrink: 0; font-family: 'Roboto', Arial, sans-serif; }
     .dn-search-back-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; flex-shrink: 0; }
