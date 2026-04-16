@@ -6,6 +6,7 @@ if (!defined('WP_CLI') || !WP_CLI) return;
    WP-CLI COMMAND: wp domizio reimport-images
    Re-imports featured images for all posts that have none,
    scraping the original source URL stored in _source_url meta.
+   Pass --force to also replace existing Unsplash external images.
    ============================================================ */
 
 class DNAP_CLI_Command {
@@ -15,44 +16,85 @@ class DNAP_CLI_Command {
      *
      * Queries every published post with no featured image, reads the
      * _source_url meta, scrapes the article page for an image, and
-     * sideloads it as a WebP attachment.
+     * sideloads it as a WebP attachment. When --force is passed, also
+     * processes posts that already have a _dnap_external_image meta,
+     * deletes the old value, and calls the Unsplash cascade fallback
+     * to fetch a fresh image.
+     *
+     * ## OPTIONS
+     *
+     * [--force]
+     * : Also replace existing Unsplash external images (_dnap_external_image)
+     *   using the cascade query fallback, regardless of featured-image status.
      *
      * ## EXAMPLES
      *
      *     wp domizio reimport-images
+     *     wp domizio reimport-images --force
      *
      * @when after_wp_load
      */
     public function reimport_images( $args, $assoc_args ) {
 
-        $query = new WP_Query( [
-            'post_type'      => 'post',
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
-            'meta_query'     => [
-                'relation' => 'OR',
-                [
-                    'key'     => '_thumbnail_id',
-                    'compare' => 'NOT EXISTS',
+        $force = (bool) WP_CLI\Utils\get_flag_value( $assoc_args, 'force', false );
+
+        if ( $force ) {
+            // --force: all published posts that have _dnap_external_image set
+            $query = new WP_Query( [
+                'post_type'      => 'post',
+                'post_status'    => 'publish',
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'meta_query'     => [
+                    [
+                        'key'     => '_dnap_external_image',
+                        'compare' => 'EXISTS',
+                    ],
+                    [
+                        'key'     => '_dnap_external_image',
+                        'value'   => '',
+                        'compare' => '!=',
+                    ],
                 ],
-                [
-                    'key'     => '_thumbnail_id',
-                    'value'   => '0',
-                    'compare' => '=',
+            ] );
+        } else {
+            // Default: posts without a featured image
+            $query = new WP_Query( [
+                'post_type'      => 'post',
+                'post_status'    => 'publish',
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'meta_query'     => [
+                    'relation' => 'OR',
+                    [
+                        'key'     => '_thumbnail_id',
+                        'compare' => 'NOT EXISTS',
+                    ],
+                    [
+                        'key'     => '_thumbnail_id',
+                        'value'   => '0',
+                        'compare' => '=',
+                    ],
                 ],
-            ],
-        ] );
+            ] );
+        }
 
         $post_ids = $query->posts;
         $total    = count( $post_ids );
 
         if ( $total === 0 ) {
-            WP_CLI::success( 'Nessun post senza immagine trovato.' );
+            $msg = $force
+                ? 'Nessun post con immagine esterna Unsplash trovato.'
+                : 'Nessun post senza immagine trovato.';
+            WP_CLI::success( $msg );
             return;
         }
 
-        WP_CLI::log( "Trovati {$total} post senza immagine in evidenza." );
+        if ( $force ) {
+            WP_CLI::log( "Trovati {$total} post con immagine esterna Unsplash — modalità --force attiva." );
+        } else {
+            WP_CLI::log( "Trovati {$total} post senza immagine in evidenza." );
+        }
         WP_CLI::log( '' );
 
         require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -67,7 +109,26 @@ class DNAP_CLI_Command {
         $count_failed   = 0;
 
         foreach ( $post_ids as $post_id ) {
-            $title      = get_the_title( $post_id );
+            $title = get_the_title( $post_id );
+
+            if ( $force ) {
+                // Delete existing external image meta, then run Unsplash cascade
+                delete_post_meta( $post_id, '_dnap_external_image' );
+
+                if ( dnap_unsplash_api_fallback( $post_id ) ) {
+                    WP_CLI::log( "  [#{$post_id}] external — immagine Unsplash aggiornata (cascade): {$title}" );
+                    $count_external++;
+                    $count_success++;
+                } else {
+                    WP_CLI::log( "  [#{$post_id}] failed   — cascade Unsplash fallito: {$title}" );
+                    $count_failed++;
+                }
+
+                $progress->tick();
+                continue;
+            }
+
+            // Default path: scrape source URL, fall back to Unsplash
             $source_url = (string) get_post_meta( $post_id, '_source_url', true );
 
             if ( empty( $source_url ) ) {
@@ -98,6 +159,9 @@ class DNAP_CLI_Command {
 
         WP_CLI::log( '' );
         WP_CLI::log( '─────────────────────────────────' );
+        if ( $force ) {
+            WP_CLI::log( 'Modalità: --force (sostituzione immagini Unsplash esistenti)' );
+        }
         WP_CLI::log( "Totale processati : {$total}" );
         WP_CLI::log( "Successo          : {$count_success} (di cui esterni: {$count_external})" );
         WP_CLI::log( "Saltati           : {$count_skipped}" );
