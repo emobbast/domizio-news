@@ -70,20 +70,6 @@
     }
   }
 
-  // ─── CLEAN TITLE: rimuove prefisso nome città ────────────────────────────────
-  const CITY_NAMES_FOR_CLEAN = [
-    'Mondragone', 'Castel Volturno', 'Baia Domizia', 'Cellole',
-    'Falciano', 'Carinola', 'Sessa Aurunca', 'Pinetamare', 'Villaggio Coppola',
-  ];
-  function cleanTitle(title) {
-    let t = title || '';
-    CITY_NAMES_FOR_CLEAN.forEach(city => {
-      const regex = new RegExp('^' + city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s]*[–—,:]+[\\s]*', 'i');
-      t = t.replace(regex, '');
-    });
-    return t.trim();
-  }
-
   // ─── STATE ──────────────────────────────────────────────────────────────────
   let state = {
     tab: 'home',
@@ -337,13 +323,13 @@
   // isLast = true → nessun border-bottom (evita doppio bordo con separatore sezione)
   function buildHeroCard(post, isLast) {
     const img    = post.image || '';
-    const altTxt = escHtml(decodeHtml(cleanTitle(post.title)));
+    const altTxt = escHtml(decodeHtml(post.title));
     return `
       <article class="dn-card-hero${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
         <div class="dn-card-hero-img">${img ? `<img src="${img}" alt="${altTxt}" loading="eager">` : buildImagePlaceholder()}</div>
         <div class="dn-card-hero-body">
           ${buildCardBadges(post)}
-          <h3 class="dn-card-hero-title">${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
+          <h3 class="dn-card-hero-title">${escHtml(decodeHtml(post.title))}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
       </article>`;
@@ -353,15 +339,16 @@
   // isLast = true → nessun border-bottom
   function buildArticleCard(post, isLast) {
     const img    = post.image || '';
-    const altTxt = escHtml(decodeHtml(cleanTitle(post.title)));
+    const altTxt = escHtml(decodeHtml(post.title));
+    const thumbPlaceholder = `<div style="background:#E8F0FE;width:80px;height:80px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:32px;color:#1A73E8;">article</span></div>`;
     return `
       <article class="dn-card-list${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
         <div class="dn-card-body">
           ${buildCardBadges(post)}
-          <h3>${escHtml(decodeHtml(cleanTitle(post.title)))}</h3>
+          <h3>${escHtml(decodeHtml(post.title))}</h3>
           <span class="dn-time">${timeAgo(post.date)}</span>
         </div>
-        ${img ? `<img src="${img}" alt="${altTxt}" loading="lazy">` : buildImagePlaceholder()}
+        ${img ? `<img src="${img}" alt="${altTxt}" loading="lazy">` : thumbPlaceholder}
       </article>`;
   }
 
@@ -473,12 +460,20 @@
           is_vip:    !!p.sticky,
         }));
 
-    if (items.length === 0) return '';
+    // Deduplica per post_id — mantieni solo la prima occorrenza
+    const seen = new Set();
+    const uniqueItems = items.filter(item => {
+      if (!item.post_id || seen.has(item.post_id)) return false;
+      seen.add(item.post_id);
+      return true;
+    });
+
+    if (uniqueItems.length === 0) return '';
 
     return `
       <div class="dn-slider-wrap">
         <div class="dn-slider" id="dn-slider">
-          ${items.map(item => `
+          ${uniqueItems.map(item => `
             <div class="dn-slider-card" data-sticky-href="${item.permalink}" data-post-id="${item.post_id}">
               <div class="dn-slider-img">${item.image ? `<img src="${item.image}" alt="${escHtml(decodeHtml(item.title))}" loading="eager">` : buildImagePlaceholder()}</div>
               <div class="dn-slider-body">
@@ -492,7 +487,7 @@
             </div>`).join('')}
         </div>
         <div class="dn-slider-dots" id="dn-slider-dots">
-          ${items.map((_, i) => `<span class="dn-dot ${i === 0 ? 'active' : ''}"></span>`).join('')}
+          ${uniqueItems.map((_, i) => `<span class="dn-dot ${i === 0 ? 'active' : ''}"></span>`).join('')}
         </div>
       </div>`;
   }
@@ -580,7 +575,7 @@
           <a href="#" data-legal="note-legali">Note Legali</a>
           <a href="#" data-legal="disclaimer">Disclaimer</a>
         </div>
-        <p class="dn-footer-copy">© 2025 Domizio News</p>
+        <p class="dn-footer-copy">© 2026 Domizio News</p>
       </footer>`;
   }
 
