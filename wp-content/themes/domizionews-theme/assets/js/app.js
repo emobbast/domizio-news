@@ -314,8 +314,8 @@
 
   function buildImagePlaceholder() {
     return `
-      <div style="background:#E8F0FE;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
-        <span class="material-symbols-outlined" style="font-size:48px;color:#1A73E8;">article</span>
+      <div style="background:#EADDFF;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
+        <span class="material-symbols-outlined" style="font-size:48px;color:#6750A4;">article</span>
       </div>`;
   }
 
@@ -340,7 +340,7 @@
   function buildArticleCard(post, isLast) {
     const img    = post.image || '';
     const altTxt = escHtml(decodeHtml(post.title));
-    const thumbPlaceholder = `<div style="background:#E8F0FE;width:80px;height:80px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:32px;color:#1A73E8;">article</span></div>`;
+    const thumbPlaceholder = `<div style="background:#EADDFF;width:80px;height:80px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:32px;color:#6750A4;">article</span></div>`;
     return `
       <article class="dn-card-list${isLast ? ' dn-card-last' : ''}" data-post-id="${post.id}">
         <div class="dn-card-body">
@@ -868,17 +868,22 @@
     :root {
       --color-text: #202124;
       --color-text-secondary: #5F6368;
-      --color-primary: #1A73E8;
-      --color-brand: #1a1a2e;
+      --color-primary: #6750A4;
+      --color-brand: #1C1B1F;
       --color-divider: #E0E0E0;
-      --color-background: #F2F2F7;
+      --color-background: #FEF7FF;
       --color-card: #FFFFFF;
       --color-chip-inactive-bg: transparent;
-      --color-chip-active-bg: #D3E3FD;
-      --color-chip-active-text: #001D35;
+      --color-chip-active-bg: #EADDFF;
+      --color-chip-active-text: #21005D;
       --color-separator: #E8EAED;
       --elevation-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
       --elevation-0: none;
+      --md-sys-color-primary: #6750A4;
+      --md-sys-color-primary-container: #EADDFF;
+      --md-sys-color-surface: #FEF7FF;
+      --md-sys-color-outline: #79747E;
+      --md-sys-color-on-surface: #1C1B1F;
     }
 
     * { font-family: 'Roboto', Arial, sans-serif; }
@@ -890,7 +895,7 @@
     .dn-loading p { color: var(--color-primary); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
 
     /* TOP HEADER — M3 */
-    .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: var(--color-brand); }
+    .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: #FEF7FF; }
     .dn-top-header.dn-search-active { padding: 10px 16px; gap: 12px; background: #FFFFFF; box-shadow: var(--elevation-1); }
     .dn-site-title { margin: 0; font-size: 20px; font-weight: 500; color: #FFFFFF; font-family: 'Roboto', Arial, sans-serif; line-height: 1; }
     .dn-header-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; }
@@ -906,7 +911,7 @@
     .dn-home-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; background: var(--color-background) !important; border: none !important; border-bottom: none !important; box-shadow: none !important; scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
     .dn-home-chips::-webkit-scrollbar { display: none; }
     .dn-home-chip { flex-shrink: 0; height: 32px !important; padding: 0 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 13px !important; font-weight: 400 !important; background: transparent !important; color: #444746 !important; transition: background 0.2s, color 0.2s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; display: inline-flex !important; align-items: center !important; }
-    .dn-home-chip.active { background: #D3E3FD !important; color: #001D35 !important; font-weight: 500 !important; }
+    .dn-home-chip.active { background: #EADDFF !important; color: #21005D !important; font-weight: 500 !important; }
 
     /* SLIDER NOTIZIE IN EVIDENZA */
     .dn-slider-wrap { padding: 16px 0 8px; border-bottom: 8px solid var(--color-separator); background: transparent !important; box-shadow: none !important; border-left: none !important; border-right: none !important; border-top: none !important; }
@@ -929,7 +934,7 @@
 
     /* BOTTONE "VEDI ALTRO" */
     .dn-city-more-wrap { padding: 8px 16px 16px; background: transparent; display: flex; justify-content: center; }
-    .dn-city-more { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #1A73E8; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; margin: 12px 16px; }
+    .dn-city-more { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #6750A4; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; margin: 12px 16px; }
     .dn-city-more:active { opacity: 0.7; }
 
     /* FEED CONTAINER */
@@ -964,7 +969,7 @@
     .dn-chips-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; background: var(--color-background); border: none; box-shadow: none; scrollbar-width: none; -ms-overflow-style: none; }
     .dn-chips-scroll::-webkit-scrollbar { display: none; }
     .dn-chip { flex-shrink: 0; height: 32px !important; padding: 0 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 13px !important; font-weight: 400 !important; background: transparent !important; color: #444746 !important; transition: background 0.2s, color 0.2s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; display: inline-flex !important; align-items: center !important; }
-    .dn-chip.active { background: #D3E3FD !important; color: #001D35 !important; font-weight: 500 !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; }
+    .dn-chip.active { background: #EADDFF !important; color: #21005D !important; font-weight: 500 !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; }
 
     /* CATEGORY GRID */
     .dn-cat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 0 16px 20px; }
@@ -999,7 +1004,7 @@
     .dn-detail-content { font-size: 17px; line-height: 1.65; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
     .dn-detail-content p { margin: 0 0 16px; }
     .dn-detail-content strong { color: var(--color-text); font-weight: 700; }
-    .dn-local-context { background: #E8F0FE; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
+    .dn-local-context { background: #EADDFF; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
 
     /* AD CARD SPONSORIZZATA */
     .dn-ad-card { position: relative; padding: 16px; border-top: 8px solid #F2F2F2; border-bottom: 8px solid #F2F2F2; background: var(--color-card); }
@@ -1008,7 +1013,7 @@
 
     /* SCOPRI — griglia categorie */
     .dn-scopri-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
-    .dn-scopri-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; border-radius: 8px; overflow: hidden; cursor: pointer; background: #F2F2F7; }
+    .dn-scopri-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; border-radius: 8px; overflow: hidden; cursor: pointer; background: #FEF7FF; }
     .dn-scopri-card:active { opacity: 0.85; }
     .dn-scopri-card-name { color: #202124; font-size: 14px; font-weight: 600; line-height: 1.2; text-align: center; font-family: 'Roboto', Arial, sans-serif; }
 
@@ -1042,10 +1047,10 @@
     /* BOTTOM NAV */
     .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--color-card); border-top: 1px solid var(--color-divider); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
     .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 10px 0 6px; gap: 2px; color: #5F6368; transition: color 0.15s; }
-    .dn-nav-tab.active { color: #001D35; }
+    .dn-nav-tab.active { color: #21005D; }
     .dn-nav-icon-wrap { display: flex; align-items: center; justify-content: center; padding: 4px 16px; border-radius: 50px; transition: background 0.15s; }
     .dn-nav-icon-wrap .material-symbols-outlined { font-size: 24px; }
-    .dn-nav-icon-wrap.active { background: #D3E3FD; }
+    .dn-nav-icon-wrap.active { background: #EADDFF; }
     .dn-nav-label { font-size: 12px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; }
 
     /* ── FOOTER ─────────────────────────────────────────────── */
@@ -1090,7 +1095,7 @@
       margin-bottom: 16px;
     }
     .dn-legal-content a {
-      color: #1A73E8;
+      color: #6750A4;
     }
   `;
 
@@ -1141,7 +1146,7 @@
         initAds();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }).catch(() => {
-        root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}<div style="padding:32px 16px;text-align:center;color:#5F6368;">Contenuto non disponibile.<br><br><button class="dn-back-btn" data-action="back-legal" style="color:#1A73E8;">← Torna indietro</button></div>${buildNav()}</div>`;
+        root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}<div style="padding:32px 16px;text-align:center;color:#5F6368;">Contenuto non disponibile.<br><br><button class="dn-back-btn" data-action="back-legal" style="color:#6750A4;">← Torna indietro</button></div>${buildNav()}</div>`;
         attachEvents();
       });
       return;
