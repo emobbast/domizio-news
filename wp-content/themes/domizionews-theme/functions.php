@@ -5,6 +5,9 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+// Disabilita la sitemap nativa di WordPress (usiamo /sitemap.xml custom)
+add_filter( 'wp_sitemaps_enabled', '__return_false' );
+
 // ─── COSTANTI ────────────────────────────────────────────────────────────────
 define( 'DNAPP_VERSION', '1.0.0' );
 define( 'DNAPP_DIR', get_template_directory() );
