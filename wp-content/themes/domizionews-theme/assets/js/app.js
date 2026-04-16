@@ -761,7 +761,7 @@
           <button class="dn-share-btn" id="dn-share">Condividi</button>
         </div>
         <div class="dn-detail-img-wrap">
-          ${post.image ? `<img src="${post.image}" alt="${escHtml(decodeHtml(post.title))}"><div class="dn-detail-img-fade"></div>` : buildImagePlaceholder()}
+          ${post.image ? `<img src="${post.image}" alt="${escHtml(decodeHtml(post.title))}">` : buildImagePlaceholder()}
         </div>
         ${post.unsplash_credit ? `<div class="dn-photo-credit">${post.unsplash_credit}</div>` : ''}
         <div class="dn-detail-body">
@@ -974,10 +974,10 @@
     .dn-share-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 14px; font-weight: 500; padding: 0; font-family: 'Roboto', Arial, sans-serif; }
     .dn-detail-img-wrap { position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; }
     .dn-detail-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
-    .dn-detail-img-fade { position: absolute; inset: 0; background: linear-gradient(to top, var(--color-background) 0%, transparent 50%); }
+
     .dn-photo-credit { font-size: 11px; color: #5F6368; padding: 4px 16px 0; text-align: right; font-family: 'Roboto', Arial, sans-serif; }
     .dn-photo-credit a { color: #5F6368; text-decoration: underline; }
-    .dn-detail-body { padding: 0 16px; margin-top: -20px; }
+    .dn-detail-body { padding: 0 16px; margin-top: 0; }
     .dn-badges { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     .dn-badge-cat { background: var(--color-primary); color: #fff; font-size: 11px; font-weight: 500; text-transform: uppercase; padding: 3px 10px; border-radius: 4px; }
     .dn-badge-city { background: var(--color-divider); color: var(--color-text-secondary); font-size: 12px; padding: 3px 10px; border-radius: 4px; }
