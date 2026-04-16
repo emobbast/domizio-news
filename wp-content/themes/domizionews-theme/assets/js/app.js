@@ -1320,6 +1320,42 @@
       });
     });
 
+    // ── Horizontal scroll: mouse wheel + click-drag on chip containers ──────────
+    document.querySelectorAll('.dn-home-chips, .dn-chips-scroll').forEach(el => {
+      // Mouse wheel → horizontal scroll
+      el.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }, { passive: false });
+
+      // Click-to-drag
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragScrollLeft = 0;
+
+      el.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        dragStartX = e.pageX - el.offsetLeft;
+        dragScrollLeft = el.scrollLeft;
+        el.style.cursor = 'grabbing';
+        el.style.userSelect = 'none';
+      });
+
+      el.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const x = e.pageX - el.offsetLeft;
+        el.scrollLeft = dragScrollLeft - (x - dragStartX);
+      });
+
+      const stopDrag = () => {
+        isDragging = false;
+        el.style.cursor = '';
+        el.style.userSelect = '';
+      };
+      el.addEventListener('mouseup', stopDrag);
+      el.addEventListener('mouseleave', stopDrag);
+    });
+
     initAds();
   }
 
