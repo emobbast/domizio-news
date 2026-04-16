@@ -416,21 +416,21 @@
   function buildHeader() {
     if (state.searchMode) {
       return `
-        <div class="dn-top-header dn-search-active">
+        <header class="dn-top-header dn-search-active">
           <button class="dn-search-back-btn" id="dn-search-back" aria-label="Indietro">
             <span class="material-symbols-outlined" style="font-size:24px;color:#202124;">arrow_back</span>
           </button>
           <input id="dn-search-input" type="search" placeholder="Cerca argomenti, località e fonti" autocomplete="off">
-        </div>`;
+        </header>`;
     }
     return `
-      <div class="dn-top-header">
+      <header class="dn-top-header">
         <button class="dn-header-btn" id="dn-header-search" aria-label="Cerca">
           <span class="material-symbols-outlined" style="font-size:24px;color:#FFFFFF;">search</span>
         </button>
         <h1 class="dn-site-title">Domizio News</h1>
         <div class="dn-header-avatar">D</div>
-      </div>`;
+      </header>`;
   }
 
   function buildCategoryChipsBar() {
@@ -499,9 +499,11 @@
       return `
         <div class="dn-screen" id="screen-home">
           ${buildHeader()}
-          <div class="dn-feed" id="dn-search-results">
-            <p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>
-          </div>
+          <main>
+            <div class="dn-feed" id="dn-search-results">
+              <p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>
+            </div>
+          </main>
         </div>`;
     }
 
@@ -536,7 +538,7 @@
         }
         const shown = cityPosts.slice(0, 3);
         citySections += `
-          <div class="dn-city-section" id="city-section-${slug}">
+          <section class="dn-city-section" id="city-section-${slug}">
             <div class="dn-section-label" data-goto-city="${slug}">${label}</div>
             <div class="dn-feed">
               ${shown.map((p, idx) => {
@@ -547,7 +549,7 @@
             <div class="dn-city-more-wrap">
               <button class="dn-city-more" data-goto-city="${slug}"><span class="material-symbols-outlined" style="font-size:18px;">newspaper</span>Vedi altro</button>
             </div>
-          </div>
+          </section>
           <div class="dn-section-separator"></div>`;
       });
       if (cityCount === 0) {
@@ -558,9 +560,11 @@
     return `
       <div class="dn-screen" id="screen-home">
         ${buildHeader()}
-        ${buildCategoryChipsBar()}
-        ${buildSlider()}
-        ${citySections}
+        <main>
+          ${buildCategoryChipsBar()}
+          ${buildSlider()}
+          ${citySections}
+        </main>
       </div>`;
   }
 
@@ -603,14 +607,16 @@
           <span style="font-size:16px;font-weight:500;color:var(--color-text);">Città</span>
           <div style="width:32px;"></div>
         </div>
-        <div class="dn-chips-scroll">
-          ${state.cities.map(c => `
-            <button class="dn-chip ${state.selectedCity === c.slug ? 'active' : ''}" data-city="${escHtml(c.slug)}">${escHtml(c.name)}</button>
-          `).join('')}
-        </div>
-        <div class="dn-feed">
-          ${feedHtml}
-        </div>
+        <main>
+          <div class="dn-chips-scroll">
+            ${state.cities.map(c => `
+              <button class="dn-chip ${state.selectedCity === c.slug ? 'active' : ''}" data-city="${escHtml(c.slug)}">${escHtml(c.name)}</button>
+            `).join('')}
+          </div>
+          <div class="dn-feed">
+            ${feedHtml}
+          </div>
+        </main>
       </div>`;
   }
 
@@ -663,14 +669,16 @@
             <span style="font-size:16px;font-weight:500;color:var(--color-text);">Scopri</span>
             <div style="width:32px;"></div>
           </div>
-          <div class="dn-scopri-grid">
-            ${SCOPRI_CATEGORIES.map(c => `
-              <div class="dn-scopri-card" data-scopri-cat="${c.slug}">
-                <span class="material-symbols-outlined" style="font-size:48px;color:#5F6368;">${c.icon}</span>
-                <div class="dn-scopri-card-name">${c.nome}</div>
-              </div>
-            `).join('')}
-          </div>
+          <main>
+            <div class="dn-scopri-grid">
+              ${SCOPRI_CATEGORIES.map(c => `
+                <div class="dn-scopri-card" data-scopri-cat="${c.slug}">
+                  <span class="material-symbols-outlined" style="font-size:48px;color:#5F6368;">${c.icon}</span>
+                  <div class="dn-scopri-card-name">${c.nome}</div>
+                </div>
+              `).join('')}
+            </div>
+          </main>
         </div>`;
     }
 
@@ -701,12 +709,14 @@
           <span style="font-size:16px;font-weight:500;color:var(--color-text);">${catNome}</span>
           <div style="width:32px;"></div>
         </div>
-        <div class="dn-chips-scroll" style="padding-top:12px">
-          ${SCOPRI_CITIES.map(c => `
-            <button class="dn-chip ${state.scopriCity === c.slug ? 'active' : ''}" data-scopri-city="${c.slug}">${c.name}</button>
-          `).join('')}
-        </div>
-        <div class="dn-feed">${feedHtml}</div>
+        <main>
+          <div class="dn-chips-scroll" style="padding-top:12px">
+            ${SCOPRI_CITIES.map(c => `
+              <button class="dn-chip ${state.scopriCity === c.slug ? 'active' : ''}" data-scopri-city="${c.slug}">${c.name}</button>
+            `).join('')}
+          </div>
+          <div class="dn-feed">${feedHtml}</div>
+        </main>
       </div>`;
   }
 
@@ -755,7 +765,7 @@
   function buildArticleDetail(post) {
     const date = new Date(post.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
     return `
-      <div class="dn-detail">
+      <main class="dn-detail">
         <div class="dn-detail-header">
           <button class="dn-back-btn" id="dn-back">Indietro</button>
           <button class="dn-share-btn" id="dn-share">Condividi</button>
@@ -764,7 +774,7 @@
           ${post.image ? `<img src="${post.image}" alt="${escHtml(decodeHtml(post.title))}">` : buildImagePlaceholder()}
         </div>
         ${post.unsplash_credit ? `<div class="dn-photo-credit">${post.unsplash_credit}</div>` : ''}
-        <div class="dn-detail-body">
+        <article class="dn-detail-body">
           <div class="dn-badges">
             ${post.categories?.map(c => `<span class="dn-badge-cat">${escHtml(decodeHtml(c.name))}</span>`).join('') || ''}
             ${post.cities?.map(c => `<span class="dn-badge-city">${escHtml(decodeHtml(c.name))}</span>`).join('') || ''}
@@ -779,8 +789,8 @@
           </div>
           <div class="dn-detail-content">${post.content}</div>
           ${renderAd('article-bottom')}
-        </div>
-      </div>`;
+        </article>
+      </main>`;
   }
 
   async function buildLegalPage(slug) {
