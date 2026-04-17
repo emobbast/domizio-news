@@ -111,7 +111,7 @@ Rispondi SOLO con questo JSON (niente altro):
   "slug": "slug-url-ottimizzato-max-6-parole",
   "excerpt": "Sommario 1-2 frasi, max 160 caratteri",
   "meta_description": "Meta description per Google, 140-155 caratteri, includi parola chiave principale",
-  "content": "Articolo completo, minimo 5 paragrafi, struttura diversa dalla fonte. Primo paragrafo: il fatto principale. Paragrafi 2-3: contesto e dettagli. Paragrafo 4: impatto locale sul litorale domizio / provincia di Caserta. Penultimo paragrafo: commento critico editoriale che collega la notizia al territorio del litorale domizio, scritto in prima persona editoriale, tono critico e costruttivo (es. 'Nel litorale domizio questo episodio...'). Non usare etichette come 'Contesto locale:'. Il commento deve sembrare parte naturale dell'articolo. Ultimo paragrafo: conclusione o prossimi sviluppi. Solo tag HTML: <p> e <strong>.",
+  "content": "Articolo completo, minimo 5 paragrafi, struttura diversa dalla fonte. Primo paragrafo: il fatto principale. Paragrafi 2-3: contesto e dettagli. Paragrafo 4: impatto locale sul litorale domizio / provincia di Caserta. Penultimo paragrafo: critical editorial comment in third person linking the news to the Litorale Domizio territory. NEVER use first person phrases like 'dal mio punto di vista', 'a mio avviso', 'ritengo', 'credo'. Write in authoritative editorial tone like 'La vicenda evidenzia...', 'L'episodio riaccende il dibattito su...', 'Il caso solleva interrogativi su...' The comment must read as a natural part of the article. Ultimo paragrafo: conclusione o prossimi sviluppi. Solo tag HTML: <p> e <strong>.",
   "category": "UNO SOLO tra: {$cat_list}",
   "cities": ["slug ESATTO tra: {$city_list} — [] se non riguarda città specifiche"],
   "tags": ["3-5 tag pertinenti, singole parole o brevi frasi, no luoghi già nelle cities"]
@@ -129,7 +129,7 @@ PROMPT;
 
     if (!$data || empty($data['title']) || empty($data['content'])) {
         dnap_log('JSON GPT non valido, retry semplificato…');
-        $retry = 'Rispondi SOLO con JSON. Campi obbligatori: title (max 75 car, non troncare parole), slug, excerpt (max 160 car), meta_description (140-155 car), content (min 5 paragrafi con <p>, includi commento editoriale locale nel penultimo paragrafo), category (uno tra: ' . $cat_list . '), cities (array slug: ' . $city_list . '), tags (array 3-5 elementi).'
+        $retry = 'Rispondi SOLO con JSON. Campi obbligatori: title (max 75 car, non troncare parole), slug, excerpt (max 160 car), meta_description (140-155 car), content (min 5 paragrafi con <p>, nel penultimo paragrafo includi un critical editorial comment in third person linking the news to the Litorale Domizio territory. NEVER use first person phrases like "dal mio punto di vista", "a mio avviso", "ritengo", "credo". Write in authoritative editorial tone like "La vicenda evidenzia...", "L\'episodio riaccende il dibattito su...", "Il caso solleva interrogativi su..." The comment must read as a natural part of the article.), category (uno tra: ' . $cat_list . '), cities (array slug: ' . $city_list . '), tags (array 3-5 elementi).'
                  . "\nTitolo: {$original_title}\nTesto:\n{$text_input}";
         $raw2 = dnap_call_gpt($retry, 1200, 0.65);
         if (!$raw2) return false;

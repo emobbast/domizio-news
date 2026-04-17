@@ -105,13 +105,12 @@
   // ─── API ────────────────────────────────────────────────────────────────────
 
   // Slug esatti registrati nel database — usati sia per la home che per il tab Città
-  // 'cellole-baia-domizia' è uno slug virtuale: carica entrambe le città
+  // 'cellole-baia-domizia' e 'falciano-carinola' sono slug virtuali: caricano entrambe le città
   const CITY_SLUGS = [
     'mondragone',
     'castel-volturno',
     'cellole-baia-domizia',   // sezione unificata Cellole + Baia Domizia
-    'falciano-del-massico',
-    'carinola',
+    'falciano-carinola',      // sezione unificata Falciano del Massico + Carinola
     'sessa-aurunca',
   ];
 
@@ -122,7 +121,14 @@
     'cellole-baia-domizia': 'Cellole e Baia Domizia',
     'falciano-del-massico': 'Falciano del Massico',
     'carinola':             'Carinola',
+    'falciano-carinola':    'Falciano e Carinola',
     'sessa-aurunca':        'Sessa Aurunca',
+  };
+
+  // Mappa slug virtuali → slug reale DB per navigazione "Vedi altro"
+  const CITY_GOTO_TARGET = {
+    'cellole-baia-domizia': 'cellole',
+    'falciano-carinola':    'falciano-del-massico',
   };
 
   // Carica post filtrati per città (tab Città).
@@ -174,12 +180,22 @@
   async function loadData() {
     try {
       // Fetch feed principale, config, sticky news e i feed città in parallelo.
-      // 'cellole-baia-domizia' richiede due fetch separate poi merge per data.
+      // 'cellole-baia-domizia' e 'falciano-carinola' richiedono due fetch separate poi merge per data.
       const fetchCityPosts = (slug) => {
         if (slug === 'cellole-baia-domizia') {
           return Promise.all([
             fetch(DOMIZIO_API + '/posts?city=cellole&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
             fetch(DOMIZIO_API + '/posts?city=baia-domizia&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
+          ]).then(([a, b]) => {
+            const merged = [...(a.posts || []), ...(b.posts || [])];
+            merged.sort((x, y) => new Date(y.date) - new Date(x.date));
+            return { posts: merged };
+          });
+        }
+        if (slug === 'falciano-carinola') {
+          return Promise.all([
+            fetch(DOMIZIO_API + '/posts?city=falciano-del-massico&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
+            fetch(DOMIZIO_API + '/posts?city=carinola&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
           ]).then(([a, b]) => {
             const merged = [...(a.posts || []), ...(b.posts || [])];
             merged.sort((x, y) => new Date(y.date) - new Date(x.date));
@@ -528,6 +544,10 @@
             const a = state.homeCatPosts['cellole'] || [];
             const b = state.homeCatPosts['baia-domizia'] || [];
             cityPosts = [...a, ...b].sort((x, y) => new Date(y.date) - new Date(x.date));
+          } else if (slug === 'falciano-carinola') {
+            const a = state.homeCatPosts['falciano-del-massico'] || [];
+            const b = state.homeCatPosts['carinola'] || [];
+            cityPosts = [...a, ...b].sort((x, y) => new Date(y.date) - new Date(x.date));
           } else {
             cityPosts = state.homeCatPosts[slug] || [];
           }
@@ -540,9 +560,10 @@
           citySections += renderAd('home-feed');
         }
         const shown = cityPosts.slice(0, 3);
+        const gotoSlug = CITY_GOTO_TARGET[slug] || slug;
         citySections += `
           <section class="dn-city-section" id="city-section-${slug}">
-            <div class="dn-section-label" data-goto-city="${slug}">${label}</div>
+            <div class="dn-section-label" data-goto-city="${gotoSlug}">${label}</div>
             <div class="dn-feed">
               ${shown.map((p, idx) => {
                 const isLast = idx === shown.length - 1;
@@ -550,7 +571,7 @@
               }).join('')}
             </div>
             <div class="dn-city-more-wrap">
-              <button class="dn-city-more" data-goto-city="${slug}"><span class="material-symbols-outlined" style="font-size:18px;">newspaper</span>Vedi altro</button>
+              <button class="dn-city-more" data-goto-city="${gotoSlug}"><span class="material-symbols-outlined" style="font-size:18px;">newspaper</span>Vedi altro</button>
             </div>
           </section>
           <div class="dn-section-separator"></div>`;
