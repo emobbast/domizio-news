@@ -444,7 +444,7 @@
         <button class="dn-header-btn" id="dn-header-search" aria-label="Cerca">
           <span class="material-symbols-outlined" style="font-size:24px;color:#FFFFFF;">search</span>
         </button>
-        <div class="dn-logo">
+        <div class="dn-logo" id="dn-logo-home" style="cursor:pointer;pointer-events:auto;">
           <span class="dn-logo-domizio">Domizio</span>
           <span class="dn-logo-news">news</span>
         </div>
@@ -1221,6 +1221,12 @@
           window.location.href = el.dataset.stickyHref;
         }
       });
+    });
+
+    // Header: click logo → torna alla home
+    document.getElementById('dn-logo-home')?.addEventListener('click', () => {
+      setState({ tab: 'home', selectedPost: null, selectedLegalPage: null, searchMode: false });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
     // Header: click icona lente → attiva search mode
