@@ -575,12 +575,22 @@ function dnap_import_now() {
             dnap_set_featured_image($post_id, $rewritten['title'], $item, $source_url, $image_url);
 
             // ── CITTÀ ────────────────────────────────────────────────
-            // Solo titolo + og:description per evitare falsi match dal corpo della fonte
-            $city_text  = $title_raw . ' ' . $meta['description'];
-            $city_slugs = dnap_get_cities_from_text($city_text);
-            if ($city_slugs) {
-                wp_set_object_terms($post_id, $city_slugs, 'city');
-                dnap_log("Città: " . implode(', ', $city_slugs));
+            // Merge keyword scan (titolo + og:description) con GPT cities.
+            // Keyword match ha priorità di ordine, GPT aggiunge slug mancanti.
+            $city_text     = $title_raw . ' ' . $meta['description'];
+            $keyword_slugs = dnap_get_cities_from_text($city_text);
+            $gpt_slugs     = is_array($rewritten['cities'] ?? null) ? $rewritten['cities'] : [];
+
+            $merged_slugs = $keyword_slugs;
+            foreach ($gpt_slugs as $slug) {
+                if ($slug !== '' && !in_array($slug, $merged_slugs, true)) {
+                    $merged_slugs[] = $slug;
+                }
+            }
+
+            if ($merged_slugs) {
+                wp_set_object_terms($post_id, $merged_slugs, 'city');
+                dnap_log("Città: " . implode(', ', $merged_slugs));
             } elseif (!empty($feed['city_slug'])) {
                 wp_set_object_terms($post_id, [sanitize_text_field($feed['city_slug'])], 'city');
             }
