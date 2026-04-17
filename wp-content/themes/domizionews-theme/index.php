@@ -19,7 +19,7 @@ if ($single_post) {
   $seo_canonical = get_permalink($single_post->ID);
 } else {
   $seo_title     = get_bloginfo('name') . ' — Notizie dal Litorale Domizio';
-  $seo_desc      = 'Notizie locali da Mondragone, Castel Volturno, Baia Domizia, Cellole, Falciano del Massico, Carinola e Sessa Aurunca.';
+  $seo_desc = get_bloginfo('description') ?: 'Notizie in tempo reale dal Litorale Domizio. Cronaca, sport, politica ed eventi da Mondragone, Castel Volturno, Baia Domizia e dintorni.';
   $seo_image     = '';
   $seo_canonical = 'https://domizionews.it/';
   // Use latest post for meta
