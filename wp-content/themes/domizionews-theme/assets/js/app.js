@@ -922,7 +922,7 @@
     /* CHIP MENU — M3 Filter Chips */
     .dn-home-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; background: var(--color-background) !important; border: none !important; border-bottom: none !important; box-shadow: none !important; scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
     .dn-home-chips::-webkit-scrollbar { display: none; }
-    .dn-home-chip { flex-shrink: 0; height: 32px !important; padding: 0 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 13px !important; font-weight: 400 !important; background: transparent !important; color: #444746 !important; transition: background 0.2s, color 0.2s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; display: inline-flex !important; align-items: center !important; }
+    .dn-home-chip { flex-shrink: 0; height: 32px !important; padding: 0 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 14px !important; font-weight: 500 !important; letter-spacing: 0.1px !important; background: transparent !important; color: #444746 !important; transition: background 0.2s, color 0.2s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; display: inline-flex !important; align-items: center !important; }
     .dn-home-chip.active { background: #EADDFF !important; color: #21005D !important; font-weight: 500 !important; }
 
     /* SLIDER NOTIZIE IN EVIDENZA */
@@ -933,7 +933,7 @@
     .dn-slider-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; background: transparent !important; }
     .dn-slider-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .dn-slider-body { padding: 8px 0 0; background: transparent !important; box-shadow: none !important; border: none !important; }
-    .dn-slider-title { margin: 6px 0 0; font-size: 16px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .dn-slider-title { margin: 6px 0 0; font-size: 22px; font-weight: 700; letter-spacing: 0; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .dn-slider-dots { display: flex; gap: 4px; justify-content: center; padding: 10px 0 4px; }
     .dn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-divider); transition: background 0.2s; flex-shrink: 0; }
     .dn-dot.active { background: var(--color-primary); }
@@ -941,12 +941,12 @@
 
     /* SEZIONI CITTÀ */
     .dn-city-section { background: #FFFFFF; border-radius: 12px; overflow: hidden; margin: 8px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .dn-section-label { font-size: 16px; font-weight: 500; color: #202124; letter-spacing: 0.15px; padding: 16px 16px 8px 16px; display: block; cursor: pointer; background: transparent; border-left: none; text-transform: none; }
+    .dn-section-label { font-size: 22px; font-weight: 500; letter-spacing: 0; color: #202124; padding: 16px 16px 8px 16px; display: block; cursor: pointer; background: transparent; border-left: none; text-transform: none; }
     .dn-section-separator { display: none; }
 
     /* BOTTONE "VEDI ALTRO" */
     .dn-city-more-wrap { padding: 8px 16px 16px; background: transparent; display: flex; justify-content: center; }
-    .dn-city-more { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #6750A4; font-size: 14px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; margin: 12px 16px; }
+    .dn-city-more { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #6750A4; font-size: 14px; font-weight: 500; letter-spacing: 0.1px; font-family: 'Roboto', Arial, sans-serif; margin: 12px 16px; }
     .dn-city-more:active { opacity: 0.7; }
 
     /* FEED CONTAINER */
@@ -959,7 +959,7 @@
     .dn-card-hero-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; }
     .dn-card-hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 0; }
     .dn-card-hero-body { padding: 12px 16px 16px; }
-    .dn-card-hero-title { margin: 0 0 6px; font-size: 20px; font-weight: 500; color: var(--color-brand); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: break-word; }
+    .dn-card-hero-title { margin: 0 0 6px; font-size: 24px; font-weight: 600; letter-spacing: 0; color: var(--color-brand); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: break-word; }
 
     /* LIST CARDS — M3 outline card */
     .dn-card-list { display: flex; gap: 12px; padding: 16px; border: 1px solid #E0E0E0; border-radius: 12px; margin: 8px 16px; overflow: hidden; background: var(--color-card); cursor: pointer; align-items: flex-start; transition: background 0.1s; }
@@ -967,20 +967,20 @@
     .dn-card-list:active { background: #F1F3F4; }
     .dn-card-list > img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
     .dn-card-body { flex: 1; min-width: 0; }
-    .dn-card-body h3 { margin: 0 0 6px; font-size: 15px; font-weight: 500; color: var(--color-brand); font-family: 'Roboto', Arial, sans-serif; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: break-word; }
+    .dn-card-body h3 { margin: 0 0 6px; font-size: 16px; font-weight: 400; letter-spacing: 0.5px; color: var(--color-brand); font-family: 'Roboto', Arial, sans-serif; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: break-word; }
 
     /* CARD BADGES (categoria + città) */
     .dn-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
-    .dn-cat-label { font-size: 11px; font-weight: 500; color: var(--color-primary); background: var(--color-chip-active-bg); padding: 2px 8px; border-radius: 4px; }
-    .dn-city-label { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); background: #E8EAED; padding: 2px 8px; border-radius: 4px; }
+    .dn-cat-label { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; color: var(--color-primary); background: var(--color-chip-active-bg); padding: 2px 8px; border-radius: 4px; }
+    .dn-city-label { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; color: var(--color-text-secondary); background: #E8EAED; padding: 2px 8px; border-radius: 4px; }
 
     /* TIME */
-    .dn-time { font-size: 12px; font-weight: 400; color: #5F6368; display: block; margin-top: 6px; }
+    .dn-time { font-size: 12px; font-weight: 400; letter-spacing: 0.4px; color: #5F6368; display: block; margin-top: 6px; }
 
     /* CHIPS (tab Città e Scopri) — M3 Filter Chips */
     .dn-chips-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; background: var(--color-background); border: none; box-shadow: none; scrollbar-width: none; -ms-overflow-style: none; }
     .dn-chips-scroll::-webkit-scrollbar { display: none; }
-    .dn-chip { flex-shrink: 0; height: 32px !important; padding: 0 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 13px !important; font-weight: 400 !important; background: transparent !important; color: #444746 !important; transition: background 0.2s, color 0.2s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; display: inline-flex !important; align-items: center !important; }
+    .dn-chip { flex-shrink: 0; height: 32px !important; padding: 0 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 14px !important; font-weight: 500 !important; letter-spacing: 0.1px !important; background: transparent !important; color: #444746 !important; transition: background 0.2s, color 0.2s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; display: inline-flex !important; align-items: center !important; }
     .dn-chip.active { background: #EADDFF !important; color: #21005D !important; font-weight: 500 !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; }
 
     /* CATEGORY GRID */
@@ -1006,15 +1006,15 @@
     .dn-photo-credit a { color: #5F6368; text-decoration: underline; }
     .dn-detail-body { padding: 0 16px; margin-top: 0; }
     .dn-badges { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-    .dn-badge-cat { background: var(--color-primary); color: #fff; font-size: 11px; font-weight: 500; text-transform: uppercase; padding: 3px 10px; border-radius: 4px; }
-    .dn-badge-city { background: var(--color-divider); color: var(--color-text-secondary); font-size: 12px; padding: 3px 10px; border-radius: 4px; }
-    .dn-detail-title { margin: 0 0 12px; font-size: 28px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.2; }
+    .dn-badge-cat { background: var(--color-primary); color: #fff; font-size: 12px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 4px; }
+    .dn-badge-city { background: var(--color-divider); color: var(--color-text-secondary); font-size: 12px; font-weight: 500; letter-spacing: 0.5px; padding: 3px 10px; border-radius: 4px; }
+    .dn-detail-title { margin: 0 0 12px; font-size: 32px; font-weight: 700; letter-spacing: 0; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.2; }
     .dn-detail-byline { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--color-divider); }
     .dn-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; flex-shrink: 0; }
     .dn-byline-name { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); }
     .dn-byline-date { font-size: 13px; color: var(--color-text-secondary); }
-    .dn-detail-content { font-size: 17px; line-height: 1.65; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
-    .dn-detail-content p { margin: 0 0 16px; }
+    .dn-detail-content { font-size: 16px; font-weight: 400; letter-spacing: 0.5px; line-height: 1.65; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
+    .dn-detail-content p { margin: 0 0 16px; line-height: 1.75; }
     .dn-detail-content strong { color: var(--color-text); font-weight: 700; }
     .dn-local-context { background: #EADDFF; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
 
@@ -1063,7 +1063,7 @@
     .dn-nav-icon-wrap { display: flex; align-items: center; justify-content: center; padding: 4px 16px; border-radius: 50px; transition: background 0.15s; }
     .dn-nav-icon-wrap .material-symbols-outlined { font-size: 24px; }
     .dn-nav-icon-wrap.active { background: #EADDFF; }
-    .dn-nav-label { font-size: 12px; font-weight: 500; font-family: 'Roboto', Arial, sans-serif; }
+    .dn-nav-label { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; font-family: 'Roboto', Arial, sans-serif; }
 
     /* ── FOOTER ─────────────────────────────────────────────── */
     .dn-footer {
