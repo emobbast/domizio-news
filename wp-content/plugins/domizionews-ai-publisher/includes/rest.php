@@ -92,6 +92,7 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
         'paged'          => (int) $request['page'],
         'orderby'        => 'date',
         'order'          => 'DESC',
+        'ignore_sticky_posts' => true,
     ];
 
     $tax_query    = [];

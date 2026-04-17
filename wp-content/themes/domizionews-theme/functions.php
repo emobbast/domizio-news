@@ -122,6 +122,7 @@ function dnapp_rest_feed( WP_REST_Request $req ): WP_REST_Response {
         'paged'          => $req['page'],
         'orderby'        => 'date',
         'order'          => 'DESC',
+        'ignore_sticky_posts' => true,
     ];
 
     if ( $req['search'] ) {

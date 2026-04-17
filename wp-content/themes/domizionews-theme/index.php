@@ -23,7 +23,7 @@ if ($single_post) {
   $seo_image     = '';
   $seo_canonical = 'https://domizionews.it/';
   // Use latest post for meta
-  $seo_q = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_page'=>1,'orderby'=>'date','order'=>'DESC']);
+  $seo_q = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_page'=>1,'orderby'=>'date','order'=>'DESC','ignore_sticky_posts'=>true]);
   if ($seo_q->have_posts()) {
     $seo_q->the_post();
     $raw_desc  = get_the_excerpt() ?: get_the_content();
@@ -54,7 +54,7 @@ add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_ca
 <?php }, 2);
 
 add_action('wp_head', function() use ($logo_url) {
-  $schema_q = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_page'=>10,'orderby'=>'date','order'=>'DESC']);
+  $schema_q = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_page'=>10,'orderby'=>'date','order'=>'DESC','ignore_sticky_posts'=>true]);
   $items = []; $pos = 1;
   while ($schema_q->have_posts()) {
     $schema_q->the_post();
@@ -80,7 +80,7 @@ add_action('wp_head', function() use ($logo_url) {
 
 get_header();
 
-$latest = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_page'=>10,'orderby'=>'date','order'=>'DESC']);
+$latest = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_page'=>10,'orderby'=>'date','order'=>'DESC','ignore_sticky_posts'=>true]);
 ?>
 
 <div id="domizionews-root">
