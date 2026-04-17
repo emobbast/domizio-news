@@ -28,7 +28,6 @@ if ($single_post) {
     $seo_q->the_post();
     $seo_title = wp_strip_all_tags(get_the_title()) . ' | Domizio News';
     $raw_desc  = get_the_excerpt() ?: get_the_content();
-    $seo_desc  = wp_trim_words(wp_strip_all_tags($raw_desc), 30);
     $seo_image = get_the_post_thumbnail_url(null, 'large') ?: (string) get_post_meta(get_the_ID(), '_dnap_external_image', true);
     wp_reset_postdata();
   }
