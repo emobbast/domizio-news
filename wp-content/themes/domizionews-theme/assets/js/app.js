@@ -1432,7 +1432,7 @@
       if (path && path !== '/' && !path.startsWith('/wp-')) {
         const slug = path.replace(/^\/|\/$/g, ''); // strip leading/trailing slashes
         if (slug) {
-          fetch(`${CUSTOM_API}/feed?search=${encodeURIComponent(slug)}&per_page=1`)
+          fetch(`${CUSTOM_API}/feed?slug=${encodeURIComponent(slug)}&per_page=1`)
             .then(r => r.ok ? r.json() : null)
             .then(data => {
               const posts = data?.posts || [];

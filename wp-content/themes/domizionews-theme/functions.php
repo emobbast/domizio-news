@@ -108,6 +108,7 @@ add_action( 'rest_api_init', function () {
             'city'     => [ 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ],
             'category' => [ 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ],
             'search'   => [ 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ],
+            'slug' => [ 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ],
         ],
     ] );
 
@@ -132,6 +133,10 @@ function dnapp_rest_feed( WP_REST_Request $req ): WP_REST_Response {
 
     if ( $req['search'] ) {
         $args['s'] = $req['search'];
+    }
+
+    if ( $req['slug'] ) {
+      $args['name'] = $req['slug'];
     }
 
     if ( $req['city'] ) {
