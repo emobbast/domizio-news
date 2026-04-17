@@ -169,6 +169,7 @@ function dnapp_rest_feed( WP_REST_Request $req ): WP_REST_Response {
             'image'   => $thumb_url,
             'meta_description' => get_post_meta( $p->ID, '_meta_description', true ),
             'source_url'       => get_post_meta( $p->ID, '_source_url', true ),
+            'permalink'  => get_permalink($p->ID),
             'unsplash_credit'  => get_post_meta( $p->ID, '_dnap_unsplash_credit', true ) ?: '',
             'categories' => array_map( fn( $c ) => [ 'id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug ], $cats ),
             'cities'     => ! is_wp_error( $cities ) ? array_map( fn( $c ) => [ 'id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug ], $cities ) : [],

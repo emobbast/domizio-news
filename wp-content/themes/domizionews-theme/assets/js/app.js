@@ -781,7 +781,12 @@
     resultsEl.querySelectorAll('[data-post-id]').forEach(el => {
       el.addEventListener('click', () => {
         const post = state.posts.find(p => p.id == el.dataset.postId);
-        if (post) setState({ selectedPost: post });
+        if (post) {
+          setState({ selectedPost: post });
+          if (post.permalink) {
+            history.pushState({ postId: post.id }, post.title, post.permalink);
+          }
+        }
       });
     });
   }
@@ -1150,13 +1155,14 @@
       document.getElementById('dn-back')?.addEventListener('click', () => {
         restoreHead();
         setState({ selectedPost: null });
+        history.pushState(null, '', '/');
       });
       document.getElementById('dn-share')?.addEventListener('click', () => {
         const post = state.selectedPost;
         const shareData = {
           title: post.title,
           text:  post.excerpt || post.title,
-          url:   post.source_url || window.location.href,
+          url:   post.permalink || window.location.href,
         };
         if (navigator.share) {
           navigator.share(shareData).catch(() => {});
@@ -1207,6 +1213,9 @@
                   || state.scopriResults.find(p => p.type === 'articolo' && p.id == id);
         if (post) {
           setState({ selectedPost: post });
+          if (post.permalink) {
+            history.pushState({ postId: post.id }, post.title, post.permalink);
+          }
         } else if (el.dataset.stickyHref) {
           // Post sticky non nel feed locale: apri permalink
           window.location.href = el.dataset.stickyHref;
@@ -1404,13 +1413,51 @@
       el.addEventListener('mouseleave', stopDrag);
     });
 
+    window.onpopstate = (e) => {
+      if (!e.state || !e.state.postId) {
+        setState({ selectedPost: null });
+        history.replaceState(null, '', '/');
+      }
+    };
+
     initAds();
   }
 
   // ─── BOOT ───────────────────────────────────────────────────────────────────
   function boot() {
-    render(); // mostra loading
-    loadData();
+    render();
+    loadData().then(() => {
+      // Check if we landed on a pretty permalink (e.g. /titolo-articolo/)
+      const path = window.location.pathname;
+      if (path && path !== '/' && !path.startsWith('/wp-')) {
+        const slug = path.replace(/^\/|\/$/g, ''); // strip leading/trailing slashes
+        if (slug) {
+          fetch(`${CFG.wpBase}/posts?slug=${encodeURIComponent(slug)}&_fields=id,title,content,excerpt,date,slug`)
+            .then(r => r.ok ? r.json() : [])
+            .then(posts => {
+              if (posts && posts.length > 0) {
+                const p = posts[0];
+                setState({
+                  selectedPost: {
+                    id:         p.id,
+                    slug:       p.slug,
+                    title:      p.title?.rendered || '',
+                    content:    p.content?.rendered || '',
+                    excerpt:    p.excerpt?.rendered || '',
+                    date:       p.date,
+                    image:      null,
+                    categories: [],
+                    cities:     [],
+                    source_url: window.location.href,
+                    permalink:  window.location.href,
+                  }
+                });
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    });
   }
 
   if (document.readyState === 'loading') {
