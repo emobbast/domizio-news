@@ -1025,12 +1025,12 @@
     .dn-detail-header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-divider); }
     .dn-back-btn { background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 15px; font-weight: 500; padding: 0; font-family: 'Roboto', Arial, sans-serif; }
     .dn-share-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 14px; font-weight: 500; padding: 0; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-detail-img-wrap { position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; }
+    .dn-detail-img-wrap { position: relative; width: calc(100% - 32px); margin: 0 16px; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; }
     .dn-detail-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
 
     .dn-photo-credit { font-size: 11px; color: #5F6368; padding: 4px 16px 0; text-align: right; font-family: 'Roboto', Arial, sans-serif; }
     .dn-photo-credit a { color: #5F6368; text-decoration: underline; }
-    .dn-detail-body { padding: 0 16px; margin-top: 0; }
+    .dn-detail-body { padding: 0 16px; margin-top: 16px; }
     .dn-badges { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     .dn-badge-cat { background: var(--color-primary); color: #fff; font-size: 12px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 4px; }
     .dn-badge-city { background: var(--color-divider); color: var(--color-text-secondary); font-size: 12px; font-weight: 500; letter-spacing: 0.5px; padding: 3px 10px; border-radius: 4px; }
