@@ -336,6 +336,10 @@ function dnap_is_local_content(string $text): bool {
         'carinola', 'ventaroli', 'varano', 'maiorano di monte', 'sessa aurunca',
         'piedimonte massicano', 'litorale domizio', 'litorale domitio',
         'giovanni zannini', 'zannini',
+        'pineta nuova', 'pineta riviera', 'baia azzurra', 'levagnole',
+        'nocelleto', 'casanova di carinola',
+        'carano', 'cascano', 'rongolise', 'fasani', 'lauro',
+        'corbara', 'valogno', 'san castrese', 'san carlo',
     ];
     $lower = mb_strtolower($text);
     foreach ($keywords as $kw) {
@@ -358,6 +362,16 @@ function dnap_get_cities_from_text(string $text): array {
         'falciano del massico' => 'falciano-del-massico',
         'villaggio coppola'    => 'castel-volturno',
         'maiorano di monte'    => 'carinola',
+        'san castrese'         => 'sessa-aurunca',
+        'san carlo'            => 'sessa-aurunca',
+        'rongolise'            => 'sessa-aurunca',
+        'cascano'              => 'sessa-aurunca',
+        'corbara'              => 'sessa-aurunca',
+        'valogno'              => 'sessa-aurunca',
+        'carano'               => 'sessa-aurunca',
+        'fasani'               => 'sessa-aurunca',
+        'lauro'                => 'sessa-aurunca',
+        'ponte'                => 'sessa-aurunca',
         'piedimonte massicano' => 'sessa-aurunca',
         'castel volturno'      => 'castel-volturno',
         'borgo centore'        => 'cellole',
@@ -366,12 +380,19 @@ function dnap_get_cities_from_text(string $text): array {
         'baia felice'          => 'sessa-aurunca',
         'baia verde'           => 'castel-volturno',
         'san limato'           => 'cellole',
+        'bagni di mondragone'  => 'mondragone',
+        'pineta riviera'       => 'mondragone',
+        'pineta nuova'         => 'mondragone',
+        'baia azzurra'         => 'mondragone',
+        'levagnole'            => 'mondragone',
         'mondragone'           => 'mondragone',
         'pinetamare'           => 'castel-volturno',
         'pescopagano'          => 'castel-volturno',
         'ischitella'           => 'castel-volturno',
         'ventaroli'            => 'carinola',
         'falciano'             => 'falciano-del-massico',
+        'casanova di carinola' => 'carinola',
+        'nocelleto'            => 'carinola',
         'carinola'             => 'carinola',
         'cellole'              => 'cellole',
         'varano'               => 'carinola',
@@ -506,6 +527,12 @@ function dnap_import_now() {
             if (!$rewritten) {
                 dnap_log("ERRORE GPT: {$title_raw}");
                 $total_errors++;
+                continue;
+            }
+
+            if (!empty($rewritten['skip']) && $rewritten['skip'] === true) {
+                dnap_log("GPT skip: articolo non rilevante per Litorale Domizio - " . $title_raw);
+                $total_skipped++;
                 continue;
             }
 

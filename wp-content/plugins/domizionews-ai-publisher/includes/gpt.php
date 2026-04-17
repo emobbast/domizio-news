@@ -103,10 +103,42 @@ function dnap_gpt_rewrite(string $text, string $original_title = '', string $sou
     $city_list = dnap_get_city_labels();
 
     $prompt = <<<PROMPT
+VALUTAZIONE RILEVANZA (OBBLIGATORIA PRIMA DELLA RISCRITTURA):
+
+Analizza l'articolo originale e determina se il FATTO PRINCIPALE
+si svolge nel Litorale Domizio. I comuni e frazioni validi sono:
+
+- Mondragone (frazioni: Pescopagano, Pineta Nuova, Pineta Riviera,
+  Baia Azzurra, Levagnole)
+- Castel Volturno (frazioni: Pinetamare, Villaggio Coppola, Ischitella,
+  Baia Verde, Baia Felice)
+- Cellole (frazioni: Borgo Centore, San Limato)
+- Baia Domizia
+- Falciano del Massico
+- Carinola (frazioni: Ventaroli, Varano, Maiorano di Monte, Nocelleto,
+  Casanova di Carinola)
+- Sessa Aurunca (frazioni: Piedimonte Massicano, Carano, Cascano,
+  Rongolise, Fasani, Lauro, Corbara, Valogno, San Castrese,
+  San Carlo, Ponte)
+
+RESTITUISCI "skip": true NEL JSON SE:
+- L'evento/fatto principale accade in un comune NON elencato sopra
+  (es. Cancello ed Arnone, Santa Maria Capua Vetere, Caserta città,
+  Napoli, Aversa, Capua, Grazzanise)
+- E il Litorale Domizio è menzionato solo marginalmente o di passaggio
+
+RESTITUISCI "skip": false (e procedi con la riscrittura) SE:
+- L'evento accade in uno dei comuni/frazioni elencati sopra
+- Riguarda Giovanni Zannini o politici che rappresentano direttamente
+  il territorio
+- Riguarda decisioni amministrative della Regione Campania che
+  impattano direttamente il Litorale Domizio
+
 Riscrivi questa notizia come articolo giornalistico originale. Cambia struttura narrativa rispetto alla fonte, aggiungi contesto locale.
 
 Rispondi SOLO con questo JSON (niente altro):
 {
+  "skip": "boolean (required — true se l'articolo non è rilevante per il Litorale Domizio, false se è pertinente)",
   "title": "Titolo giornalistico breve e diretto, massimo 75 caratteri, mai troncare parole a metà, diverso dall'originale",
   "slug": "slug-url-ottimizzato-max-6-parole",
   "excerpt": "Sommario 1-2 frasi, max 160 caratteri",
