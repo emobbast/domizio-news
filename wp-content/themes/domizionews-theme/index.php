@@ -18,7 +18,7 @@ if ($single_post) {
                 ?: (string) get_post_meta($single_post->ID, '_dnap_external_image', true);
   $seo_canonical = get_permalink($single_post->ID);
 } else {
-  $seo_title     = get_bloginfo('name') . ' — Notizie dal Litorale Domizio';
+  $seo_title     = get_bloginfo('name');
   $seo_desc = get_bloginfo('description') ?: 'Notizie in tempo reale dal Litorale Domizio. Cronaca, sport, politica ed eventi da Mondragone, Castel Volturno, Baia Domizia e dintorni.';
   $seo_image     = '';
   $seo_canonical = 'https://domizionews.it/';
@@ -35,11 +35,11 @@ if ($single_post) {
 
 add_filter('pre_get_document_title', fn() => $seo_title, 10);
 
-add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_canonical) { ?>
+add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_canonical, $single_post) { ?>
   <meta name="description" content="<?php echo esc_attr($seo_desc); ?>">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="<?php echo esc_url($seo_canonical); ?>">
-  <meta property="og:type" content="article">
+  <meta property="og:type" content="<?php echo $single_post ? 'article' : 'website'; ?>">
   <meta property="og:title" content="<?php echo esc_attr($seo_title); ?>">
   <meta property="og:description" content="<?php echo esc_attr($seo_desc); ?>">
   <meta property="og:url" content="<?php echo esc_url($seo_canonical); ?>">

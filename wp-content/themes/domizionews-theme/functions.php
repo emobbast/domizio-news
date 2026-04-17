@@ -5,13 +5,6 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-// Forza favicon SVG custom sovrascrivendo quella di WordPress
-add_action('wp_head', function() {
-    echo '<link rel="icon" type="image/svg+xml" href="' . get_template_directory_uri() . '/assets/images/favicon.svg">' . "\n";
-    echo '<link rel="apple-touch-icon" href="' . get_template_directory_uri() . '/assets/images/favicon.svg">' . "\n";
-}, 1);
-remove_action('wp_head', 'wp_site_icon', 99);
-
 // ─── COSTANTI ────────────────────────────────────────────────────────────────
 define( 'DNAPP_VERSION', '1.0.0' );
 define( 'DNAPP_DIR', get_template_directory() );
