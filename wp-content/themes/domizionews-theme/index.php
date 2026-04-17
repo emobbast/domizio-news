@@ -1,156 +1,165 @@
 <?php
 /**
  * Domizio News App Theme — index.php
- * Renders a static SSR fallback for crawlers (AdSense, Google bot).
- * The SPA takes over on DOMContentLoaded as normal.
+ * SSR fallback for crawlers + direct post links (?post=ID).
  */
 
-// ─── SEO: recupera dati per meta tag dinamici (prima di get_header) ───────────
-$seo_q = new WP_Query([
-    'post_type'      => 'post',
-    'post_status'    => 'publish',
-    'posts_per_page' => 1,
-    'orderby'        => 'date',
-    'order'          => 'DESC',
-]);
+$post_id     = isset($_GET['post']) ? absint($_GET['post']) : 0;
+$is_crawler  = isset($_SERVER['HTTP_USER_AGENT']) && preg_match(
+  '/bot|crawl|slurp|spider|mediapartners|adsbot/i',
+  $_SERVER['HTTP_USER_AGENT']
+);
+$render_ssr  = $is_crawler || $post_id > 0;
 
-$seo_title     = get_bloginfo( 'name' ) . ' — Notizie dal Litorale Domizio';
+$seo_title     = get_bloginfo('name') . ' — Notizie dal Litorale Domizio';
 $seo_desc      = 'Notizie locali da Mondragone, Castel Volturno, Baia Domizia, Cellole, Falciano del Massico, Carinola e Sessa Aurunca.';
 $seo_image     = '';
 $seo_canonical = 'https://domizionews.it/';
+$logo_url      = get_theme_file_uri('assets/images/logo.png');
 
-if ( $seo_q->have_posts() ) {
+// If direct post link, load that specific post for SEO meta
+if ($post_id > 0) {
+  $single = get_post($post_id);
+  if ($single && $single->post_status === 'publish') {
+    $seo_title     = wp_strip_all_tags($single->post_title) . ' | Domizio News';
+    $raw_desc      = $single->post_excerpt ?: $single->post_content;
+    $seo_desc      = wp_trim_words(wp_strip_all_tags($raw_desc), 30);
+    $seo_image     = get_the_post_thumbnail_url($post_id, 'large')
+                  ?: (string) get_post_meta($post_id, '_dnap_external_image', true);
+    $seo_canonical = 'https://domizionews.it/?post=' . $post_id;
+  }
+} else {
+  // Default: use latest post for SEO
+  $seo_q = new WP_Query([
+    'post_type' => 'post', 'post_status' => 'publish',
+    'posts_per_page' => 1, 'orderby' => 'date', 'order' => 'DESC',
+  ]);
+  if ($seo_q->have_posts()) {
     $seo_q->the_post();
-    $seo_title = wp_strip_all_tags( get_the_title() ) . ' | Domizio News';
+    $seo_title = wp_strip_all_tags(get_the_title()) . ' | Domizio News';
     $raw_desc  = get_the_excerpt() ?: get_the_content();
-    $seo_desc  = wp_trim_words( wp_strip_all_tags( $raw_desc ), 30 );
-    $seo_image = get_the_post_thumbnail_url( null, 'large' )
-              ?: (string) get_post_meta( get_the_ID(), '_dnap_external_image', true );
+    $seo_desc  = wp_trim_words(wp_strip_all_tags($raw_desc), 30);
+    $seo_image = get_the_post_thumbnail_url(null, 'large')
+              ?: (string) get_post_meta(get_the_ID(), '_dnap_external_image', true);
     wp_reset_postdata();
+  }
 }
 
-$logo_url = get_theme_file_uri( 'assets/images/logo.png' );
+add_filter('pre_get_document_title', fn() => $seo_title, 10);
 
-// Override document title tag (rispetta add_theme_support('title-tag'))
-add_filter( 'pre_get_document_title', fn() => $seo_title, 10 );
+add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_canonical) { ?>
+  <meta name="description" content="<?php echo esc_attr($seo_desc); ?>">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="<?php echo esc_url($seo_canonical); ?>">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="<?php echo esc_attr($seo_title); ?>">
+  <meta property="og:description" content="<?php echo esc_attr($seo_desc); ?>">
+  <meta property="og:url" content="<?php echo esc_url($seo_canonical); ?>">
+  <?php if ($seo_image): ?>
+  <meta property="og:image" content="<?php echo esc_url($seo_image); ?>">
+  <?php endif; ?>
+<?php }, 2);
 
-// ─── META TAG NEL <head> ──────────────────────────────────────────────────────
-add_action( 'wp_head', function () use ( $seo_title, $seo_desc, $seo_image, $seo_canonical ) {
-    ?>
-    <!-- SEO Meta Tags -->
-    <meta name="description" content="<?php echo esc_attr( $seo_desc ); ?>">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="<?php echo esc_url( $seo_canonical ); ?>">
-
-    <!-- Open Graph -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="<?php echo esc_attr( $seo_title ); ?>">
-    <meta property="og:description" content="<?php echo esc_attr( $seo_desc ); ?>">
-    <meta property="og:url" content="<?php echo esc_url( $seo_canonical ); ?>">
-    <?php if ( $seo_image ) : ?>
-    <meta property="og:image" content="<?php echo esc_url( $seo_image ); ?>">
-    <?php endif; ?>
-    <?php
-}, 2 );
-
-// ─── JSON-LD SCHEMA ───────────────────────────────────────────────────────────
-add_action( 'wp_head', function () use ( $logo_url ) {
-    $schema_q = new WP_Query([
-        'post_type'      => 'post',
-        'post_status'    => 'publish',
-        'posts_per_page' => 10,
-        'orderby'        => 'date',
-        'order'          => 'DESC',
-    ]);
-
-    $items = [];
-    $pos   = 1;
-    while ( $schema_q->have_posts() ) {
-        $schema_q->the_post();
-        $img = get_the_post_thumbnail_url( null, 'large' )
-            ?: (string) get_post_meta( get_the_ID(), '_dnap_external_image', true );
-        $item_data = [
-            '@type'         => 'NewsArticle',
-            'headline'      => wp_strip_all_tags( get_the_title() ),
-            'url'           => get_permalink(),
-            'datePublished' => get_the_date( 'c' ),
-            'author'        => [ '@type' => 'Organization', 'name' => 'Redazione' ],
-            'publisher'     => [
-                '@type' => 'NewsMediaOrganization',
-                'name'  => 'Domizio News',
-                'logo'  => [ '@type' => 'ImageObject', 'url' => $logo_url ],
-            ],
-        ];
-        if ( $img ) {
-            $item_data['image'] = $img;
-        }
-        $items[] = [
-            '@type'    => 'ListItem',
-            'position' => $pos++,
-            'item'     => $item_data,
-        ];
-    }
-    wp_reset_postdata();
-
-    $schema = [
-        '@context' => 'https://schema.org',
-        '@graph'   => [
-            [
-                '@type' => 'NewsMediaOrganization',
-                'name'  => 'Domizio News',
-                'url'   => 'https://domizionews.it/',
-                'logo'  => [ '@type' => 'ImageObject', 'url' => $logo_url ],
-            ],
-            [
-                '@type'           => 'ItemList',
-                'itemListElement' => $items,
-            ],
-        ],
+add_action('wp_head', function() use ($logo_url, $post_id) {
+  $schema_q = new WP_Query([
+    'post_type' => 'post', 'post_status' => 'publish',
+    'posts_per_page' => 10, 'orderby' => 'date', 'order' => 'DESC',
+  ]);
+  $items = []; $pos = 1;
+  while ($schema_q->have_posts()) {
+    $schema_q->the_post();
+    $img = get_the_post_thumbnail_url(null, 'large')
+        ?: (string) get_post_meta(get_the_ID(), '_dnap_external_image', true);
+    $item = [
+      '@type' => 'NewsArticle',
+      'headline' => wp_strip_all_tags(get_the_title()),
+      'url' => 'https://domizionews.it/?post=' . get_the_ID(),
+      'datePublished' => get_the_date('c'),
+      'author' => ['@type' => 'Organization', 'name' => 'Redazione'],
+      'publisher' => [
+        '@type' => 'NewsMediaOrganization',
+        'name' => 'Domizio News',
+        'logo' => ['@type' => 'ImageObject', 'url' => $logo_url],
+      ],
     ];
-    echo '<script type="application/ld+json">'
-        . wp_json_encode( $schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES )
-        . '</script>' . "\n";
-}, 5 );
+    if ($img) $item['image'] = $img;
+    $items[] = ['@type' => 'ListItem', 'position' => $pos++, 'item' => $item];
+  }
+  wp_reset_postdata();
+  $schema = [
+    '@context' => 'https://schema.org',
+    '@graph' => [
+      ['@type' => 'NewsMediaOrganization', 'name' => 'Domizio News',
+       'url' => 'https://domizionews.it/', 'logo' => ['@type' => 'ImageObject', 'url' => $logo_url]],
+      ['@type' => 'ItemList', 'itemListElement' => $items],
+    ],
+  ];
+  echo '<script type="application/ld+json">'
+     . wp_json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+     . '</script>' . "\n";
+}, 5);
 
 get_header();
 
 $latest = new WP_Query([
-  'post_type'      => 'post',
-  'post_status'    => 'publish',
-  'posts_per_page' => 10,
-  'orderby'        => 'date',
-  'order'          => 'DESC',
+  'post_type' => 'post', 'post_status' => 'publish',
+  'posts_per_page' => 10, 'orderby' => 'date', 'order' => 'DESC',
 ]);
 ?>
 
 <div id="domizionews-root">
-  <?php if ($latest->have_posts()): ?>
+  <?php if ($render_ssr): ?>
   <main style="font-family:sans-serif;max-width:430px;margin:0 auto;padding:16px;">
-    <h1 style="font-size:22px;font-weight:700;margin-bottom:16px;">
-      Domizio News — Notizie dal Litorale Domizio
-    </h1>
-    <p style="font-size:14px;color:#5F6368;margin-bottom:24px;">
-      Notizie locali da Mondragone, Castel Volturno, Baia Domizia,
-      Cellole, Falciano del Massico, Carinola e Sessa Aurunca.
-    </p>
-    <ul style="list-style:none;padding:0;margin:0;">
-      <?php while ($latest->have_posts()): $latest->the_post(); ?>
-      <li style="border-bottom:1px solid #E0E0E0;padding:16px 0;">
-        <a href="<?php the_permalink(); ?>"
-           style="text-decoration:none;color:#202124;">
-          <h2 style="font-size:16px;font-weight:500;margin:0 0 8px;">
-            <?php the_title(); ?>
-          </h2>
-          <p style="font-size:13px;color:#5F6368;margin:0;">
-            <?php echo wp_trim_words(get_the_excerpt(), 20); ?>
-          </p>
-          <span style="font-size:12px;color:#9AA0A6;display:block;margin-top:6px;">
-            <?php echo get_the_date('d/m/Y'); ?>
-          </span>
-        </a>
-      </li>
-      <?php endwhile; wp_reset_postdata(); ?>
-    </ul>
+
+    <?php if ($post_id > 0 && ($single = get_post($post_id)) && $single->post_status === 'publish'): ?>
+      <!-- Single article SSR -->
+      <a href="https://domizionews.it/" style="color:#1A73E8;font-size:14px;">← Domizio News</a>
+      <h1 style="font-size:22px;font-weight:700;margin:16px 0 12px;color:#202124;">
+        <?php echo wp_strip_all_tags($single->post_title); ?>
+      </h1>
+      <p style="font-size:12px;color:#9AA0A6;margin-bottom:16px;">
+        <?php echo get_the_date('d/m/Y', $single); ?>
+      </p>
+      <?php
+        $img = get_the_post_thumbnail_url($post_id, 'large')
+            ?: get_post_meta($post_id, '_dnap_external_image', true);
+        if ($img): ?>
+      <img src="<?php echo esc_url($img); ?>"
+           style="width:100%;border-radius:8px;margin-bottom:16px;">
+      <?php endif; ?>
+      <div style="font-size:16px;line-height:1.7;color:#202124;">
+        <?php echo wp_kses_post(apply_filters('the_content', $single->post_content)); ?>
+      </div>
+
+    <?php else: ?>
+      <!-- Home SSR: latest posts list -->
+      <h1 style="font-size:22px;font-weight:700;margin-bottom:16px;">
+        Domizio News — Notizie dal Litorale Domizio
+      </h1>
+      <p style="font-size:14px;color:#5F6368;margin-bottom:24px;">
+        Notizie locali da Mondragone, Castel Volturno, Baia Domizia,
+        Cellole, Falciano del Massico, Carinola e Sessa Aurunca.
+      </p>
+      <ul style="list-style:none;padding:0;margin:0;">
+        <?php while ($latest->have_posts()): $latest->the_post(); ?>
+        <li style="border-bottom:1px solid #E0E0E0;padding:16px 0;">
+          <a href="https://domizionews.it/?post=<?php echo get_the_ID(); ?>"
+             style="text-decoration:none;color:#202124;">
+            <h2 style="font-size:16px;font-weight:500;margin:0 0 8px;">
+              <?php the_title(); ?>
+            </h2>
+            <p style="font-size:13px;color:#5F6368;margin:0;">
+              <?php echo wp_trim_words(get_the_excerpt(), 20); ?>
+            </p>
+            <span style="font-size:12px;color:#9AA0A6;display:block;margin-top:6px;">
+              <?php echo get_the_date('d/m/Y'); ?>
+            </span>
+          </a>
+        </li>
+        <?php endwhile; wp_reset_postdata(); ?>
+      </ul>
+    <?php endif; ?>
+
     <nav style="margin-top:24px;font-size:13px;">
       <a href="/privacy-policy" style="color:#1A73E8;margin-right:16px;">Privacy Policy</a>
       <a href="/cookie-policy" style="color:#1A73E8;margin-right:16px;">Cookie Policy</a>

@@ -620,7 +620,7 @@ function dnap_send_telegram($post_id) {
   $post    = get_post($post_id);
   $title   = html_entity_decode(get_the_title($post_id), ENT_QUOTES, 'UTF-8');
   $excerpt = wp_trim_words(strip_tags($post->post_excerpt ?: $post->post_content), 30);
-  $url     = get_permalink($post_id);
+  $url     = 'https://domizionews.it/?post=' . $post_id;
   $image   = get_the_post_thumbnail_url($post_id, 'large');
 
   $text = "*" . $title . "*\n\n" . $excerpt . "\n\n🔗 " . $url;

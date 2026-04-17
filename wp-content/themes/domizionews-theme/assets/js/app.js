@@ -1156,7 +1156,7 @@
         const shareData = {
           title: post.title,
           text:  post.excerpt || post.title,
-          url:   post.source_url || window.location.href,
+          url:   post.permalink || ('https://domizionews.it/?post=' + post.id),
         };
         if (navigator.share) {
           navigator.share(shareData).catch(() => {});
@@ -1409,8 +1409,35 @@
 
   // ─── BOOT ───────────────────────────────────────────────────────────────────
   function boot() {
-    render(); // mostra loading
-    loadData();
+    render();
+    loadData().then(() => {
+      const params = new URLSearchParams(window.location.search);
+      const postId = params.get('post');
+      if (postId) {
+        fetch(`${API}/posts/${postId}?_fields=id,title,content,excerpt,date,_links`)
+          .then(r => r.ok ? r.json() : null)
+          .then(post => {
+            if (post) {
+              // normalize to same shape as feed posts
+              setState({
+                selectedPost: {
+                  id:         post.id,
+                  title:      post.title?.rendered || '',
+                  content:    post.content?.rendered || '',
+                  excerpt:    post.excerpt?.rendered || '',
+                  date:       post.date,
+                  image:      null,
+                  categories: [],
+                  cities:     [],
+                  source_url: window.location.href,
+                  permalink:  window.location.href,
+                }
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    });
   }
 
   if (document.readyState === 'loading') {

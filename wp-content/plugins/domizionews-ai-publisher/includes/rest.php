@@ -156,6 +156,7 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
             'city_slug'        => !empty($cities_arr) ? $cities_arr[0]['slug'] : '',
             'meta_description' => get_post_meta($p->ID, '_meta_description', true),
             'source_url'       => get_post_meta($p->ID, '_source_url', true),
+            'permalink'  => 'https://domizionews.it/?post=' . $p->ID,
             'unsplash_credit'  => get_post_meta($p->ID, '_dnap_unsplash_credit', true) ?: '',
             'categories'       => $cats_arr,
             'cities'           => $cities_arr,
