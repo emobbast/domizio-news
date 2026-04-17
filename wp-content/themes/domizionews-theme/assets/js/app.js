@@ -1432,7 +1432,7 @@
       if (path && path !== '/' && !path.startsWith('/wp-')) {
         const slug = path.replace(/^\/|\/$/g, ''); // strip leading/trailing slashes
         if (slug) {
-          fetch(`${CFG.wpBase}/posts?slug=${encodeURIComponent(slug)}&_fields=id,title,content,excerpt,date,slug`)
+          fetch(`${CFG.wpBase}/posts?slug=${encodeURIComponent(slug)}&_embed&_fields=id,title,content,excerpt,date,slug,_embedded`)
             .then(r => r.ok ? r.json() : [])
             .then(posts => {
               if (posts && posts.length > 0) {
@@ -1445,7 +1445,9 @@
                     content:    p.content?.rendered || '',
                     excerpt:    p.excerpt?.rendered || '',
                     date:       p.date,
-                    image:      null,
+                    image: p._embedded?.['wp:featuredmedia']?.[0]?.source_url
+                        || p._embedded?.['wp:featuredmedia']?.[0]?.media_details?.sizes?.large?.source_url
+                        || '',
                     categories: [],
                     cities:     [],
                     source_url: window.location.href,
