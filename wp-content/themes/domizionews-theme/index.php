@@ -26,14 +26,19 @@ if ($single_post) {
   $seo_q = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_page'=>1,'orderby'=>'date','order'=>'DESC']);
   if ($seo_q->have_posts()) {
     $seo_q->the_post();
-    $seo_title = wp_strip_all_tags(get_the_title()) . ' | Domizio News';
     $raw_desc  = get_the_excerpt() ?: get_the_content();
     $seo_image = get_the_post_thumbnail_url(null, 'large') ?: (string) get_post_meta(get_the_ID(), '_dnap_external_image', true);
     wp_reset_postdata();
   }
 }
 
-add_filter('pre_get_document_title', fn() => $seo_title, 10);
+add_filter('pre_get_document_title', fn() => $seo_title, 999);
+add_filter('document_title_parts', function($parts) use ($seo_title) {
+  $parts['title'] = $seo_title;
+  unset($parts['tagline']);
+  unset($parts['site']);
+  return $parts;
+}, 999);
 
 add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_canonical, $single_post) { ?>
   <meta name="description" content="<?php echo esc_attr($seo_desc); ?>">
