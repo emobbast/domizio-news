@@ -142,9 +142,30 @@ PROMPT;
 
     // ── Sanitizza ────────────────────────────────────────────────
     $t = wp_strip_all_tags(trim($data['title']));
+    $was_truncated = false;
     if (mb_strlen($t) > 75) {
         $t = mb_substr($t, 0, 75);
         $t = mb_substr($t, 0, mb_strrpos($t, ' '));
+        $was_truncated = true;
+
+        // Rimuovi congiunzioni/preposizioni finali che lasciano il titolo sospeso
+        $trail_stopwords = [
+            'e', 'o', 'ma', 'se', 'che', 'di', 'da', 'in', 'con', 'su',
+            'per', 'tra', 'fra', 'a', 'il', 'la', 'lo', 'i', 'gli', 'le',
+            'un', 'una', 'del', 'della', 'dei', 'degli', 'delle',
+        ];
+        while ($t !== '') {
+            $pos  = mb_strrpos($t, ' ');
+            $last = $pos === false ? $t : mb_substr($t, $pos + 1);
+            if (in_array(mb_strtolower($last), $trail_stopwords, true)) {
+                $t = $pos === false ? '' : rtrim(mb_substr($t, 0, $pos));
+            } else {
+                break;
+            }
+        }
+    }
+    if ($was_truncated && $t !== '') {
+        $t .= '…';
     }
     $data['title']            = $t;
     $data['slug']             = sanitize_title($data['slug'] ?? $data['title']);
