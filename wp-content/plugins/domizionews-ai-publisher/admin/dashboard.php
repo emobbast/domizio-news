@@ -15,6 +15,12 @@ add_action('admin_init', function () {
     // hidden field "save_settings" distingue questo form dagli altri POST
     if (isset($_POST['save_settings']) && check_admin_referer('dnap_save_settings')) {
         update_option('dnap_api_key', sanitize_text_field(trim($_POST['api_key'] ?? '')));
+        if (isset($_POST['dnap_telegram_token'])) {
+          update_option('dnap_telegram_token', sanitize_text_field($_POST['dnap_telegram_token']));
+        }
+        if (isset($_POST['dnap_telegram_channel'])) {
+          update_option('dnap_telegram_channel', sanitize_text_field($_POST['dnap_telegram_channel']));
+        }
         wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=settings_saved'));
         exit;
     }
@@ -191,6 +197,25 @@ function dnap_dashboard() {
                                        placeholder="sk-...">
                                 <p class="description">Ottieni la tua key su <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></p>
                             </td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Telegram Bot Token</th>
+                          <td>
+                            <input type="password" name="dnap_telegram_token"
+                                   value="<?php echo esc_attr(get_option('dnap_telegram_token','')); ?>"
+                                   style="width:400px;">
+                            <p class="description">Token del bot Telegram (da @BotFather)</p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Telegram Channel</th>
+                          <td>
+                            <input type="text" name="dnap_telegram_channel"
+                                   value="<?php echo esc_attr(get_option('dnap_telegram_channel','')); ?>"
+                                   placeholder="@domizionews"
+                                   style="width:400px;">
+                            <p class="description">Username del canale (es. @domizionews)</p>
+                          </td>
                         </tr>
                     </table>
                     <p style="margin:12px 0 0;">

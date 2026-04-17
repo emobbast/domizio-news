@@ -607,3 +607,49 @@ function dnap_import_now() {
 
     delete_transient('dnap_running');
 }
+
+function dnap_send_telegram($post_id) {
+  if (wp_is_post_revision($post_id)) return;
+  if (get_post_status($post_id) !== 'publish') return;
+  if (get_post_meta($post_id, '_dnap_telegram_sent', true)) return;
+
+  $token   = get_option('dnap_telegram_token', '');
+  $channel = get_option('dnap_telegram_channel', '');
+  if (!$token || !$channel) return;
+
+  $post    = get_post($post_id);
+  $title   = html_entity_decode(get_the_title($post_id), ENT_QUOTES, 'UTF-8');
+  $excerpt = wp_trim_words(strip_tags($post->post_excerpt ?: $post->post_content), 30);
+  $url     = get_permalink($post_id);
+  $image   = get_the_post_thumbnail_url($post_id, 'large');
+
+  $text = "*" . $title . "*\n\n" . $excerpt . "\n\n🔗 " . $url;
+
+  if ($image) {
+    $endpoint = "https://api.telegram.org/bot{$token}/sendPhoto";
+    $payload  = [
+      'chat_id'    => $channel,
+      'photo'      => $image,
+      'caption'    => $text,
+      'parse_mode' => 'Markdown',
+    ];
+  } else {
+    $endpoint = "https://api.telegram.org/bot{$token}/sendMessage";
+    $payload  = [
+      'chat_id'    => $channel,
+      'text'       => $text,
+      'parse_mode' => 'Markdown',
+    ];
+  }
+
+  $response = wp_remote_post($endpoint, [
+    'body'    => json_encode($payload),
+    'headers' => ['Content-Type' => 'application/json'],
+    'timeout' => 10,
+  ]);
+
+  if (!is_wp_error($response)) {
+    update_post_meta($post_id, '_dnap_telegram_sent', true);
+  }
+}
+add_action('publish_post', 'dnap_send_telegram');
