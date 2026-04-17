@@ -1432,28 +1432,13 @@
       if (path && path !== '/' && !path.startsWith('/wp-')) {
         const slug = path.replace(/^\/|\/$/g, ''); // strip leading/trailing slashes
         if (slug) {
-          fetch(`${CFG.wpBase}/posts?slug=${encodeURIComponent(slug)}&_embed&_fields=id,title,content,excerpt,date,slug,_embedded`)
-            .then(r => r.ok ? r.json() : [])
-            .then(posts => {
-              if (posts && posts.length > 0) {
-                const p = posts[0];
-                setState({
-                  selectedPost: {
-                    id:         p.id,
-                    slug:       p.slug,
-                    title:      p.title?.rendered || '',
-                    content:    p.content?.rendered || '',
-                    excerpt:    p.excerpt?.rendered || '',
-                    date:       p.date,
-                    image: p._embedded?.['wp:featuredmedia']?.[0]?.source_url
-                        || p._embedded?.['wp:featuredmedia']?.[0]?.media_details?.sizes?.large?.source_url
-                        || '',
-                    categories: [],
-                    cities:     [],
-                    source_url: window.location.href,
-                    permalink:  window.location.href,
-                  }
-                });
+          fetch(`${CUSTOM_API}/feed?search=${encodeURIComponent(slug)}&per_page=1`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              const posts = data?.posts || [];
+              if (posts.length > 0) {
+                const p = posts.find(x => x.slug === slug) || posts[0];
+                setState({ selectedPost: p });
               }
             })
             .catch(() => {});
