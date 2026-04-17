@@ -18,6 +18,21 @@ function dnap_log($message) {
     }
 
     update_option(DNAP_LOG_KEY, $log, false);
+
+    // Log anche su file per permettere tail -f da SSH
+    $log_file = WP_CONTENT_DIR . '/uploads/dnap.log';
+    $line     = '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
+
+    // Cap a ~500KB: mantieni solo le ultime 200 righe
+    if (file_exists($log_file) && filesize($log_file) > 500 * 1024) {
+        $lines = file($log_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines !== false) {
+            $lines = array_slice($lines, -200);
+            file_put_contents($log_file, implode(PHP_EOL, $lines) . PHP_EOL, LOCK_EX);
+        }
+    }
+
+    file_put_contents($log_file, $line, FILE_APPEND | LOCK_EX);
 }
 
 /**
