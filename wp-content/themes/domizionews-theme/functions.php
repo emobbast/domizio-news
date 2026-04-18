@@ -78,10 +78,12 @@ add_action( 'wp_enqueue_scripts', function () {
 } );
 
 // ─── CORS REST API (utile in sviluppo locale) ────────────────────────────────
-// Wildcard CORS is only sent on local dev hostnames. Production (domizionews.it)
-// relies on same-origin requests from the SPA, so no CORS headers are needed.
-// Gating on WP_DEBUG was unsafe because debug can be left on in production.
-add_filter( 'rest_pre_serve_request', function ( $value ) {
+// WP core's rest_send_cors_headers() reflects the request Origin back and sends
+// Access-Control-Allow-Credentials: true on every REST response. That's unsafe
+// for a same-origin SPA on production. Strip core's CORS handler on production
+// hosts; keep it on local dev hosts so DevTools / cross-origin testing works.
+// Priority 15 runs after core registers rest_send_cors_headers at priority 10.
+add_action( 'rest_api_init', function () {
     $host = $_SERVER['HTTP_HOST'] ?? '';
     $is_local = (
         str_ends_with( $host, '.local' ) ||
@@ -90,13 +92,11 @@ add_filter( 'rest_pre_serve_request', function ( $value ) {
         str_starts_with( $host, '127.' ) ||
         str_starts_with( $host, '192.168.' )
     );
-    if ( $is_local ) {
-        header( 'Access-Control-Allow-Origin: *' );
-        header( 'Access-Control-Allow-Methods: GET, POST, OPTIONS' );
-        header( 'Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce' );
+
+    if ( ! $is_local ) {
+        remove_filter( 'rest_pre_serve_request', 'rest_send_cors_headers' );
     }
-    return $value;
-} );
+}, 15 );
 
 // ─── ENDPOINT AGGIUNTIVO: /wp-json/dnapp/v1/feed ─────────────────────────────
 // Restituisce post + città + categorie in una singola chiamata (performance)
