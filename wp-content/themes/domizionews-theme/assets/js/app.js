@@ -370,6 +370,7 @@
 
   // ─── SEARCH: debounce timer (modulo-level, sopravvive ai re-render) ──────────
   let searchDebounceTimer = null;
+  let searchRequestToken  = 0;
 
   // ─── SCOPRI: costanti ────────────────────────────────────────────────────────
   const SCOPRI_CATEGORIES = [
@@ -763,20 +764,25 @@
       </div>`;
   }
 
-  function renderSearchResults(q) {
+  async function renderSearchResults(q) {
     const resultsEl = document.getElementById('dn-search-results');
     if (!resultsEl) return;
-    const filtered = q.length > 1
-      ? state.posts.filter(p =>
-          p.title.toLowerCase().includes(q.toLowerCase()) ||
-          (p.excerpt || '').toLowerCase().includes(q.toLowerCase()))
-      : [];
-    resultsEl.innerHTML = q.length < 2
-      ? `<p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>`
-      : filtered.length === 0
-        ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${escHtml(q)}</b>"</p>`
-        : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${filtered.length} risultati</p>
-           ${filtered.map(p => buildArticleCard(p)).join('')}`;
+    if (q.length < 2) {
+      resultsEl.innerHTML = `<p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>`;
+      return;
+    }
+    // Token-based race guard: se parte una query nuova mentre la precedente è in volo,
+    // la risposta vecchia viene scartata.
+    const myToken = ++searchRequestToken;
+    resultsEl.innerHTML = `<div style="display:flex;justify-content:center;padding:40px 16px"><div class="dn-spinner"></div></div>`;
+    const url = CUSTOM_API + '/feed?search=' + encodeURIComponent(q) + '&per_page=20';
+    const data = await fetch(url).then(r => r.json()).catch(() => ({ posts: [] }));
+    if (myToken !== searchRequestToken) return;
+    const results = data.posts || [];
+    resultsEl.innerHTML = results.length === 0
+      ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${escHtml(q)}</b>"</p>`
+      : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${results.length} risultati</p>
+         ${results.map(p => buildArticleCard(p)).join('')}`;
     // Click handler sulle card: nessun bind locale — li cattura la delega globale su [data-post-id].
   }
 
