@@ -78,8 +78,19 @@ add_action( 'wp_enqueue_scripts', function () {
 } );
 
 // ─── CORS REST API (utile in sviluppo locale) ────────────────────────────────
+// Wildcard CORS is only sent on local dev hostnames. Production (domizionews.it)
+// relies on same-origin requests from the SPA, so no CORS headers are needed.
+// Gating on WP_DEBUG was unsafe because debug can be left on in production.
 add_filter( 'rest_pre_serve_request', function ( $value ) {
-    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    $is_local = (
+        str_ends_with( $host, '.local' ) ||
+        str_ends_with( $host, '.test' ) ||
+        $host === 'localhost' ||
+        str_starts_with( $host, '127.' ) ||
+        str_starts_with( $host, '192.168.' )
+    );
+    if ( $is_local ) {
         header( 'Access-Control-Allow-Origin: *' );
         header( 'Access-Control-Allow-Methods: GET, POST, OPTIONS' );
         header( 'Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce' );
