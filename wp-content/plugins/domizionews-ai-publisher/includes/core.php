@@ -698,4 +698,15 @@ function dnap_send_telegram($post_id) {
     update_post_meta($post_id, '_dnap_telegram_sent', true);
   }
 }
-add_action('publish_post', 'dnap_send_telegram');
+// Async Telegram dispatch: schedule a single WP-Cron event instead of sending
+// inline on publish. Keeps the import loop fast (no ~10s HTTP timeout stacking
+// inside the dnap_running transient lock) and the 10-second delay gives
+// taxonomy terms time to commit on bulk imports.
+add_action( 'transition_post_status', 'dnap_schedule_telegram_dispatch', 10, 3 );
+function dnap_schedule_telegram_dispatch( $new_status, $old_status, $post ) {
+    if ( $new_status !== 'publish' || $old_status === 'publish' ) return;
+    if ( $post->post_type !== 'post' ) return;
+    if ( get_post_meta( $post->ID, '_dnap_telegram_sent', true ) ) return;
+    wp_schedule_single_event( time() + 10, 'dnap_dispatch_telegram', [ $post->ID ] );
+}
+add_action( 'dnap_dispatch_telegram', 'dnap_send_telegram' );
