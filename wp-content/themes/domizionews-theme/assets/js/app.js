@@ -442,9 +442,9 @@
     return `
       <header class="dn-top-header">
         <button class="dn-header-btn" id="dn-header-search" aria-label="Cerca">
-          <span class="material-symbols-outlined" style="font-size:24px;color:#FFFFFF;">search</span>
+          <span class="material-symbols-outlined" style="font-size:24px;color:#6750A4;">search</span>
         </button>
-        <div class="dn-logo" id="dn-logo-home" style="cursor:pointer;pointer-events:auto;">
+        <div class="dn-logo" id="dn-logo-home" style="cursor:pointer;">
           <span class="dn-logo-domizio">Domizio</span>
           <span class="dn-logo-news">news</span>
         </div>
@@ -919,8 +919,11 @@
 
     /* LOGO */
     .dn-logo { display: flex; align-items: baseline; gap: 3px; pointer-events: none; position: absolute; left: 0; right: 0; justify-content: center; }
-    .dn-logo-domizio { font-family: 'Roboto', Arial, sans-serif; font-weight: 700; font-size: 24px; color: #6750A4; letter-spacing: -0.02em; line-height: 1; }
-    .dn-logo-news { font-family: 'Roboto', Arial, sans-serif; font-weight: 300; font-size: 24px; color: #49454F; letter-spacing: -0.02em; line-height: 1; }
+    /* pointer-events:auto sui singoli span (non sul container) così il box
+       assoluto full-width del logo NON intercetta i click destinati al
+       pulsante ricerca/avatar sottostanti — clickable solo sul testo. */
+    .dn-logo-domizio { font-family: 'Roboto', Arial, sans-serif; font-weight: 700; font-size: 24px; color: #6750A4; letter-spacing: -0.02em; line-height: 1; pointer-events: auto; }
+    .dn-logo-news { font-family: 'Roboto', Arial, sans-serif; font-weight: 300; font-size: 24px; color: #49454F; letter-spacing: -0.02em; line-height: 1; pointer-events: auto; }
 
     /* TOP HEADER — M3 */
     .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: #FEF7FF; }
