@@ -226,6 +226,14 @@ add_filter( 'robots_txt', function ( $output ) {
 // Così i link interni della React app non danno 404
 add_action( 'template_redirect', function () {
     if ( is_404() && ! is_admin() ) {
+        // Normalize the request to a 200 "home" response so Googlebot
+        // indexes SPA URLs that resolve client-side and index.php renders
+        // the home SSR branch (with the correct canonical to the homepage).
+        status_header( 200 );
+        if ( isset( $GLOBALS['wp_query'] ) ) {
+            $GLOBALS['wp_query']->is_404 = false;
+            $GLOBALS['wp_query']->is_home = true;
+        }
         include get_template_directory() . '/index.php';
         exit;
     }
