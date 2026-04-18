@@ -350,11 +350,20 @@ function dnap_is_local_content(string $text): bool {
 
 /* ============================================================
    RILEVAMENTO CITTÀ DAL TESTO
-   Scorre il testo cercando keyword geografiche (ordinate dalla
-   più lunga alla più corta per evitare match parziali prematuri,
-   es. "falciano" prima di "falciano del massico").
+   Scorre il testo cercando keyword geografiche.
    Restituisce array di slug città univoci.
    ============================================================ */
+/**
+ * Extract Litorale Domizio city slugs from article text.
+ * Uses word-boundary regex to avoid false positives on generic frazioni names.
+ *
+ * Examples:
+ *   "ponte della Scafa a Roma"     → [] (no match — "ponte" is not a word followed by Scafa here as a frazione)
+ *   "festa a Ponte di Castel V."   → ['castel-volturno']
+ *   "Cellole e Baia Domizia"       → ['cellole', 'baia-domizia']
+ *   "Montelauro in provincia"      → [] (no match — "lauro" is substring, not word)
+ *   "Lauro, frazione di Sessa"     → ['sessa-aurunca']
+ */
 function dnap_get_cities_from_text(string $text): array {
     $map = [
         'giovanni zannini'     => 'mondragone',
@@ -398,10 +407,10 @@ function dnap_get_cities_from_text(string $text): array {
         'varano'               => 'carinola',
     ];
 
-    $lower = mb_strtolower($text);
     $slugs = [];
     foreach ($map as $keyword => $slug) {
-        if (strpos($lower, $keyword) !== false && !in_array($slug, $slugs, true)) {
+        $pattern = '/\b' . preg_quote($keyword, '/') . '\b/iu';
+        if (preg_match($pattern, $text) && !in_array($slug, $slugs, true)) {
             $slugs[] = $slug;
         }
     }
