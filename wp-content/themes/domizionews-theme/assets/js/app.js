@@ -371,6 +371,7 @@
   // ─── SEARCH: debounce timer (modulo-level, sopravvive ai re-render) ──────────
   let searchDebounceTimer = null;
   let searchRequestToken  = 0;
+  let searchResults       = []; // ultimi post ricevuti dal backend — serve alla delega click
 
   // ─── SCOPRI: costanti ────────────────────────────────────────────────────────
   const SCOPRI_CATEGORIES = [
@@ -779,6 +780,7 @@
     const data = await fetch(url).then(r => r.json()).catch(() => ({ posts: [] }));
     if (myToken !== searchRequestToken) return;
     const results = data.posts || [];
+    searchResults = results;
     resultsEl.innerHTML = results.length === 0
       ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${escHtml(q)}</b>"</p>`
       : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${results.length} risultati</p>
@@ -1361,7 +1363,8 @@
                   || state.cityFeed.find(p => p.id == id)
                   || Object.values(state.homeCityPosts).flat().find(p => p.id == id)
                   || Object.values(state.homeCatPosts).flat().find(p => p.id == id)
-                  || state.scopriResults.find(p => p.type === 'articolo' && p.id == id);
+                  || state.scopriResults.find(p => p.type === 'articolo' && p.id == id)
+                  || searchResults.find(p => p.id == id);
         if (post) {
           setState({ selectedPost: post });
           if (post.permalink) {
