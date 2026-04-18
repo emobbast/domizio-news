@@ -746,9 +746,9 @@
 
   function buildSearch() {
     // L'input è NON controllato: non ha l'attributo value e non viene mai
-    // ricreato durante la digitazione. I risultati vengono aggiornati da
-    // attachEvents() tramite patch diretta del DOM con debounce 300ms,
-    // evitando così il reset del cursore su mobile ad ogni carattere.
+    // ricreato durante la digitazione. I risultati vengono aggiornati dalla
+    // delega globale 'input' (setupGlobalDelegation) tramite patch diretta
+    // del DOM con debounce 300ms, evitando il reset del cursore su mobile.
     return `
       <div class="dn-screen">
         <div class="dn-page-header"><h2>Cerca</h2></div>
@@ -777,18 +777,7 @@
         ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${escHtml(q)}</b>"</p>`
         : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${filtered.length} risultati</p>
            ${filtered.map(p => buildArticleCard(p)).join('')}`;
-    // Ri-aggancia i click handler sulle card appena inserite
-    resultsEl.querySelectorAll('[data-post-id]').forEach(el => {
-      el.addEventListener('click', () => {
-        const post = state.posts.find(p => p.id == el.dataset.postId);
-        if (post) {
-          setState({ selectedPost: post });
-          if (post.permalink) {
-            history.pushState({ postId: post.id }, post.title, post.permalink);
-          }
-        }
-      });
-    });
+    // Click handler sulle card: nessun bind locale — li cattura la delega globale su [data-post-id].
   }
 
   function buildArticleDetail(post) {
@@ -1152,13 +1141,66 @@
     if (state.selectedPost) {
       updateArticleHead(state.selectedPost);
       root.innerHTML = `<style>${STYLES}</style><div class="dn-app" style="padding-bottom:0">${buildArticleDetail(state.selectedPost)}</div>`;
-      document.getElementById('dn-back')?.addEventListener('click', () => {
+      initAds();
+      return;
+    }
+
+    if (state.selectedLegalPage) {
+      root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}${buildLoading()}${buildNav()}</div>`;
+      buildLegalPage(state.selectedLegalPage).then(html => {
+        root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}${html}${buildNav()}</div>`;
+        initAds();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }).catch(() => {
+        root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}<div style="padding:32px 16px;text-align:center;color:#5F6368;">Contenuto non disponibile.<br><br><button class="dn-back-btn" data-action="back-legal" style="color:#6750A4;">← Torna indietro</button></div>${buildNav()}</div>`;
+      });
+      return;
+    }
+
+    if (state.tab === 'home')       content = buildHome();
+    if (state.tab === 'cities')     content = buildCities();
+    if (state.tab === 'categories') content = buildScopri();
+    if (state.tab === 'search')     content = buildSearch();
+
+    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${!state.loading ? renderAd('banner-nav') : ''}${buildNav()}</div>`;
+    // Quando l'input di ricerca compare (header search mode o tab Cerca), dagli focus.
+    // La delega globale di 'input' è già wirata una volta sola su root — non serve re-bindare.
+    document.getElementById('dn-search-input')?.focus();
+    initAds();
+  }
+
+  // Delegazione globale: attaccata UNA VOLTA sola a #domizionews-root durante boot().
+  // Ogni render() riscrive innerHTML, ma il listener su root sopravvive e cattura
+  // qualsiasi click/input su elementi data-* o ID noti — anche futuri rami di render
+  // che non erano previsti in origine.
+  function setupGlobalDelegation() {
+    const root = document.getElementById('domizionews-root');
+    if (!root) return;
+
+    // ── Handler dispatch per click: ogni ramo usa closest() per trovare
+    //    l'ancestor interattivo e poi esegue il medesimo corpo originale.
+    root.addEventListener('click', (e) => {
+      const t = e.target;
+
+      // Back button da legal page (usa data-action per distinguere da altre back)
+      if (t.closest('[data-action="back-legal"]')) {
+        setState({ selectedLegalPage: null });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Detail view: Indietro
+      if (t.closest('#dn-back')) {
         restoreHead();
         setState({ selectedPost: null });
         history.pushState(null, '', '/');
-      });
-      document.getElementById('dn-share')?.addEventListener('click', () => {
+        return;
+      }
+
+      // Detail view: Condividi
+      if (t.closest('#dn-share')) {
         const post = state.selectedPost;
+        if (!post) return;
         const shareData = {
           title: post.title,
           text:  post.excerpt || post.title,
@@ -1171,40 +1213,140 @@
             alert('Link copiato negli appunti');
           }).catch(() => {});
         }
-      });
-      initAds();
-      return;
-    }
+        return;
+      }
 
-    if (state.selectedLegalPage) {
-      root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}${buildLoading()}${buildNav()}</div>`;
-      attachEvents();
-      buildLegalPage(state.selectedLegalPage).then(html => {
-        root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}${html}${buildNav()}</div>`;
-        attachEvents();
-        initAds();
+      // Header: click logo → torna alla home
+      if (t.closest('#dn-logo-home')) {
+        setState({ tab: 'home', selectedPost: null, selectedLegalPage: null, searchMode: false });
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      }).catch(() => {
-        root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${buildHeader()}<div style="padding:32px 16px;text-align:center;color:#5F6368;">Contenuto non disponibile.<br><br><button class="dn-back-btn" data-action="back-legal" style="color:#6750A4;">← Torna indietro</button></div>${buildNav()}</div>`;
-        attachEvents();
-      });
-      return;
-    }
+        return;
+      }
 
-    if (state.tab === 'home')       content = buildHome();
-    if (state.tab === 'cities')     content = buildCities();
-    if (state.tab === 'categories') content = buildScopri();
-    if (state.tab === 'search')     content = buildSearch();
+      // Header: click icona lente → attiva search mode
+      if (t.closest('#dn-header-search')) {
+        setState({ searchMode: true });
+        return;
+      }
 
-    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${!state.loading ? renderAd('banner-nav') : ''}${buildNav()}</div>`;
-    attachEvents();
-  }
+      // Header search mode: freccia ← → torna alla vista normale
+      if (t.closest('#dn-search-back')) {
+        clearTimeout(searchDebounceTimer);
+        setState({ searchMode: false });
+        return;
+      }
 
-  function attachEvents() {
-    // Article cards (feed principale, city feed server-side, slider)
-    document.querySelectorAll('[data-post-id]').forEach(el => {
-      el.addEventListener('click', () => {
-        const id   = el.dataset.postId;
+      // Pulsante indietro tab Città → torna alla Home
+      if (t.closest('#btn-back-home')) {
+        setState({ tab: 'home' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Footer legal links
+      const legal = t.closest('[data-legal]');
+      if (legal) {
+        e.preventDefault();
+        setState({ selectedLegalPage: legal.dataset.legal, selectedPost: null });
+        return;
+      }
+
+      // Scopri — bottone Indietro (step 2 → step 1)
+      if (t.closest('[data-scopri-back]')) {
+        setState({ scopriStep: 'categorie', scopriCategoria: null, scopriResults: [], scopriLoading: false });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Scopri — click su card categoria (step 1 → step 2)
+      const scopriCat = t.closest('[data-scopri-cat]');
+      if (scopriCat) {
+        loadScopriResults(scopriCat.dataset.scopriCat, 'tutte');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Scopri — chip città (step 2)
+      const scopriCity = t.closest('[data-scopri-city]');
+      if (scopriCity) {
+        const slug = scopriCity.dataset.scopriCity;
+        if (slug === state.scopriCity) return;
+        loadScopriResults(state.scopriCategoria, slug);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Scopri — bottoni Chiama / WhatsApp (card attività)
+      const tel = t.closest('[data-tel]');
+      if (tel) {
+        window.location.href = 'tel:' + tel.dataset.tel;
+        return;
+      }
+      const wa = t.closest('[data-wa]');
+      if (wa) {
+        window.open('https://wa.me/' + wa.dataset.wa.replace(/\D/g, ''), '_blank');
+        return;
+      }
+
+      // Chip categorie (home) — "Tutte" resetta, le altre caricano dal server
+      const homeCat = t.closest('[data-home-cat]');
+      if (homeCat) {
+        const slug = homeCat.dataset.homeCat;
+        if (slug === state.activeHomeCat) return; // stesso chip: nessuna azione
+        if (!slug) {
+          // "Tutte": ripristina le sezioni per città caricate al boot
+          setState({ activeHomeCat: '', homeCatPosts: {}, homeCatLoading: false });
+        } else {
+          loadCategoryFeed(slug);
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Section label città cliccabile + "Vedi altro" → tab Città
+      // (Il precedente attachEvents bindava due volte [data-goto-city] — qui una sola,
+      // con lo scrollTo ereditato dal ramo .dn-section-label[data-goto-city].)
+      const gotoCity = t.closest('[data-goto-city]');
+      if (gotoCity) {
+        const slug = gotoCity.dataset.gotoCity;
+        setState({ tab: 'cities', selectedCity: slug, cityFeed: [], cityFeedLoading: true });
+        loadCityFeed(slug);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // City chips (tab Città) — fetch server-side per slug corretto
+      const cityChip = t.closest('[data-city]');
+      if (cityChip) {
+        const slug    = cityChip.dataset.city;
+        const newSlug = state.selectedCity === slug ? '' : slug;
+        setState({ selectedCity: newSlug, cityFeed: [], cityFeedLoading: !!newSlug });
+        loadCityFeed(newSlug);
+        return;
+      }
+
+      // Category tiles (tab Scopri legacy — non più usato, mantenuto per sicurezza)
+      const catChip = t.closest('[data-cat]');
+      if (catChip) {
+        const slug = catChip.dataset.cat;
+        setState({ selectedCat: state.selectedCat === slug ? '' : slug });
+        return;
+      }
+
+      // Bottom nav
+      const tabEl = t.closest('[data-tab]');
+      if (tabEl) {
+        setState({ tab: tabEl.dataset.tab, selectedLegalPage: null });
+        return;
+      }
+
+      // Article cards (feed principale, city feed, slider, ricerca, sticky)
+      // IMPORTANTE: data-post-id va per ULTIMO perché più generico — alcuni
+      // wrapper esterni (es. section label) potrebbero non essere post ma
+      // contenere card annidate con data-post-id più in profondità.
+      const postCard = t.closest('[data-post-id]');
+      if (postCard) {
+        const id   = postCard.dataset.postId;
         // Cerca nel feed principale e nel city feed (post non presenti nei 20 iniziali)
         const post = state.posts.find(p => p.id == id)
                   || state.cityFeed.find(p => p.id == id)
@@ -1216,222 +1358,100 @@
           if (post.permalink) {
             history.pushState({ postId: post.id }, post.title, post.permalink);
           }
-        } else if (el.dataset.stickyHref) {
+        } else if (postCard.dataset.stickyHref) {
           // Post sticky non nel feed locale: apri permalink
-          window.location.href = el.dataset.stickyHref;
+          window.location.href = postCard.dataset.stickyHref;
         }
-      });
+        return;
+      }
     });
 
-    // Header: click logo → torna alla home
-    document.getElementById('dn-logo-home')?.addEventListener('click', () => {
-      setState({ tab: 'home', selectedPost: null, selectedLegalPage: null, searchMode: false });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-
-    // Header: click icona lente → attiva search mode
-    document.getElementById('dn-header-search')?.addEventListener('click', () => {
-      setState({ searchMode: true });
-    });
-
-    // Header search mode: freccia ← → torna alla vista normale
-    document.getElementById('dn-search-back')?.addEventListener('click', () => {
-      clearTimeout(searchDebounceTimer);
-      setState({ searchMode: false });
-    });
-
-    // Section label città cliccabile → tab Città
-    document.querySelectorAll('.dn-section-label[data-goto-city]').forEach(el => {
-      el.addEventListener('click', () => {
-        const slug = el.dataset.gotoCity;
-        setState({ tab: 'cities', selectedCity: slug, cityFeed: [], cityFeedLoading: true });
-        loadCityFeed(slug);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-    });
-
-    // Pulsante indietro tab Città → torna alla Home
-    document.getElementById('btn-back-home')?.addEventListener('click', () => {
-      setState({ tab: 'home' });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-
-    // Bottom nav
-    document.querySelectorAll('[data-tab]').forEach(el => {
-      el.addEventListener('click', () => setState({ tab: el.dataset.tab, selectedLegalPage: null }));
-    });
-
-    // City chips (tab Città) — fetch server-side per slug corretto
-    document.querySelectorAll('[data-city]').forEach(el => {
-      el.addEventListener('click', () => {
-        const slug    = el.dataset.city;
-        const newSlug = state.selectedCity === slug ? '' : slug;
-        setState({ selectedCity: newSlug, cityFeed: [], cityFeedLoading: !!newSlug });
-        loadCityFeed(newSlug);
-      });
-    });
-
-    // Category tiles (tab Scopri legacy — non più usato, mantenuto per sicurezza)
-    document.querySelectorAll('[data-cat]').forEach(el => {
-      el.addEventListener('click', () => {
-        const slug = el.dataset.cat;
-        setState({ selectedCat: state.selectedCat === slug ? '' : slug });
-      });
-    });
-
-    // Scopri — click su card categoria (step 1 → step 2)
-    document.querySelectorAll('[data-scopri-cat]').forEach(el => {
-      el.addEventListener('click', () => {
-        loadScopriResults(el.dataset.scopriCat, 'tutte');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-    });
-
-    // Scopri — bottone Indietro (step 2 → step 1)
-    document.querySelector('[data-scopri-back]')?.addEventListener('click', () => {
-      setState({ scopriStep: 'categorie', scopriCategoria: null, scopriResults: [], scopriLoading: false });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-
-    // Scopri — chip città (step 2)
-    document.querySelectorAll('[data-scopri-city]').forEach(el => {
-      el.addEventListener('click', () => {
-        const slug = el.dataset.scopriCity;
-        if (slug === state.scopriCity) return;
-        loadScopriResults(state.scopriCategoria, slug);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-    });
-
-    // Scopri — bottoni Chiama / WhatsApp (card attività)
-    document.querySelectorAll('[data-tel]').forEach(el => {
-      el.addEventListener('click', () => { window.location.href = 'tel:' + el.dataset.tel; });
-    });
-    document.querySelectorAll('[data-wa]').forEach(el => {
-      el.addEventListener('click', () => { window.open('https://wa.me/' + el.dataset.wa.replace(/\D/g, ''), '_blank'); });
-    });
-
-    // Chip categorie (home) — "Tutte" resetta, le altre caricano dal server
-    document.querySelectorAll('[data-home-cat]').forEach(el => {
-      el.addEventListener('click', () => {
-        const slug = el.dataset.homeCat;
-        if (slug === state.activeHomeCat) return; // stesso chip: nessuna azione
-        if (!slug) {
-          // "Tutte": ripristina le sezioni per città caricate al boot
-          setState({ activeHomeCat: '', homeCatPosts: {}, homeCatLoading: false });
-        } else {
-          loadCategoryFeed(slug);
-        }
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-    });
-
-    // Home city "Vedi altro" links — passa alla tab Città e carica feed server-side
-    document.querySelectorAll('[data-goto-city]').forEach(el => {
-      el.addEventListener('click', () => {
-        const slug = el.dataset.gotoCity;
-        setState({ tab: 'cities', selectedCity: slug, cityFeed: [], cityFeedLoading: true });
-        loadCityFeed(slug);
-      });
-    });
-
-    // Slider — aggiorna dots al scroll
-    const slider = document.getElementById('dn-slider');
-    const dotsEl = document.getElementById('dn-slider-dots');
-    if (slider && dotsEl) {
-      slider.addEventListener('scroll', () => {
-        const cardEl = slider.firstElementChild;
-        if (!cardEl) return;
-        const cardWidth = cardEl.offsetWidth + 12; // card + gap
-        const index = Math.min(
-          Math.round(slider.scrollLeft / cardWidth),
-          dotsEl.children.length - 1
-        );
-        Array.from(dotsEl.children).forEach((dot, i) => {
-          dot.classList.toggle('active', i === index);
-        });
-      }, { passive: true });
-    }
-
-    // Search input — input NON controllato + debounce 300ms.
-    // L'handler NON chiama render(): aggiorna solo #dn-search-results
-    // per evitare che il re-render ricrei l'input e resetti il cursore su mobile.
-    const searchInput = document.getElementById('dn-search-input');
-    if (searchInput) {
-      searchInput.addEventListener('input', () => {
+    // ── Input delegato: Option A — deleghiamo anche 'input' sulla root.
+    //    L'<input id="dn-search-input"> viene ricreato da ogni render() perché
+    //    innerHTML lo sostituisce; delegare evita di ri-bindare dopo ogni render.
+    //    L'handler NON chiama render(): aggiorna solo #dn-search-results per non
+    //    ricreare l'input e resettare il cursore su mobile.
+    root.addEventListener('input', (e) => {
+      if (e.target && e.target.id === 'dn-search-input') {
         clearTimeout(searchDebounceTimer);
         searchDebounceTimer = setTimeout(() => {
-          renderSearchResults(searchInput.value);
+          renderSearchResults(e.target.value);
         }, 300);
-      });
-      searchInput.focus();
-    }
-
-    // Footer legal links
-    document.querySelectorAll('[data-legal]').forEach(el => {
-      el.addEventListener('click', e => {
-        e.preventDefault();
-        setState({ selectedLegalPage: el.dataset.legal, selectedPost: null });
-      });
+      }
     });
 
-    // Back button from legal page
-    document.querySelectorAll('[data-action="back-legal"]').forEach(el => {
-      el.addEventListener('click', () => {
-        setState({ selectedLegalPage: null });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    // ── Slider — aggiorna dots allo scroll. L'evento scroll non bolle, quindi
+    //    usiamo la capture phase su root per intercettarlo comunque.
+    root.addEventListener('scroll', (e) => {
+      if (!e.target || e.target.id !== 'dn-slider') return;
+      const slider = e.target;
+      const dotsEl = document.getElementById('dn-slider-dots');
+      if (!dotsEl) return;
+      const cardEl = slider.firstElementChild;
+      if (!cardEl) return;
+      const cardWidth = cardEl.offsetWidth + 12; // card + gap
+      const index = Math.min(
+        Math.round(slider.scrollLeft / cardWidth),
+        dotsEl.children.length - 1
+      );
+      Array.from(dotsEl.children).forEach((dot, i) => {
+        dot.classList.toggle('active', i === index);
       });
+    }, { capture: true, passive: true });
+
+    // ── Horizontal scroll via mouse wheel sui container chip ────────────────
+    root.addEventListener('wheel', (e) => {
+      const el = e.target.closest('.dn-home-chips, .dn-chips-scroll');
+      if (!el) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }, { passive: false });
+
+    // ── Click-to-drag sui container chip ────────────────────────────────────
+    //    Stato tenuto in chiusura locale: un drag alla volta è sufficiente
+    //    (l'utente non può trascinare due container simultaneamente).
+    let dragEl = null;
+    let dragStartX = 0;
+    let dragScrollLeft = 0;
+
+    root.addEventListener('mousedown', (e) => {
+      const el = e.target.closest('.dn-home-chips, .dn-chips-scroll');
+      if (!el) return;
+      dragEl = el;
+      dragStartX = e.pageX - el.offsetLeft;
+      dragScrollLeft = el.scrollLeft;
+      el.style.cursor = 'grabbing';
+      el.style.userSelect = 'none';
     });
 
-    // ── Horizontal scroll: mouse wheel + click-drag on chip containers ──────────
-    document.querySelectorAll('.dn-home-chips, .dn-chips-scroll').forEach(el => {
-      // Mouse wheel → horizontal scroll
-      el.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        el.scrollLeft += e.deltaY;
-      }, { passive: false });
-
-      // Click-to-drag
-      let isDragging = false;
-      let dragStartX = 0;
-      let dragScrollLeft = 0;
-
-      el.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        dragStartX = e.pageX - el.offsetLeft;
-        dragScrollLeft = el.scrollLeft;
-        el.style.cursor = 'grabbing';
-        el.style.userSelect = 'none';
-      });
-
-      el.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const x = e.pageX - el.offsetLeft;
-        el.scrollLeft = dragScrollLeft - (x - dragStartX);
-      });
-
-      const stopDrag = () => {
-        isDragging = false;
-        el.style.cursor = '';
-        el.style.userSelect = '';
-      };
-      el.addEventListener('mouseup', stopDrag);
-      el.addEventListener('mouseleave', stopDrag);
+    // mousemove/mouseup sul document: seguono il puntatore anche fuori dal
+    // container (drag naturale — niente più early-stop su mouseleave).
+    document.addEventListener('mousemove', (e) => {
+      if (!dragEl) return;
+      const x = e.pageX - dragEl.offsetLeft;
+      dragEl.scrollLeft = dragScrollLeft - (x - dragStartX);
     });
 
+    document.addEventListener('mouseup', () => {
+      if (!dragEl) return;
+      dragEl.style.cursor = '';
+      dragEl.style.userSelect = '';
+      dragEl = null;
+    });
+
+    // ── History navigation (back del browser dalla detail view) ─────────────
     window.onpopstate = (e) => {
       if (!e.state || !e.state.postId) {
         setState({ selectedPost: null });
         history.replaceState(null, '', '/');
       }
     };
-
-    initAds();
   }
 
   // ─── BOOT ───────────────────────────────────────────────────────────────────
   function boot() {
     render();
+    setupGlobalDelegation();
     loadData().then(() => {
       // Check if we landed on a pretty permalink (e.g. /titolo-articolo/)
       const path = window.location.pathname;
