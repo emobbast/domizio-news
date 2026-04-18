@@ -8,6 +8,20 @@ if (!defined('ABSPATH')) exit;
    Restituisce array keyed by city-slug:
      [ 'mondragone' => ['post' => WP_Post, 'is_vip' => bool], … ]
    ============================================================ */
+/**
+ * Pick one sticky post per Litorale Domizio city.
+ *
+ * Priority 1: most recent post whose title or content matches a VIP tag
+ * from the 'dnap_vip_tags' option. Matching uses a case-insensitive,
+ * unicode-aware word-boundary regex, so a tag like "zannini" only matches
+ * the standalone word, not arbitrary substrings.
+ *
+ * The VIP layer is restricted to posts published within the last N days
+ * (default 7, filterable via 'dnap_vip_sticky_days') so a stale VIP post
+ * doesn't keep pinning as sticky over fresher city news.
+ *
+ * Priority 2 (fallback): most recent post in the city, no time window.
+ */
 function dnap_get_sticky_per_city(): array {
     $city_slugs = [
         'mondragone',
@@ -19,8 +33,10 @@ function dnap_get_sticky_per_city(): array {
         'sessa-aurunca',
     ];
 
-    $vip_tags = get_option('dnap_vip_tags', ['zannini', 'giovanni zannini']);
-    $result   = [];
+    $vip_tags   = get_option('dnap_vip_tags', ['zannini', 'giovanni zannini']);
+    $vip_days   = (int) apply_filters('dnap_vip_sticky_days', 7);
+    $vip_cutoff = time() - ($vip_days * DAY_IN_SECONDS);
+    $result     = [];
 
     foreach ($city_slugs as $slug) {
         $posts = get_posts([
@@ -38,13 +54,18 @@ function dnap_get_sticky_per_city(): array {
 
         if (empty($posts)) continue;
 
-        // Priorità 1: post più recente con almeno un tag VIP nel titolo o contenuto
+        // Priorità 1: post più recente entro la VIP window con almeno un tag VIP
+        // (word-boundary match, case-insensitive, unicode-aware).
         $vip_post = null;
         if (!empty($vip_tags)) {
             foreach ($posts as $post) {
-                $haystack = mb_strtolower($post->post_title . ' ' . $post->post_content);
+                $post_time = (int) get_post_time('U', true, $post);
+                if ($post_time < $vip_cutoff) continue;
+                $haystack = $post->post_title . ' ' . $post->post_content;
                 foreach ($vip_tags as $tag) {
-                    if ($tag !== '' && strpos($haystack, mb_strtolower($tag)) !== false) {
+                    if ($tag === '') continue;
+                    $pattern = '/\b' . preg_quote($tag, '/') . '\b/iu';
+                    if (preg_match($pattern, $haystack)) {
                         $vip_post = $post;
                         break 2;
                     }
@@ -55,7 +76,7 @@ function dnap_get_sticky_per_city(): array {
         if ($vip_post) {
             $result[$slug] = ['post' => $vip_post, 'is_vip' => true];
         } else {
-            // Priorità 2: post più recente (fallback)
+            // Priorità 2: post più recente (fallback, nessuna time window)
             $result[$slug] = ['post' => $posts[0], 'is_vip' => false];
         }
     }
