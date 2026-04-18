@@ -370,6 +370,13 @@
 
   // ─── SEARCH: debounce timer (modulo-level, sopravvive ai re-render) ──────────
   let searchDebounceTimer = null;
+  // Risultati della ricerca backend correnti. Tenuti fuori da `state` perché
+  // setState({...}) scatenerebbe un render che ricrea l'<input> e resetta il
+  // cursore su mobile. La delega click li consulta nella lookup chain.
+  let latestSearchResults = [];
+  // Token dell'ultima query dispatchata: se la risposta fetch arriva dopo che
+  // l'utente ha cambiato query, la scartiamo (safety net oltre al debounce).
+  let latestSearchQuery = '';
 
   // ─── SCOPRI: costanti ────────────────────────────────────────────────────────
   const SCOPRI_CATEGORIES = [
@@ -766,17 +773,37 @@
   function renderSearchResults(q) {
     const resultsEl = document.getElementById('dn-search-results');
     if (!resultsEl) return;
-    const filtered = q.length > 1
-      ? state.posts.filter(p =>
-          p.title.toLowerCase().includes(q.toLowerCase()) ||
-          (p.excerpt || '').toLowerCase().includes(q.toLowerCase()))
-      : [];
-    resultsEl.innerHTML = q.length < 2
-      ? `<p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>`
-      : filtered.length === 0
-        ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${escHtml(q)}</b>"</p>`
-        : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${filtered.length} risultati</p>
-           ${filtered.map(p => buildArticleCard(p)).join('')}`;
+
+    if (q.length < 2) {
+      latestSearchQuery = '';
+      latestSearchResults = [];
+      resultsEl.innerHTML = `<p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>`;
+      return;
+    }
+
+    // Interroga il backend full-text (WP_Query 's' mappato dal parametro
+    // 'search' in dnapp_rest_feed). state.posts contiene solo gli ultimi 20
+    // post del boot, quindi filtrare client-side copriva solo una frazione
+    // minima dell'archivio e restituiva "Nessun risultato" per articoli
+    // fuori da quella finestra.
+    latestSearchQuery = q;
+    fetch(CUSTOM_API + '/feed?search=' + encodeURIComponent(q) + '&per_page=20')
+      .then(r => r.ok ? r.json() : { posts: [] })
+      .then(data => {
+        // Risposta stale (l'utente ha già cambiato query): ignora.
+        if (q !== latestSearchQuery) return;
+        const posts = (data && data.posts) || [];
+        latestSearchResults = posts;
+        resultsEl.innerHTML = posts.length === 0
+          ? `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${escHtml(q)}</b>"</p>`
+          : `<p style="font-size:13px;color:#5F6368;padding:0 16px 8px">${posts.length} risultati</p>
+             ${posts.map(p => buildArticleCard(p)).join('')}`;
+      })
+      .catch(() => {
+        if (q !== latestSearchQuery) return;
+        latestSearchResults = [];
+        resultsEl.innerHTML = `<p class="dn-empty" style="padding:60px 16px 0">Nessun risultato per "<b>${escHtml(q)}</b>"</p>`;
+      });
     // Click handler sulle card: nessun bind locale — li cattura la delega globale su [data-post-id].
   }
 
@@ -1350,12 +1377,15 @@
       const postCard = t.closest('[data-post-id]');
       if (postCard) {
         const id   = postCard.dataset.postId;
-        // Cerca nel feed principale e nel city feed (post non presenti nei 20 iniziali)
+        // Cerca nel feed principale e nel city feed (post non presenti nei 20 iniziali).
+        // latestSearchResults è necessario perché i risultati della ricerca backend
+        // possono includere post fuori da state.posts / city feed / scopri.
         const post = state.posts.find(p => p.id == id)
                   || state.cityFeed.find(p => p.id == id)
                   || Object.values(state.homeCityPosts).flat().find(p => p.id == id)
                   || Object.values(state.homeCatPosts).flat().find(p => p.id == id)
-                  || state.scopriResults.find(p => p.type === 'articolo' && p.id == id);
+                  || state.scopriResults.find(p => p.type === 'articolo' && p.id == id)
+                  || latestSearchResults.find(p => p.id == id);
         if (post) {
           setState({ selectedPost: post });
           if (post.permalink) {
