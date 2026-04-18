@@ -97,9 +97,40 @@
     selectedLegalPage: null,
   };
 
+  // Firma della "vista" corrente: serve a distinguere un cambio di view (tab,
+  // articolo aperto, pagina legale, modalità cerca, città selezionata, chip
+  // categoria home, step Scopri) dai render che aggiornano solo dati
+  // (feed, risultati ricerca mentre si digita, spinner). Solo i cambi di
+  // view devono resettare lo scroll al top.
+  let lastViewSig = '';
+
+  function viewSig(s) {
+    if (!s) return '';
+    return [
+      s.tab || '',
+      s.selectedPost ? 'p:' + s.selectedPost.id : '',
+      s.selectedLegalPage || '',
+      s.searchMode ? 'sm' : '',
+      'c:' + (s.selectedCity || ''),
+      'hc:' + (s.activeHomeCat || ''),
+      'sc:' + (s.scopriStep || '') + ':' + (s.scopriCategoria || '') + ':' + (s.scopriCity || ''),
+    ].join('|');
+  }
+
+  function scrollToTopIfViewChanged(newState, oldState) {
+    const newSig = viewSig(newState);
+    const oldSig = viewSig(oldState);
+    if (newSig !== oldSig) {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+    lastViewSig = newSig;
+  }
+
   function setState(patch) {
+    const oldState = state;
     state = Object.assign({}, state, patch);
     render();
+    scrollToTopIfViewChanged(state, oldState);
   }
 
   // ─── API ────────────────────────────────────────────────────────────────────
