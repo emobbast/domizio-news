@@ -125,14 +125,14 @@ function dnap_resolve_google_url(string $url): string {
     if (strpos($url, 'news.google.com') === false) return $url;
 
     $response = wp_remote_get($url, [
-        'timeout'     => 20,
+        'timeout'     => 8,
         'redirection' => 10,
         'user-agent'  => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
         'headers'     => ['Accept-Language' => 'it-IT,it;q=0.9'],
     ]);
 
     if (is_wp_error($response)) {
-        dnap_log('Errore risoluzione Google URL: ' . $response->get_error_message());
+        dnap_log('Errore risoluzione Google URL (' . $url . '): ' . $response->get_error_message());
         return $url;
     }
 
@@ -215,12 +215,14 @@ function dnap_scrape_meta(string $url): array {
     // Risoluzione redirect per Google News (prima di qualsiasi scraping)
     if (strpos($url, 'news.google.com') !== false) {
         $gr = wp_remote_get($url, [
-            'timeout'     => 20,
+            'timeout'     => 8,
             'redirection' => 5,
             'user-agent'  => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
             'headers'     => ['Accept-Language' => 'it-IT,it;q=0.9'],
         ]);
-        if (!is_wp_error($gr)) {
+        if (is_wp_error($gr)) {
+            dnap_log('Errore redirect Google News (' . $url . '): ' . $gr->get_error_message());
+        } else {
             $resolved = '';
             // 1. effectiveUrl dalla libreria Requests (URL finale dopo tutti i redirect)
             $http_obj = $gr['http_response'] ?? null;
@@ -263,13 +265,13 @@ function dnap_scrape_meta(string $url): array {
     }
 
     $response = wp_remote_get($url, [
-        'timeout'    => 20,
+        'timeout'    => 8,
         'user-agent' => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
         'headers'    => ['Accept-Language' => 'it-IT,it;q=0.9'],
     ]);
 
     if (is_wp_error($response)) {
-        dnap_log('Errore scraping meta: ' . $response->get_error_message() . ' — ' . $url);
+        dnap_log('Errore scraping meta (' . $url . '): ' . $response->get_error_message());
         return $result;
     }
 
@@ -479,8 +481,12 @@ function dnap_import_now() {
         // sugli stessi articoli già importati. Con 30 minuti, ogni esecuzione oraria
         // ottiene dati aggiornati dal feed RSS remoto.
         $short_feed_cache = fn() => 30 * MINUTE_IN_SECONDS;
+        // Cap SimplePie HTTP timeout so a single slow feed can't exhaust PHP max_execution_time.
+        $set_feed_timeout = function($feed) { $feed->set_timeout(10); };
         add_filter( 'wp_feed_cache_transient_lifetime', $short_feed_cache, 99 );
+        add_action( 'wp_feed_options', $set_feed_timeout );
         $rss = fetch_feed($feed_url);
+        remove_action( 'wp_feed_options', $set_feed_timeout );
         remove_filter( 'wp_feed_cache_transient_lifetime', $short_feed_cache, 99 );
         if (is_wp_error($rss)) {
             dnap_log("ERRORE feed: {$feed_url} — " . $rss->get_error_message());
@@ -488,13 +494,20 @@ function dnap_import_now() {
             continue;
         }
 
-        $items = $rss->get_items(0, 15);
+        try {
+            $items = $rss->get_items(0, 15);
+        } catch (\Throwable $e) {
+            dnap_log("ERRORE get_items ({$feed_url}): " . $e->getMessage());
+            $total_errors++;
+            continue;
+        }
         if (empty($items)) {
             dnap_log("Feed vuoto: {$feed_url}");
             continue;
         }
 
         foreach ($items as $item) {
+            try {
 
             if ($total_imported >= $run_limit) break;
 
@@ -639,6 +652,12 @@ function dnap_import_now() {
 
             dnap_log("✅ Pubblicato [{$post_id}]: {$rewritten['title']}");
             $total_imported++;
+            } catch (\Throwable $e) {
+                $item_url = isset($source_url) ? $source_url : $feed_url;
+                dnap_log("ERRORE item ({$item_url}): " . $e->getMessage());
+                $total_errors++;
+                continue;
+            }
         }
     }
 

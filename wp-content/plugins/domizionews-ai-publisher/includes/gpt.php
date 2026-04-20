@@ -34,7 +34,7 @@ function dnap_call_gpt(string $prompt, int $max_tokens = 1200, float $temperatur
             'Content-Type'  => 'application/json',
         ],
         'body'    => $body,
-        'timeout' => 60,
+        'timeout' => 30,
     ]);
 
     if (is_wp_error($response)) {

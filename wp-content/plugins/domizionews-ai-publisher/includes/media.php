@@ -233,7 +233,7 @@ function dnap_unsplash_api_fallback($post_id) {
             'client_id'   => DNAP_UNSPLASH_KEY,
         ], 'https://api.unsplash.com/photos/random');
 
-        $response = wp_remote_get($api_url, ['timeout' => 15]);
+        $response = wp_remote_get($api_url, ['timeout' => 10]);
 
         if (is_wp_error($response)) {
             dnap_log("Unsplash API errore (query: {$attempt_query}): " . $response->get_error_message());
@@ -386,7 +386,7 @@ function dnap_fetch_article_image($url) {
     if ($host && strpos($host, 'google.com') !== false) return '';
 
     $response = wp_remote_get($url, array(
-        'timeout'    => 20,
+        'timeout'    => 8,
         'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'headers'    => array(
             'Accept-Language' => 'it-IT,it;q=0.9',
@@ -395,7 +395,10 @@ function dnap_fetch_article_image($url) {
         ),
     ));
 
-    if (is_wp_error($response)) return '';
+    if (is_wp_error($response)) {
+        dnap_log('Errore fetch immagine articolo (' . $url . '): ' . $response->get_error_message());
+        return '';
+    }
     if (wp_remote_retrieve_response_code($response) !== 200) return '';
 
     $html = wp_remote_retrieve_body($response);
