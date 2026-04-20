@@ -122,6 +122,10 @@
     const oldSig = viewSig(oldState);
     if (newSig !== oldSig) {
       window.scrollTo({ top: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      const root = document.getElementById('domizionews-root');
+      if (root) root.scrollTop = 0;
     }
     lastViewSig = newSig;
   }
