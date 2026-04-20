@@ -574,21 +574,24 @@
       </div>`;
   }
 
+  // ─── SEARCH OVERLAY: vista unica indipendente dal tab attivo ─────────────────
+  // Renderizzato da render() quando state.searchMode === true, prima del
+  // dispatch per tab. Copre Home/Città/Scopri uniformemente così la ricerca
+  // funziona da qualsiasi tab. Chiudendo (freccia ←) si resta sul tab corrente.
+  function buildSearchOverlay() {
+    return `
+      <div class="dn-screen" id="screen-search">
+        ${buildHeader()}
+        <main>
+          <div class="dn-feed" id="dn-search-results">
+            <p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>
+          </div>
+        </main>
+      </div>`;
+  }
+
   // ─── HOME: sezioni per città filtrate per categoria ──────────────────────────
   function buildHome() {
-    // Search mode: solo header trasformato + risultati ricerca
-    if (state.searchMode) {
-      return `
-        <div class="dn-screen" id="screen-home">
-          ${buildHeader()}
-          <main>
-            <div class="dn-feed" id="dn-search-results">
-              <p class="dn-empty" style="padding:60px 16px 0">Digita almeno 2 caratteri</p>
-            </div>
-          </main>
-        </div>`;
-    }
-
     const activeCat = state.activeHomeCat; // '' = Tutte
 
     let citySections = '';
@@ -1236,10 +1239,16 @@
       return;
     }
 
-    if (state.tab === 'home')       content = buildHome();
-    if (state.tab === 'cities')     content = buildCities();
-    if (state.tab === 'categories') content = buildScopri();
-    if (state.tab === 'search')     content = buildSearch();
+    // Search mode: overlay top-level, tab-agnostico. Il tab corrente resta in
+    // state.tab, quindi chiudendo la ricerca l'utente torna esattamente dove era.
+    if (state.searchMode) {
+      content = buildSearchOverlay();
+    } else {
+      if (state.tab === 'home')       content = buildHome();
+      if (state.tab === 'cities')     content = buildCities();
+      if (state.tab === 'categories') content = buildScopri();
+      if (state.tab === 'search')     content = buildSearch();
+    }
 
     root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${!state.loading ? renderAd('banner-nav') : ''}${buildNav()}</div>`;
     // Quando l'input di ricerca compare (header search mode o tab Cerca), dagli focus.
