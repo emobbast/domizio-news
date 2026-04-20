@@ -55,7 +55,7 @@
       canonical.rel = 'canonical';
       document.head.appendChild(canonical);
     }
-    canonical.href = post.source_url || 'https://domizionews.it/';
+    canonical.href = post.permalink || 'https://domizionews.it/';
   }
 
   function restoreHead() {

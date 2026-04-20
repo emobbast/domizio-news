@@ -40,9 +40,15 @@ add_filter('document_title_parts', function($parts) use ($seo_title) {
   return $parts;
 }, 999);
 
-add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_canonical, $single_post) { ?>
+add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_canonical, $single_post) {
+  $is_non_canonical = !empty($GLOBALS['dnapp_was_404'])
+      || is_search()
+      || is_author()
+      || is_date()
+      || is_paged();
+  ?>
   <meta name="description" content="<?php echo esc_attr($seo_desc); ?>">
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content="<?php echo $is_non_canonical ? 'noindex, follow' : 'index, follow'; ?>">
   <link rel="canonical" href="<?php echo esc_url($seo_canonical); ?>">
   <meta property="og:type" content="<?php echo $single_post ? 'article' : 'website'; ?>">
   <meta property="og:title" content="<?php echo esc_attr($seo_title); ?>">
