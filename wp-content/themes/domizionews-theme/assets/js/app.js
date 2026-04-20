@@ -130,10 +130,36 @@
     lastViewSig = newSig;
   }
 
+  // Snapshot/restore dello scrollLeft delle chip-bar orizzontali attraverso
+  // ogni render(): `render()` riscrive innerHTML e il nuovo container parte
+  // con scrollLeft=0, facendo "saltare" il chip attivo fuori vista se era
+  // stato scrollato a destra. Salviamo prima del render e riapplichiamo dopo
+  // via rAF sul nuovo nodo (stesso indice all'interno della sua classe).
+  // Container di classi diverse vengono salvati separatamente, così uno
+  // switch di tab (home ↔ città) non riapplica il valore sbagliato.
+  function snapshotChipScroll() {
+    const snap = {};
+    document.querySelectorAll('.dn-home-chips').forEach((el, i) => { snap['home_' + i] = el.scrollLeft; });
+    document.querySelectorAll('.dn-chips-scroll').forEach((el, i) => { snap['scroll_' + i] = el.scrollLeft; });
+    return snap;
+  }
+  function restoreChipScroll(snap) {
+    document.querySelectorAll('.dn-home-chips').forEach((el, i) => {
+      const v = snap['home_' + i];
+      if (v != null) el.scrollLeft = v;
+    });
+    document.querySelectorAll('.dn-chips-scroll').forEach((el, i) => {
+      const v = snap['scroll_' + i];
+      if (v != null) el.scrollLeft = v;
+    });
+  }
+
   function setState(patch) {
     const oldState = state;
+    const chipScroll = snapshotChipScroll();
     state = Object.assign({}, state, patch);
     render();
+    requestAnimationFrame(() => restoreChipScroll(chipScroll));
     scrollToTopIfViewChanged(state, oldState);
   }
 
@@ -1230,19 +1256,6 @@
     const root = document.getElementById('domizionews-root');
     if (!root) return;
 
-    // Dopo il tap su un chip (città/categoria), porta il chip attivo nel
-    // viewport orizzontale del suo container: utile quando il chip toccato
-    // sta fuori schermo (es. "Mondragone" all'estrema destra) e dopo il
-    // filtro la scrollbar resta al bordo sinistro.
-    // `block: 'nearest'` evita scroll verticale di pagina; `inline: 'center'`
-    // centra il chip nel suo container orizzontale.
-    const scrollChipIntoView = (selector) => {
-      requestAnimationFrame(() => {
-        const el = document.querySelector(selector);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      });
-    };
-
     // ── Handler dispatch per click: ogni ramo usa closest() per trovare
     //    l'ancestor interattivo e poi esegue il medesimo corpo originale.
     root.addEventListener('click', (e) => {
@@ -1346,7 +1359,6 @@
         const slug = scopriCity.dataset.scopriCity;
         if (slug === state.scopriCity) return;
         loadScopriResults(state.scopriCategoria, slug);
-        scrollChipIntoView(`[data-scopri-city="${slug}"]`);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
@@ -1374,7 +1386,6 @@
         } else {
           loadCategoryFeed(slug);
         }
-        scrollChipIntoView(`[data-home-cat="${slug}"]`);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
@@ -1398,7 +1409,6 @@
         const newSlug = state.selectedCity === slug ? '' : slug;
         setState({ selectedCity: newSlug, cityFeed: [], cityFeedLoading: !!newSlug });
         loadCityFeed(newSlug);
-        if (newSlug) scrollChipIntoView(`[data-city="${newSlug}"]`);
         return;
       }
 
