@@ -828,7 +828,13 @@
     return `
       <main class="dn-detail">
         <div class="dn-detail-header">
-          <button class="dn-back-btn" id="dn-back">Indietro</button>
+          <div class="dn-detail-header-left">
+            <button class="dn-back-btn" id="dn-back">Indietro</button>
+            <div class="dn-logo" id="dn-article-logo" style="cursor:pointer;">
+              <span class="dn-logo-domizio">Domizio</span>
+              <span class="dn-logo-news">news</span>
+            </div>
+          </div>
           <button class="dn-share-btn" id="dn-share">Condividi</button>
         </div>
         <div class="dn-detail-img-wrap">
@@ -1058,6 +1064,7 @@
     /* ARTICLE DETAIL */
     .dn-detail { min-height: 100vh; background: var(--color-background); padding-bottom: 80px; }
     .dn-detail-header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-divider); }
+    .dn-detail-header-left { display: flex; align-items: center; gap: 16px; }
     .dn-back-btn { background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 15px; font-weight: 500; padding: 0; font-family: 'Roboto', Arial, sans-serif; }
     .dn-share-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 14px; font-weight: 500; padding: 0; font-family: 'Roboto', Arial, sans-serif; }
     .dn-detail-img-wrap { position: relative; width: calc(100% - 32px); margin: 16px 16px 0; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; }
@@ -1266,6 +1273,14 @@
       if (t.closest('#dn-logo-home')) {
         setState({ tab: 'home', selectedPost: null, selectedLegalPage: null, searchMode: false });
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Detail view: click logo → torna alla home
+      if (t.closest('#dn-article-logo')) {
+        restoreHead();
+        setState({ tab: 'home', selectedPost: null, selectedLegalPage: null, searchMode: false });
+        history.pushState({}, '', '/');
         return;
       }
 
