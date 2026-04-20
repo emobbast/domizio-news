@@ -1230,6 +1230,19 @@
     const root = document.getElementById('domizionews-root');
     if (!root) return;
 
+    // Dopo il tap su un chip (città/categoria), porta il chip attivo nel
+    // viewport orizzontale del suo container: utile quando il chip toccato
+    // sta fuori schermo (es. "Mondragone" all'estrema destra) e dopo il
+    // filtro la scrollbar resta al bordo sinistro.
+    // `block: 'nearest'` evita scroll verticale di pagina; `inline: 'center'`
+    // centra il chip nel suo container orizzontale.
+    const scrollChipIntoView = (selector) => {
+      requestAnimationFrame(() => {
+        const el = document.querySelector(selector);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      });
+    };
+
     // ── Handler dispatch per click: ogni ramo usa closest() per trovare
     //    l'ancestor interattivo e poi esegue il medesimo corpo originale.
     root.addEventListener('click', (e) => {
@@ -1333,6 +1346,7 @@
         const slug = scopriCity.dataset.scopriCity;
         if (slug === state.scopriCity) return;
         loadScopriResults(state.scopriCategoria, slug);
+        scrollChipIntoView(`[data-scopri-city="${slug}"]`);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
@@ -1360,6 +1374,7 @@
         } else {
           loadCategoryFeed(slug);
         }
+        scrollChipIntoView(`[data-home-cat="${slug}"]`);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
@@ -1383,6 +1398,7 @@
         const newSlug = state.selectedCity === slug ? '' : slug;
         setState({ selectedCity: newSlug, cityFeed: [], cityFeedLoading: !!newSlug });
         loadCityFeed(newSlug);
+        if (newSlug) scrollChipIntoView(`[data-city="${newSlug}"]`);
         return;
       }
 
