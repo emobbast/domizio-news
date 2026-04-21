@@ -698,10 +698,12 @@ function dnap_send_telegram($post_id) {
 
   // Build message: social_caption (if present) + link on its own line.
   // Telegram renders the preview card automatically from Open Graph tags.
+  $link_markdown = "[Leggi l'articolo](" . $url . ")";
+
   if (!empty($social_caption)) {
-    $text = "💬 " . $social_caption . "\n\n" . $url;
+    $text = "💬 " . $social_caption . "\n\n" . $link_markdown;
   } else {
-    $text = $url;
+    $text = $link_markdown;
   }
 
   $endpoint = "https://api.telegram.org/bot{$token}/sendMessage";
