@@ -156,13 +156,118 @@ function dnap_resolve_google_url(string $url): string {
 }
 
 /* ============================================================
+   DECODE URL BASE64 DA LINK GOOGLE NEWS
+   Decodifica il payload CBMi... di news.google.com/rss/articles/
+   senza effettuare richieste HTTP. Restituisce l'URL originale
+   dell'articolo o null in caso di fallimento.
+   ============================================================ */
+function dnap_decode_google_news_url( string $url ): ?string {
+    try {
+        $parsed = wp_parse_url( $url );
+        $path   = is_array( $parsed ) ? ( $parsed['path'] ?? '' ) : '';
+        if ( ! is_string( $path ) || strpos( $path, '/articles/' ) === false ) {
+            return null;
+        }
+        $parts   = explode( '/articles/', $path, 2 );
+        $payload = isset( $parts[1] ) ? $parts[1] : '';
+        // Elimina eventuali segmenti extra (?, /, #) dopo il payload
+        $payload = preg_replace( '~[/?#].*$~', '', $payload );
+        if ( ! is_string( $payload ) || $payload === '' ) {
+            return null;
+        }
+        // URL-safe base64: traduci - e _ e re-aggiungi il padding mancante
+        $payload = strtr( $payload, '-_', '+/' );
+        $pad     = strlen( $payload ) % 4;
+        if ( $pad ) {
+            $payload .= str_repeat( '=', 4 - $pad );
+        }
+        $decoded = @base64_decode( $payload, false );
+        if ( ! is_string( $decoded ) || $decoded === '' ) {
+            return null;
+        }
+        if ( ! preg_match( '~https?://[^\x00-\x20"\'<>\\\\]+~', $decoded, $m ) ) {
+            return null;
+        }
+        $found = $m[0];
+        if ( ! filter_var( $found, FILTER_VALIDATE_URL ) ) {
+            return null;
+        }
+        $host = wp_parse_url( $found, PHP_URL_HOST );
+        if ( ! is_string( $host ) || $host === '' ) {
+            return null;
+        }
+        if ( stripos( $host, 'google.com' ) !== false ) {
+            return null;
+        }
+        return $found;
+    } catch ( \Throwable $e ) {
+        return null;
+    }
+}
+
+/* ============================================================
+   NORMALIZZA HOST DA URL (lowercase, strip "www.")
+   ============================================================ */
+function dnap_normalize_host( string $url ): ?string {
+    $host = wp_parse_url( $url, PHP_URL_HOST );
+    if ( ! is_string( $host ) || $host === '' ) {
+        return null;
+    }
+    $host = strtolower( $host );
+    if ( strncmp( $host, 'www.', 4 ) === 0 ) {
+        $host = substr( $host, 4 );
+    }
+    return $host;
+}
+
+/* ============================================================
+   HOST DEI FEED DIRETTI
+   Rilegge dnap_feeds ad ogni invocazione (no cache): qualsiasi
+   modifica dall'admin UI (add/remove/pause) contribuisce
+   automaticamente al dedup di Google News.
+   Esclude news.google.com (search aggregator, non editore diretto).
+   ============================================================ */
+function dnap_direct_feed_hosts(): array {
+    $feeds = get_option( 'dnap_feeds', [] );
+    if ( ! is_array( $feeds ) ) {
+        return [];
+    }
+    $hosts = [];
+    foreach ( $feeds as $feed ) {
+        if ( ! is_array( $feed ) || empty( $feed['active'] ) ) continue;
+        $url = isset( $feed['url'] ) ? (string) $feed['url'] : '';
+        if ( $url === '' ) continue;
+        $host = dnap_normalize_host( $url );
+        if ( $host === null || $host === 'news.google.com' ) continue;
+        $hosts[ $host ] = true;
+    }
+    return array_keys( $hosts );
+}
+
+/* ============================================================
    RISOLUZIONE URL REALE DA ITEM GOOGLE NEWS
    Tenta di ricavare l'URL dell'articolo originale dai metadati
    dell'item SimplePie, senza effettuare richieste HTTP.
+   Ritorna ['url' => string, 'skip' => bool].
    ============================================================ */
-function dnap_resolve_google_news_url( $item, string $source_url ): string {
+function dnap_resolve_google_news_url( $item, string $source_url ): array {
 
-    if ( strpos( $source_url, 'news.google.com' ) === false ) return $source_url;
+    if ( strpos( $source_url, 'news.google.com' ) === false ) {
+        return [ 'url' => $source_url, 'skip' => false ];
+    }
+
+    // 0. Decodifica il payload base64 (CBMi...) — no HTTP
+    $decoded = dnap_decode_google_news_url( $source_url );
+    if ( $decoded !== null ) {
+        dnap_log( "✅ Google base64 hit: {$source_url} → {$decoded}" );
+        $decoded_host = dnap_normalize_host( $decoded );
+        if ( $decoded_host !== null && in_array( $decoded_host, dnap_direct_feed_hosts(), true ) ) {
+            dnap_log( "⏭ Google News skip — già coperto da feed diretto: {$decoded_host}" );
+            return [ 'url' => $source_url, 'skip' => true ];
+        }
+        return [ 'url' => esc_url_raw( $decoded ), 'skip' => false ];
+    }
+    dnap_log( "❌ Google base64 miss: {$source_url}" );
 
     // 1. Enclosure link
     $enc = $item->get_enclosure();
@@ -170,7 +275,7 @@ function dnap_resolve_google_news_url( $item, string $source_url ): string {
         $enc_link = $enc->get_link();
         if ( $enc_link && strpos( $enc_link, 'google.com' ) === false && filter_var( $enc_link, FILTER_VALIDATE_URL ) ) {
             dnap_log( "Google News → enclosure: {$enc_link}" );
-            return esc_url_raw( $enc_link );
+            return [ 'url' => esc_url_raw( $enc_link ), 'skip' => false ];
         }
     }
 
@@ -179,7 +284,7 @@ function dnap_resolve_google_news_url( $item, string $source_url ): string {
     foreach ( $links as $link ) {
         if ( $link && strpos( $link, 'google.com' ) === false && filter_var( $link, FILTER_VALIDATE_URL ) ) {
             dnap_log( "Google News → link: {$link}" );
-            return esc_url_raw( $link );
+            return [ 'url' => esc_url_raw( $link ), 'skip' => false ];
         }
     }
 
@@ -190,13 +295,13 @@ function dnap_resolve_google_news_url( $item, string $source_url ): string {
             $href = html_entity_decode( $href );
             if ( strpos( $href, 'google.com' ) === false && filter_var( $href, FILTER_VALIDATE_URL ) ) {
                 dnap_log( "Google News → href in content: {$href}" );
-                return esc_url_raw( $href );
+                return [ 'url' => esc_url_raw( $href ), 'skip' => false ];
             }
         }
     }
 
     // 4. Fallback: URL originale (dnap_scrape_meta gestirà il redirect HTTP)
-    return $source_url;
+    return [ 'url' => $source_url, 'skip' => false ];
 }
 
 /* ============================================================
@@ -515,8 +620,13 @@ function dnap_import_now() {
             $title_raw  = sanitize_text_field($item->get_title());
             $feed_text  = dnap_get_item_text($item);
 
-            // Risolvi URL reale da metadati item (enclosure, links, href in content)
-            $source_url = dnap_resolve_google_news_url( $item, $source_url );
+            // Risolvi URL reale: prima base64 Google News, poi fallback metadati item
+            $resolved = dnap_resolve_google_news_url( $item, $source_url );
+            if ( ! empty( $resolved['skip'] ) ) {
+                $total_skipped++;
+                continue;
+            }
+            $source_url = $resolved['url'];
 
             // Scraping meta (og:description, og:image, canonical)
             $meta = dnap_scrape_meta($source_url);
