@@ -74,12 +74,12 @@ function dnap_source_exists(string $source_url, string $hash, string $new_title)
         return true;
     }
 
-    // 3. Titolo simile negli ultimi 7 giorni (similar_text ≥ 80%)
+    // 3. Titolo simile negli ultimi 30 giorni (similar_text ≥ 70%)
     $recent = get_posts([
         'post_type'      => 'post',
-        'posts_per_page' => 100,
+        'posts_per_page' => 300,
         'fields'         => 'ids',
-        'date_query'     => [['after' => '7 days ago']],
+        'date_query'     => [['after' => '30 days ago']],
     ]);
 
     foreach ($recent as $pid) {
@@ -89,7 +89,7 @@ function dnap_source_exists(string $source_url, string $hash, string $new_title)
             mb_strtolower($existing_title),
             $pct
         );
-        if ($pct >= 80) {
+        if ($pct >= 70) {
             dnap_log("Duplicato titolo ({$pct}%): \"{$new_title}\" ~ \"{$existing_title}\"");
             return true;
         }
@@ -381,8 +381,8 @@ function dnap_get_cities_from_text(string $text): array {
         'valogno'              => 'sessa-aurunca',
         'carano'               => 'sessa-aurunca',
         'fasani'               => 'sessa-aurunca',
-        'lauro'                => 'sessa-aurunca',
-        'ponte'                => 'sessa-aurunca',
+        'lauro di sessa'       => 'sessa-aurunca',
+        'lauro sessa aurunca'  => 'sessa-aurunca',
         'piedimonte massicano' => 'sessa-aurunca',
         'castel volturno'      => 'castel-volturno',
         'borgo centore'        => 'cellole',
@@ -406,7 +406,7 @@ function dnap_get_cities_from_text(string $text): array {
         'nocelleto'            => 'carinola',
         'carinola'             => 'carinola',
         'cellole'              => 'cellole',
-        'varano'               => 'carinola',
+        'varano di carinola'   => 'carinola',
     ];
 
     $slugs = [];
@@ -520,6 +520,17 @@ function dnap_import_now() {
 
             // Scraping meta (og:description, og:image, canonical)
             $meta = dnap_scrape_meta($source_url);
+
+            // Use the canonical URL returned by scraping (resolves Google News
+            // redirects). This ensures _source_url is saved as the real article
+            // URL, which is essential for future URL-based deduplication.
+            if (!empty($meta['canonical'])
+                && filter_var($meta['canonical'], FILTER_VALIDATE_URL)
+                && strpos(parse_url($meta['canonical'], PHP_URL_HOST) ?? '', 'google.com') === false
+                && $meta['canonical'] !== $source_url) {
+                dnap_log("URL aggiornato da canonical: {$source_url} → {$meta['canonical']}");
+                $source_url = $meta['canonical'];
+            }
 
             // Testo per GPT: usa og:description se disponibile, altrimenti testo feed
             $ai_text = !empty($meta['description']) ? $meta['description'] : $feed_text;

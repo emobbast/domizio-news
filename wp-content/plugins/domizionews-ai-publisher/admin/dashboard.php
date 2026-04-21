@@ -46,11 +46,17 @@ add_action('admin_init', function () {
 
     // Test API key
     if (isset($_POST['test_api']) && check_admin_referer('dnap_test_api')) {
-        $test   = dnap_call_gpt('Rispondi solo con: {"ok":true}', 20);
-        $parsed = $test ? dnap_parse_gpt_json($test) : null;
-        $result = ($parsed && !empty($parsed['ok'])) ? 'api_ok' : 'api_fail';
-        wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=' . $result));
-        exit;
+        $test = dnap_call_claude(
+            'Rispondi solo con: {"ok":true}',
+            'Rispondi solo con JSON valido, nessun testo aggiuntivo.',
+            50,
+            0
+        );
+        if ($test && strpos($test, '"ok":true') !== false) {
+            echo '<div class="notice notice-success"><p>✅ API Key valida! Connessione Anthropic Claude funzionante.</p></div>';
+        } else {
+            echo '<div class="notice notice-error"><p>❌ Errore connessione Claude. Verifica la API key.</p></div>';
+        }
     }
 
     // Reschedule cron
