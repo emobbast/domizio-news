@@ -15,11 +15,15 @@ add_action('admin_init', function () {
     // hidden field "save_settings" distingue questo form dagli altri POST
     if (isset($_POST['save_settings']) && check_admin_referer('dnap_save_settings')) {
         update_option('dnap_api_key', sanitize_text_field(trim($_POST['api_key'] ?? '')));
-        if (isset($_POST['dnap_anthropic_key'])) {
-            update_option('dnap_anthropic_key', sanitize_text_field(trim($_POST['dnap_anthropic_key'])));
+        // Secret fields: only update if the submitted value is non-empty.
+        // Empty submission means the user didn't retype the key; keep the stored value.
+        $submitted_anthropic = isset($_POST['dnap_anthropic_key']) ? trim($_POST['dnap_anthropic_key']) : '';
+        if ($submitted_anthropic !== '') {
+            update_option('dnap_anthropic_key', sanitize_text_field($submitted_anthropic));
         }
-        if (isset($_POST['dnap_telegram_token'])) {
-          update_option('dnap_telegram_token', sanitize_text_field($_POST['dnap_telegram_token']));
+        $submitted_tg_token = isset($_POST['dnap_telegram_token']) ? trim($_POST['dnap_telegram_token']) : '';
+        if ($submitted_tg_token !== '') {
+            update_option('dnap_telegram_token', sanitize_text_field($submitted_tg_token));
         }
         if (isset($_POST['dnap_telegram_channel'])) {
           update_option('dnap_telegram_channel', sanitize_text_field($_POST['dnap_telegram_channel']));
@@ -210,21 +214,26 @@ function dnap_dashboard() {
                         <tr>
                             <th><label for="dnap_anthropic_key">API Key Anthropic (Claude)</label></th>
                             <td>
+                                <?php $anthropic_set = (bool) get_option('dnap_anthropic_key', ''); ?>
                                 <input type="password" id="dnap_anthropic_key" name="dnap_anthropic_key"
-                                       value="<?php echo esc_attr(get_option('dnap_anthropic_key', '')); ?>"
+                                       value=""
+                                       autocomplete="new-password"
                                        class="regular-text"
                                        style="width:100%;max-width:420px;"
-                                       placeholder="sk-ant-api03-...">
-                                <p class="description">Chiave API Anthropic per Claude Haiku 4.5. Inizia con sk-ant-api03-...</p>
+                                       placeholder="<?php echo $anthropic_set ? '••••••••••••• (salvata — lascia vuoto per non modificarla)' : 'sk-ant-api03-...'; ?>">
+                                <p class="description">Chiave API Anthropic per Claude Haiku 4.5. Inizia con sk-ant-api03-... Lascia vuoto per conservare il valore attuale.</p>
                             </td>
                         </tr>
                         <tr>
                           <th scope="row">Telegram Bot Token</th>
                           <td>
+                            <?php $tg_token_set = (bool) get_option('dnap_telegram_token',''); ?>
                             <input type="password" name="dnap_telegram_token"
-                                   value="<?php echo esc_attr(get_option('dnap_telegram_token','')); ?>"
+                                   value=""
+                                   autocomplete="new-password"
+                                   placeholder="<?php echo $tg_token_set ? '••••••••••••• (salvato — lascia vuoto per non modificarlo)' : '123456789:ABC...'; ?>"
                                    style="width:400px;">
-                            <p class="description">Token del bot Telegram (da @BotFather)</p>
+                            <p class="description">Token del bot Telegram (da @BotFather). Lascia vuoto per conservare il valore attuale.</p>
                           </td>
                         </tr>
                         <tr>

@@ -78,6 +78,26 @@ function dnap_on_deactivate() {
 
 add_action('dnap_cron_import', 'dnap_import_now');
 
+/*
+ * One-shot migration: flip autoload=no for secret options.
+ * Runs on admin_init so the next admin page load after deploy applies it —
+ * GitHub Actions deploy doesn't re-run activation hooks, so we can't piggyback
+ * on register_activation_hook.
+ */
+add_action('admin_init', 'dnap_migrate_secret_autoload');
+function dnap_migrate_secret_autoload() {
+    if (get_option('dnap_migrated_autoload_secrets') === 'yes') return;
+
+    foreach (['dnap_anthropic_key', 'dnap_telegram_token'] as $opt) {
+        $val = get_option($opt);
+        if ($val !== false) {
+            delete_option($opt);
+            add_option($opt, $val, '', 'no');
+        }
+    }
+    update_option('dnap_migrated_autoload_secrets', 'yes', 'no');
+}
+
 add_action('plugins_loaded', 'dnap_load_modules');
 function dnap_load_modules() {
     require_once DNAP_DIR . 'includes/core.php';
