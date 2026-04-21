@@ -15,6 +15,9 @@ add_action('admin_init', function () {
     // hidden field "save_settings" distingue questo form dagli altri POST
     if (isset($_POST['save_settings']) && check_admin_referer('dnap_save_settings')) {
         update_option('dnap_api_key', sanitize_text_field(trim($_POST['api_key'] ?? '')));
+        if (isset($_POST['dnap_anthropic_key'])) {
+            update_option('dnap_anthropic_key', sanitize_text_field(trim($_POST['dnap_anthropic_key'])));
+        }
         if (isset($_POST['dnap_telegram_token'])) {
           update_option('dnap_telegram_token', sanitize_text_field($_POST['dnap_telegram_token']));
         }
@@ -196,6 +199,17 @@ function dnap_dashboard() {
                                        style="width:100%;max-width:420px;"
                                        placeholder="sk-...">
                                 <p class="description">Ottieni la tua key su <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="dnap_anthropic_key">API Key Anthropic (Claude)</label></th>
+                            <td>
+                                <input type="password" id="dnap_anthropic_key" name="dnap_anthropic_key"
+                                       value="<?php echo esc_attr(get_option('dnap_anthropic_key', '')); ?>"
+                                       class="regular-text"
+                                       style="width:100%;max-width:420px;"
+                                       placeholder="sk-ant-api03-...">
+                                <p class="description">Chiave API Anthropic per Claude Haiku 4.5. Inizia con sk-ant-api03-...</p>
                             </td>
                         </tr>
                         <tr>

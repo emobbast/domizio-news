@@ -552,8 +552,9 @@ function dnap_import_now() {
                 continue;
             }
 
+            // Skip if Claude determined the article is not relevant to Litorale Domizio
             if (!empty($rewritten['skip']) && $rewritten['skip'] === true) {
-                dnap_log("GPT skip: articolo non rilevante per Litorale Domizio - " . $title_raw);
+                dnap_log("⏭️  Skip (non pertinente Litorale Domizio): {$title_raw}");
                 $total_skipped++;
                 continue;
             }
@@ -591,6 +592,16 @@ function dnap_import_now() {
             update_post_meta($post_id, '_source_url',      $source_url);
             update_post_meta($post_id, '_source_hash',     $hash);
             update_post_meta($post_id, '_meta_description', sanitize_textarea_field($rewritten['meta_description'] ?? ''));
+
+            if (!empty($rewritten['social_caption'])) {
+                update_post_meta($post_id, '_dnap_social_caption', sanitize_text_field($rewritten['social_caption']));
+            }
+            if (!empty($rewritten['image_prompt'])) {
+                update_post_meta($post_id, '_dnap_image_prompt', sanitize_textarea_field($rewritten['image_prompt']));
+            }
+            if (!empty($rewritten['image_symbol'])) {
+                update_post_meta($post_id, '_dnap_image_symbol', sanitize_text_field($rewritten['image_symbol']));
+            }
 
             // Post in evidenza (sticky) per soggetti VIP
             $subject_text = $title_raw . ' ' . $feed_text . ' ' . $meta['description'];

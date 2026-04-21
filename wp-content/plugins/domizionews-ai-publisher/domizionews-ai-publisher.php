@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: Domizio News AI Publisher
-Description: v7.1 — Sicurezza, scraping intelligente, AI avanzata, anti-duplicato, SEO automation
-Version: 7.0
+Description: v8.0 — Claude Haiku editorial pipeline, natural Italian prose, AI-generated image prompts, social captions for groups
+Version: 8.0
 Author: Domizio News
 */
 

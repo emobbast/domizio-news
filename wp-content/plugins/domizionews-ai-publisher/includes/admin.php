@@ -2,6 +2,14 @@
 if (!defined('ABSPATH')) exit;
 
 /* ============================================================
+   SETTINGS REGISTRATION
+   ============================================================ */
+add_action('admin_init', function () {
+    register_setting('dnap_settings', 'dnap_api_key');
+    register_setting('dnap_settings', 'dnap_anthropic_key');
+});
+
+/* ============================================================
    TAG IN EVIDENZA — admin_init handlers
    Pattern Post/Redirect/Get identico agli altri handler.
    ============================================================ */
