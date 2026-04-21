@@ -693,30 +693,24 @@ function dnap_send_telegram($post_id) {
   $channel = get_option('dnap_telegram_channel', '');
   if (!$token || !$channel) return;
 
-  $post    = get_post($post_id);
-  $title   = html_entity_decode(get_the_title($post_id), ENT_QUOTES, 'UTF-8');
-  $excerpt = wp_trim_words(strip_tags($post->post_excerpt ?: $post->post_content), 30);
-  $url     = get_permalink($post_id);
-  $image   = get_the_post_thumbnail_url($post_id, 'large');
+  $url            = get_permalink($post_id);
+  $social_caption = get_post_meta($post_id, '_dnap_social_caption', true);
 
-  $text = "*" . $title . "*\n\n" . $excerpt . "\n\n🔗 " . $url;
-
-  if ($image) {
-    $endpoint = "https://api.telegram.org/bot{$token}/sendPhoto";
-    $payload  = [
-      'chat_id'    => $channel,
-      'photo'      => $image,
-      'caption'    => $text,
-      'parse_mode' => 'Markdown',
-    ];
+  // Build message: social_caption (if present) + link on its own line.
+  // Telegram renders the preview card automatically from Open Graph tags.
+  if (!empty($social_caption)) {
+    $text = "💬 " . $social_caption . "\n\n" . $url;
   } else {
-    $endpoint = "https://api.telegram.org/bot{$token}/sendMessage";
-    $payload  = [
-      'chat_id'    => $channel,
-      'text'       => $text,
-      'parse_mode' => 'Markdown',
-    ];
+    $text = $url;
   }
+
+  $endpoint = "https://api.telegram.org/bot{$token}/sendMessage";
+  $payload  = [
+    'chat_id'                  => $channel,
+    'text'                     => $text,
+    'parse_mode'               => 'Markdown',
+    'disable_web_page_preview' => false,
+  ];
 
   $response = wp_remote_post($endpoint, [
     'body'    => json_encode($payload),
@@ -724,8 +718,23 @@ function dnap_send_telegram($post_id) {
     'timeout' => 10,
   ]);
 
-  if (!is_wp_error($response)) {
-    update_post_meta($post_id, '_dnap_telegram_sent', true);
+  if (is_wp_error($response)) {
+    dnap_log("Telegram errore: " . $response->get_error_message());
+    return;
+  }
+
+  $status = wp_remote_retrieve_response_code($response);
+  if ($status !== 200) {
+    $body = wp_remote_retrieve_body($response);
+    dnap_log("Telegram HTTP {$status}: " . mb_substr($body, 0, 200));
+    return;
+  }
+
+  update_post_meta($post_id, '_dnap_telegram_sent', true);
+  if (!empty($social_caption)) {
+    dnap_log("Telegram inviato con social_caption (post {$post_id})");
+  } else {
+    dnap_log("Telegram inviato (post {$post_id})");
   }
 }
 // Async Telegram dispatch: schedule a single WP-Cron event instead of sending
