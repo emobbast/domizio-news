@@ -395,6 +395,11 @@ PROMPT;
         }
 
         $data = dnap_parse_gpt_json($raw);
+        // Claude ha deciso di saltare l'articolo (non pertinente) —
+        // rispetta la decisione senza retry inutili
+        if ($data && !empty($data['skip'])) {
+            break;
+        }
         if ($data && !empty($data['title']) && !empty($data['content'])) {
             break;
         }
@@ -407,14 +412,17 @@ PROMPT;
         dnap_log("JSON Claude non valido (tentativo {$attempt}): " . mb_substr($raw, 0, 200));
     }
 
+    // ── Skip check ───────────────────────────────────────────────
+    // Deve precedere il check title/content: una risposta skip:true
+    // ha title/content null per design e verrebbe altrimenti scartata
+    // come "nessuna risposta valida"
+    if ($data && !empty($data['skip'])) {
+        return ['skip' => true];
+    }
+
     if (!$data || empty($data['title']) || empty($data['content'])) {
         dnap_log('Claude: nessuna risposta valida dopo tutti i tentativi');
         return false;
-    }
-
-    // ── Skip check ───────────────────────────────────────────────
-    if (!empty($data['skip']) && $data['skip'] === true) {
-        return ['skip' => true];
     }
 
     // ── Sanitize title ───────────────────────────────────────────
