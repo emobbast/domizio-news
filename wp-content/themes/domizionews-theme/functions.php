@@ -19,6 +19,27 @@ add_action( 'init', function () {
     remove_action( 'wp_print_styles', 'print_emoji_styles' );
 } );
 
+// ─── ROBOTS META UNIFICATO ───────────────────────────────────────────────────
+// Merge our index/noindex logic into WP core's wp_robots output so a single
+// <meta name="robots"> tag is emitted (max-image-preview:large preserved).
+// The manual echo previously in index.php has been removed.
+add_filter( 'wp_robots', function ( $robots ) {
+    $is_non_canonical = ! empty( $GLOBALS['dnapp_was_404'] )
+        || is_search()
+        || is_author()
+        || is_date()
+        || is_paged();
+    if ( $is_non_canonical ) {
+        $robots['noindex'] = true;
+        unset( $robots['index'] );
+    } else {
+        unset( $robots['noindex'] );
+        $robots['index'] = true;
+    }
+    $robots['follow'] = true;
+    return $robots;
+} );
+
 // ─── SUPPORTO TEMA ───────────────────────────────────────────────────────────
 add_action( 'after_setup_theme', function () {
     add_theme_support( 'title-tag' );
