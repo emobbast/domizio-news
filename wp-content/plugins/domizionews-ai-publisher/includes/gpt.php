@@ -185,6 +185,70 @@ Restituisci "skip": false se:
 - Riguarda Giovanni Zannini o politici che rappresentano il territorio
 - Riguarda decisioni della Regione Campania che impattano direttamente il Litorale Domizio
 
+Se la notizia riguarda principalmente il Napoli Calcio (Serie A), giocatori come Lukaku, Neres, Conte, De Bruyne, o allenamenti/ritiri professionali del Napoli — anche se menziona Castel Volturno come luogo — imposta skip=true. La sede di allenamento del Napoli non è una notizia di interesse locale per la comunità di Castel Volturno. Fanno eccezione solo eventi sportivi ospitati in loco (es. partite ufficiali di squadre locali, tornei di comunità).
+
+## CLASSIFICAZIONE EVENTO (obbligatoria per dedup)
+
+Classifica la notizia con questi due campi:
+
+### event_type — scegli UNO dei 21 valori seguenti
+
+CRONACA:
+- arresto_fermo → arresti, fermi, blitz, ammanettamenti (esempi: "Arrestato 40enne per rapina", "Blitz dei carabinieri, due arresti")
+- aggressione → aggressioni, risse, accoltellamenti, violenza contro persone (esempi: "37enne aggredisce carabinieri con pala", "Rissa tra giovani in piazza")
+- droga_spaccio → spaccio, detenzione stupefacenti, arresti droga (esempi: "Spaccio a Cellole: 30enne arrestato", "Marijuana in auto, denunciato")
+- ritrovamento_morto → cadaveri ritrovati, corpi senza vita (esempi: "Trovato morto Vincenzo Iannitti", "Cadavere in cantina a Sessa")
+- controllo_sequestro → controlli di polizia, sequestri, retate (esempi: "Sequestrate 6 aree Terra dei Fuochi", "Retata a Mondragone")
+- inseguimento_fuga → inseguimenti, fughe, evasioni (esempi: "Scappa ai carabinieri e si schianta", "Inseguimento sulla Domiziana")
+- denuncia → denunce, segnalazioni formali (esempi: "Denunciato per truffa", "Segnalati 3 giovani")
+- furto_rapina → furti, rapine, scippi (esempi: "Rubata auto a Mondragone", "Rapina in villa a Cellole")
+- truffa → raggiri, truffe, finti addetti (esempi: "Truffa agli anziani a Baia Domizia", "Finto tecnico Enel ruba 500 euro")
+
+INCIDENTI/EMERGENZE:
+- incidente_stradale → incidenti auto/moto/scooter (esempi: "Schianto sulla Domiziana, feriti due", "Investito scooter a Mondragone")
+- incendio → incendi, roghi, fiamme (esempi: "Incendio in abitazione a Sessa", "Rogo boschivo sul litorale")
+
+SCOMPARSE:
+- persona_scomparsa → scomparse, appelli di ricerca (include blitz investigativi nella fase pre-ritrovamento) (esempi: "Appello per Vincenzo scomparso a 20 anni", "Blitz dei carabinieri per scomparsa")
+
+GIUDIZIARIO:
+- processo_sentenza → udienze, sentenze, condanne, assoluzioni (esempi: "Condannato a 8 anni per omicidio", "Sentenza Cassazione su Baia Domizia")
+- inchiesta_corruzione → inchieste giudiziarie, indagini corruzione (esempi: "Inchiesta su appalti regionali", "Zannini sotto indagine per truffa")
+
+POLITICA/AMMINISTRAZIONE:
+- politica_nomina → nomine, sostituzioni, dimissioni, misure cautelari politici (esempi: "Parente subentra a Zannini", "Divieto di dimora per consigliere")
+- delibera_amministrativa → delibere, bandi, ordinanze comunali (esempi: "Delibera Mondragone per 14mila euro", "Bando rifiuti Sessa Aurunca")
+
+COMUNITÀ:
+- manifestazione_comunita → fiaccolate, veglie, cortei, manifestazioni, proteste (esempi: "Fiaccolata a Baia Domizia per Vincenzo", "Corteo a Mondragone contro rifiuti")
+- evento_culturale → concerti, mostre, feste, sagre, spettacoli, aperture (esempi: "Sagra del pesce a Baia Domizia", "Mostra arte contemporanea Sessa")
+
+REAZIONI:
+- reazione_famiglia → interviste/dichiarazioni di familiari delle vittime (esempi: "Il padre: l'assassino ha depistato", "La madre: non credo al suicidio")
+- reazione_istituzionale → dichiarazioni di autorità, sindaci, parroci, forze ordine (esempi: "Il parroco: temo sia legato al traffico", "Il sindaco condanna l'aggressione")
+
+SERVIZI:
+- altro → annunci di servizio comunali, notizie generiche non classificabili altrove, eventuale sport locale minore
+
+### event_entity — nome proprio centrale della notizia
+
+Il nome proprio in lowercase SENZA articoli:
+- Se c'è una persona identificata per nome → usa nome completo lowercase (esempio: "Vincenzo Iannitti" / "V. Iannitti" / "il giovane Iannitti" → tutti "vincenzo iannitti")
+- Se c'è un politico/figura pubblica → cognome lowercase (esempio: "Zannini" / "il consigliere Zannini" → "zannini")
+- Se non c'è persona ma c'è luogo specifico minore → luogo lowercase (esempio: "Lido Azzurro" → "lido azzurro")
+- Se non c'è persona specifica e il luogo è una città principale → usa la città minore o frazione se citata, altrimenti null
+- Descrittori generici ("il 19enne", "un uomo", "una donna") da NON usare come entity
+- Se la notizia è generica (annunci, delibere, bandi) → null
+
+NORMALIZZAZIONE ENTITÀ (esempi):
+- "Vincenzo Iannitti" / "V. Iannitti" / "il 20enne Iannitti" / "Iannitti" → "vincenzo iannitti"
+- "Romelu Lukaku" / "Lukaku" / "il belga" → "lukaku" (MA nota: Lukaku va skippato perché sport nazionale — event_type=altro, skip=true)
+- "Giovanni Zannini" / "il consigliere Zannini" / "Zannini" → "zannini"
+- "il 19enne" senza nome → null
+- "un 40enne" senza nome → null
+
+Usa SEMPRE lo stesso formato per articoli sulla stessa persona/entità.
+
 ## STILE DI SCRITTURA
 
 Scrivi come un cronista locale che racconta a lettori che conoscono il territorio. Obiettivo: un articolo naturale, non formulaico.
@@ -265,7 +329,9 @@ Rispondi SOLO con JSON valido, nessun testo aggiuntivo, nessun markdown:
   "cities": ["solo slug esatti da: {$city_list}, [] se nessuna"],
   "tags": ["3-5 tag pertinenti, no nomi di luoghi già in cities"],
   "image_symbol": "slug del simbolo o null",
-  "social_caption": "1-2 frasi per gruppi Facebook, max 200 caratteri"
+  "social_caption": "1-2 frasi per gruppi Facebook, max 200 caratteri",
+  "event_type": "uno dei 21 valori in CLASSIFICAZIONE EVENTO",
+  "event_entity": "nome proprio centrale in lowercase, o null"
 }
 PROMPT;
 

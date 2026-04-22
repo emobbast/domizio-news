@@ -684,6 +684,36 @@ function dnap_import_now() {
                 continue;
             }
 
+            // Layer 2 — event-based semantic dedup (event_type + event_entity, 6h window)
+            if (!empty($rewritten['event_type']) && !empty($rewritten['event_entity'])) {
+                $ev_type   = sanitize_key($rewritten['event_type']);
+                $ev_entity = sanitize_text_field(strtolower(trim($rewritten['event_entity'])));
+
+                $dup = get_posts([
+                    'post_type'      => 'post',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => 1,
+                    'fields'         => 'ids',
+                    'no_found_rows'  => true,
+                    'date_query'     => [
+                        ['after' => '6 hours ago', 'inclusive' => true],
+                    ],
+                    'meta_query'     => [
+                        'relation' => 'AND',
+                        ['key' => '_dnap_event_type',   'value' => $ev_type,   'compare' => '='],
+                        ['key' => '_dnap_event_entity', 'value' => $ev_entity, 'compare' => '='],
+                    ],
+                ]);
+
+                if (!empty($dup)) {
+                    $existing_id    = $dup[0];
+                    $existing_title = get_the_title($existing_id);
+                    dnap_log("⏭ Dedup evento: '{$ev_type}' + '{$ev_entity}' già pubblicato nelle ultime 6h (post {$existing_id}: {$existing_title})");
+                    $total_skipped++;
+                    continue;
+                }
+            }
+
             $word_count = str_word_count(strip_tags($rewritten['content']));
             if ($word_count < 80) {
                 dnap_log("Troppo corto ({$word_count} parole): {$title_raw}");
@@ -720,6 +750,12 @@ function dnap_import_now() {
 
             if (!empty($rewritten['social_caption'])) {
                 update_post_meta($post_id, '_dnap_social_caption', sanitize_text_field($rewritten['social_caption']));
+            }
+            if (!empty($rewritten['event_type'])) {
+                update_post_meta($post_id, '_dnap_event_type', sanitize_key($rewritten['event_type']));
+            }
+            if (!empty($rewritten['event_entity'])) {
+                update_post_meta($post_id, '_dnap_event_entity', sanitize_text_field(strtolower(trim($rewritten['event_entity']))));
             }
             if (!empty($rewritten['image_prompt'])) {
                 update_post_meta($post_id, '_dnap_image_prompt', sanitize_textarea_field($rewritten['image_prompt']));
