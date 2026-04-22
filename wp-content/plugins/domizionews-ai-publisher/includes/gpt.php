@@ -235,20 +235,11 @@ Content:
 Valuta il tipo di articolo e decidi:
 
 SE categoria è "cronaca", "politica", "incidenti-sicurezza" o riguarda arresti, denunce, processi, aggressioni, incidenti stradali:
-  → Imposta "image_prompt": null
   → Imposta "image_symbol": scegli UNO tra: {$symbol_list}
     Scegli il simbolo più pertinente al contenuto (es. "cronaca-carabinieri" per arresti, "viabilita-incidente" per incidenti stradali, "giustizia-tribunale" per processi).
 
 SE categoria è "eventi", "ambiente", "salute", "sport", "economia":
   → Imposta "image_symbol": null
-  → Imposta "image_prompt": un prompt in INGLESE per generazione AI con queste caratteristiche obbligatorie:
-    - Inizia con "Editorial photograph of..."
-    - Stile fotogiornalistico realistico, non cartoon
-    - Ambientazione: "southern Italy", "Mediterranean coast", "Campania region"
-    - No persone riconoscibili, no volti, no testo, no loghi
-    - Aspetto: "16:9 landscape aspect ratio, realistic photojournalism style, no text overlays"
-    - Dettagli specifici basati sul contenuto dell'articolo
-    - Lunghezza: 40-60 parole totali
 
 ## CAMPO SOCIAL_CAPTION
 
@@ -273,7 +264,6 @@ Rispondi SOLO con JSON valido, nessun testo aggiuntivo, nessun markdown:
   "category": "uno slug tra: {$cat_list}",
   "cities": ["solo slug esatti da: {$city_list}, [] se nessuna"],
   "tags": ["3-5 tag pertinenti, no nomi di luoghi già in cities"],
-  "image_prompt": "prompt inglese per Imagen o null",
   "image_symbol": "slug del simbolo o null",
   "social_caption": "1-2 frasi per gruppi Facebook, max 200 caratteri"
 }

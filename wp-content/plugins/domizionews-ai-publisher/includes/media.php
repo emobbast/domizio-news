@@ -202,7 +202,8 @@ function dnap_unsplash_api_fallback($post_id) {
     }
 
     // ── Attempt 2: category-based English query ──────────────────────────────────
-    $category_query = 'italy news coastal'; // fallback default
+    // No generic fallback: if the post's category is not mapped, skip this attempt.
+    $category_query = '';
     foreach ($categories as $cat) {
         if (isset($category_query_map[$cat->slug])) {
             $category_query = $category_query_map[$cat->slug];
@@ -210,10 +211,7 @@ function dnap_unsplash_api_fallback($post_id) {
         }
     }
 
-    // ── Attempt 3: final fallback ────────────────────────────────────────────────
-    $fallback_query = 'italy news coastal';
-
-    $queries_to_try = array_filter([$title_query, $category_query, $fallback_query]);
+    $queries_to_try = array_filter([$title_query, $category_query]);
     // deduplicate while preserving order
     $seen = [];
     $unique_queries = [];
@@ -262,7 +260,8 @@ function dnap_unsplash_api_fallback($post_id) {
     }
 
     if (!$data) {
-        dnap_log("Unsplash API: tutte le query fallite");
+        $queries_str = $unique_queries ? implode(', ', $unique_queries) : '(nessuna query valida)';
+        dnap_log("Unsplash: nessuna immagine trovata per query '{$queries_str}' — articolo senza immagine");
         return false;
     }
 

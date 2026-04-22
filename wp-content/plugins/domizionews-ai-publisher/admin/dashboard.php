@@ -14,7 +14,6 @@ add_action('admin_init', function () {
     // Salva API key
     // hidden field "save_settings" distingue questo form dagli altri POST
     if (isset($_POST['save_settings']) && check_admin_referer('dnap_save_settings')) {
-        update_option('dnap_api_key', sanitize_text_field(trim($_POST['api_key'] ?? '')));
         // Secret fields: only update if the submitted value is non-empty.
         // Empty submission means the user didn't retype the key; keep the stored value.
         $submitted_anthropic = isset($_POST['dnap_anthropic_key']) ? trim($_POST['dnap_anthropic_key']) : '';
@@ -94,7 +93,7 @@ add_action('admin_menu', function(){
 function dnap_dashboard() {
     ob_start();
 
-    $api_key      = get_option('dnap_api_key', '');
+    $anthropic_key = (bool) get_option('dnap_anthropic_key', '');
     $last_import  = get_option('dnap_last_import', null);
     $next_cron    = wp_next_scheduled('dnap_cron_import');
     $feeds        = get_option('dnap_feeds', []);
@@ -131,8 +130,8 @@ function dnap_dashboard() {
         $status_items = [
             [
                 'label' => 'API Key',
-                'value' => $api_key ? '✅ Configurata' : '❌ Mancante',
-                'color' => $api_key ? '#d4edda' : '#f8d7da',
+                'value' => $anthropic_key ? '✅ Configurata' : '❌ Mancante',
+                'color' => $anthropic_key ? '#d4edda' : '#f8d7da',
             ],
             [
                 'label' => 'Feed Attivi',
@@ -196,21 +195,11 @@ function dnap_dashboard() {
 
             <!-- API KEY -->
             <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;margin-bottom:20px;">
-                <h2 style="margin-top:0;">🔑 Configurazione OpenAI</h2>
+                <h2 style="margin-top:0;">🔑 Configurazione Anthropic</h2>
                 <form method="post">
                     <?php wp_nonce_field('dnap_save_settings'); ?>
                     <input type="hidden" name="save_settings" value="1">
                     <table class="form-table" style="margin:0;">
-                        <tr>
-                            <th><label for="api_key">API Key</label></th>
-                            <td>
-                                <input type="password" id="api_key" name="api_key"
-                                       value="<?php echo esc_attr($api_key); ?>"
-                                       style="width:100%;max-width:420px;"
-                                       placeholder="sk-...">
-                                <p class="description">Ottieni la tua key su <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></p>
-                            </td>
-                        </tr>
                         <tr>
                             <th><label for="dnap_anthropic_key">API Key Anthropic (Claude)</label></th>
                             <td>

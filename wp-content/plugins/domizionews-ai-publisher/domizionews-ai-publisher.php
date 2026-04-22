@@ -9,7 +9,7 @@ Author: Domizio News
 if (!defined('ABSPATH')) exit;
 
 define('DNAP_DIR',        plugin_dir_path(__FILE__));
-define('DNAP_VERSION',    '7.1');
+define('DNAP_VERSION',    '8.0');
 define('DNAP_LOG_KEY',    'dnap_import_log');
 define('DNAP_LOG_MAX',    200);
 define('DNAP_MAX_PER_RUN', 5);
@@ -72,7 +72,6 @@ function dnap_create_default_cities() {
 
 function dnap_on_deactivate() {
     wp_clear_scheduled_hook('dnap_cron_import');
-    delete_transient('dnap_running');
     dnap_log('⛔ Plugin disattivato.');
 }
 

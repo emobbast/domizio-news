@@ -125,7 +125,7 @@ function dnap_resolve_google_url(string $url): string {
     if (strpos($url, 'news.google.com') === false) return $url;
 
     $response = wp_remote_get($url, [
-        'timeout'     => 8,
+        'timeout'     => 15,
         'redirection' => 10,
         'user-agent'  => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
         'headers'     => ['Accept-Language' => 'it-IT,it;q=0.9'],
@@ -320,7 +320,7 @@ function dnap_scrape_meta(string $url): array {
     // Risoluzione redirect per Google News (prima di qualsiasi scraping)
     if (strpos($url, 'news.google.com') !== false) {
         $gr = wp_remote_get($url, [
-            'timeout'     => 8,
+            'timeout'     => 15,
             'redirection' => 5,
             'user-agent'  => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
             'headers'     => ['Accept-Language' => 'it-IT,it;q=0.9'],
@@ -370,7 +370,7 @@ function dnap_scrape_meta(string $url): array {
     }
 
     $response = wp_remote_get($url, [
-        'timeout'    => 8,
+        'timeout'    => 15,
         'user-agent' => 'Mozilla/5.0 (compatible; DomizioNewsBot/1.0)',
         'headers'    => ['Accept-Language' => 'it-IT,it;q=0.9'],
     ]);
