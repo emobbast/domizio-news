@@ -1,6 +1,10 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// Articoli più vecchi di N giorni vengono scartati prima della chiamata a Claude.
+// Evita la ripubblicazione di archivi e feed stantii (es. eventi di Carnevale ad aprile).
+if (!defined('DNAP_MAX_ARTICLE_AGE_DAYS')) define('DNAP_MAX_ARTICLE_AGE_DAYS', 14);
+
 /* ============================================================
    TASSONOMIA "CITY"
    Registrata qui perché core.php viene caricato ad ogni
@@ -624,6 +628,29 @@ function dnap_import_now() {
             $title_raw  = sanitize_text_field($item->get_title());
             $feed_text  = dnap_get_item_text($item);
 
+            // Estrai pubDate dal feed item (SimplePie). Alcuni feed (es. Google News)
+            // non espongono la data in modo affidabile → accettiamo l'articolo.
+            $item_pubdate    = $item->get_date('Y-m-d H:i:s');
+            $item_pubdate_ts = $item_pubdate ? strtotime($item_pubdate) : null;
+            if (!$item_pubdate_ts) {
+                dnap_log("Nessuna pubDate nel feed item: {$title_raw}");
+            }
+
+            // Filtro freschezza: scarta articoli più vecchi di DNAP_MAX_ARTICLE_AGE_DAYS.
+            // Eseguito PRIMA della chiamata Claude per risparmiare token.
+            if ($item_pubdate_ts !== null) {
+                $age_days = (time() - $item_pubdate_ts) / DAY_IN_SECONDS;
+                if ($age_days > DNAP_MAX_ARTICLE_AGE_DAYS) {
+                    dnap_log(sprintf(
+                        "⏭ Articolo troppo vecchio (%.1f giorni): %s",
+                        $age_days,
+                        $title_raw
+                    ));
+                    $total_skipped++;
+                    continue;
+                }
+            }
+
             // Risolvi URL reale: prima base64 Google News, poi fallback metadati item
             $resolved = dnap_resolve_google_news_url( $item, $source_url );
             if ( ! empty( $resolved['skip'] ) ) {
@@ -747,6 +774,11 @@ function dnap_import_now() {
             update_post_meta($post_id, '_source_url',      $source_url);
             update_post_meta($post_id, '_source_hash',     $hash);
             update_post_meta($post_id, '_meta_description', sanitize_textarea_field($rewritten['meta_description'] ?? ''));
+
+            if ($item_pubdate_ts !== null) {
+                update_post_meta($post_id, '_source_pubdate',
+                    date('Y-m-d H:i:s', $item_pubdate_ts));
+            }
 
             if (!empty($rewritten['social_caption'])) {
                 update_post_meta($post_id, '_dnap_social_caption', sanitize_text_field($rewritten['social_caption']));
