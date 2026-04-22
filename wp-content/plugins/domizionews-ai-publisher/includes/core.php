@@ -5,6 +5,11 @@ if (!defined('ABSPATH')) exit;
 // Evita la ripubblicazione di archivi e feed stantii (es. eventi di Carnevale ad aprile).
 if (!defined('DNAP_MAX_ARTICLE_AGE_DAYS')) define('DNAP_MAX_ARTICLE_AGE_DAYS', 14);
 
+// TTL di sicurezza sul lock di import: se un processo muore per errore fatale
+// prima che register_shutdown_function rilasci il lock, il successivo run
+// considera stantio un lock più vecchio di questo valore e lo sovrascrive.
+if (!defined('DNAP_LOCK_TTL_SECONDS')) define('DNAP_LOCK_TTL_SECONDS', 600);
+
 /* ============================================================
    TASSONOMIA "CITY"
    Registrata qui perché core.php viene caricato ad ogni
@@ -552,6 +557,15 @@ function dnap_import_now() {
 
     // Atomic lock via INSERT IGNORE (add_option returns false if
     // option already exists — atomic at DB level, safe without Redis)
+    $existing_lock = get_option('dnap_import_lock', false);
+    if ($existing_lock !== false) {
+        $lock_age = time() - (int) $existing_lock;
+        if ($lock_age > DNAP_LOCK_TTL_SECONDS) {
+            dnap_log("Lock stantio rilevato (età {$lock_age}s) — rimosso e riavvio");
+            delete_option('dnap_import_lock');
+        }
+    }
+
     if (!add_option('dnap_import_lock', time(), '', 'no')) {
         dnap_log('Import già in esecuzione (lock attivo) — skip');
         return;
@@ -711,33 +725,53 @@ function dnap_import_now() {
                 continue;
             }
 
-            // Layer 2 — event-based semantic dedup (event_type + event_entity, 6h window)
-            if (!empty($rewritten['event_type']) && !empty($rewritten['event_entity'])) {
-                $ev_type   = sanitize_key($rewritten['event_type']);
-                $ev_entity = sanitize_text_field(strtolower(trim($rewritten['event_entity'])));
+            // Layer 2 — event-based semantic dedup (event_type + entity or city, 6h window)
+            // Quando event_entity è null (articoli senza persona/entità specifica) si
+            // usa la prima città come chiave di fallback, per evitare che duplicati
+            // semantici dello stesso evento passino solo perché Claude non ha estratto
+            // un'entità (es. bandi pubblici, comunicati generici).
+            if (!empty($rewritten['event_type'])) {
+                $ev_type = sanitize_key($rewritten['event_type']);
 
-                $dup = get_posts([
-                    'post_type'      => 'post',
-                    'post_status'    => 'publish',
-                    'posts_per_page' => 1,
-                    'fields'         => 'ids',
-                    'no_found_rows'  => true,
-                    'date_query'     => [
-                        ['after' => '6 hours ago', 'inclusive' => true],
-                    ],
-                    'meta_query'     => [
-                        'relation' => 'AND',
-                        ['key' => '_dnap_event_type',   'value' => $ev_type,   'compare' => '='],
-                        ['key' => '_dnap_event_entity', 'value' => $ev_entity, 'compare' => '='],
-                    ],
-                ]);
+                $dedup_key_field = null;
+                $dedup_key_value = null;
 
-                if (!empty($dup)) {
-                    $existing_id    = $dup[0];
-                    $existing_title = get_the_title($existing_id);
-                    dnap_log("⏭ Dedup evento: '{$ev_type}' + '{$ev_entity}' già pubblicato nelle ultime 6h (post {$existing_id}: {$existing_title})");
-                    $total_skipped++;
-                    continue;
+                if (!empty($rewritten['event_entity'])) {
+                    $dedup_key_field = '_dnap_event_entity';
+                    $dedup_key_value = sanitize_text_field(strtolower(trim($rewritten['event_entity'])));
+                } elseif (!empty($rewritten['cities']) && is_array($rewritten['cities'])) {
+                    $first_city = sanitize_key(reset($rewritten['cities']));
+                    if ($first_city) {
+                        $dedup_key_field = '_dnap_event_city';
+                        $dedup_key_value = $first_city;
+                    }
+                }
+
+                if ($dedup_key_field !== null) {
+                    $dup = get_posts([
+                        'post_type'      => 'post',
+                        'post_status'    => 'publish',
+                        'posts_per_page' => 1,
+                        'fields'         => 'ids',
+                        'no_found_rows'  => true,
+                        'date_query'     => [
+                            ['after' => '6 hours ago', 'inclusive' => true],
+                        ],
+                        'meta_query'     => [
+                            'relation' => 'AND',
+                            ['key' => '_dnap_event_type', 'value' => $ev_type, 'compare' => '='],
+                            ['key' => $dedup_key_field,   'value' => $dedup_key_value, 'compare' => '='],
+                        ],
+                    ]);
+
+                    if (!empty($dup)) {
+                        $existing_id    = $dup[0];
+                        $existing_title = get_the_title($existing_id);
+                        $key_label      = ($dedup_key_field === '_dnap_event_entity') ? 'entity' : 'city';
+                        dnap_log("⏭ Dedup evento: '{$ev_type}' + {$key_label}='{$dedup_key_value}' già pubblicato nelle ultime 6h (post {$existing_id}: {$existing_title})");
+                        $total_skipped++;
+                        continue;
+                    }
                 }
             }
 
@@ -788,6 +822,12 @@ function dnap_import_now() {
             }
             if (!empty($rewritten['event_entity'])) {
                 update_post_meta($post_id, '_dnap_event_entity', sanitize_text_field(strtolower(trim($rewritten['event_entity']))));
+            }
+            if (empty($rewritten['event_entity']) && !empty($rewritten['cities']) && is_array($rewritten['cities'])) {
+                $first_city = sanitize_key(reset($rewritten['cities']));
+                if ($first_city) {
+                    update_post_meta($post_id, '_dnap_event_city', $first_city);
+                }
             }
             if (!empty($rewritten['image_prompt'])) {
                 update_post_meta($post_id, '_dnap_image_prompt', sanitize_textarea_field($rewritten['image_prompt']));
