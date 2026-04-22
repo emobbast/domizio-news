@@ -191,7 +191,7 @@ Se la notizia riguarda principalmente il Napoli Calcio (Serie A), giocatori come
 
 Classifica la notizia con questi due campi:
 
-### event_type — scegli UNO dei 21 valori seguenti
+### event_type — scegli UNO dei 24 valori seguenti
 
 CRONACA:
 - arresto_fermo → arresti, fermi, blitz, ammanettamenti (esempi: "Arrestato 40enne per rapina", "Blitz dei carabinieri, due arresti")
@@ -203,6 +203,7 @@ CRONACA:
 - denuncia → denunce, segnalazioni formali (esempi: "Denunciato per truffa", "Segnalati 3 giovani")
 - furto_rapina → furti, rapine, scippi (esempi: "Rubata auto a Mondragone", "Rapina in villa a Cellole")
 - truffa → raggiri, truffe, finti addetti (esempi: "Truffa agli anziani a Baia Domizia", "Finto tecnico Enel ruba 500 euro")
+- reato_ambientale → reati ambientali, discariche abusive, sversamenti, abusi edilizi sul litorale, Terra dei Fuochi, sequestri rifiuti, denunce gestione illecita (esempi: "Sequestrate 6 aree Terra dei Fuochi", "Discariche abusive con vista sul mare: sequestri", "Sversamenti Regi Lagni: 7 indagati", "Abusi edilizi sul litorale")
 
 INCIDENTI/EMERGENZE:
 - incidente_stradale → incidenti auto/moto/scooter (esempi: "Schianto sulla Domiziana, feriti due", "Investito scooter a Mondragone")
@@ -222,6 +223,12 @@ POLITICA/AMMINISTRAZIONE:
 COMUNITÀ:
 - manifestazione_comunita → fiaccolate, veglie, cortei, manifestazioni, proteste (esempi: "Fiaccolata a Baia Domizia per Vincenzo", "Corteo a Mondragone contro rifiuti")
 - evento_culturale → concerti, mostre, feste, sagre, spettacoli, aperture (esempi: "Sagra del pesce a Baia Domizia", "Mostra arte contemporanea Sessa")
+
+AMBIENTE:
+- evento_ambientale → iniziative ecologiche positive, pulizia spiagge, Plastic Free, Bandiera Gialla, avvistamenti fauna protetta, riqualificazione aree verdi, nuovi impianti ambientali (esempi: "Plastic Free Mondragone sulle spiagge", "Studenti puliscono Baia Domizia", "Delfini a Baia Domizia", "Tartarughe marine schiudono uova", "Nuovo depuratore Mondragone")
+
+SANITÀ:
+- sanita_locale → emergenze sanitarie, epidemie, allarmi alimentari, contagi, nuovi reparti ospedalieri, campagne vaccinazione, convegni salute (esempi: "Epatite A Sessa Aurunca casi in aumento", "Sequestrati 100 kg di pesce rischio epatite", "Intervento all'avanguardia Pineta Grande", "Carovana della Salute Sessa Aurunca")
 
 REAZIONI:
 - reazione_famiglia → interviste/dichiarazioni di familiari delle vittime (esempi: "Il padre: l'assassino ha depistato", "La madre: non credo al suicidio")
@@ -246,6 +253,11 @@ NORMALIZZAZIONE ENTITÀ (esempi):
 - "Giovanni Zannini" / "il consigliere Zannini" / "Zannini" → "zannini"
 - "il 19enne" senza nome → null
 - "un 40enne" senza nome → null
+
+Esempi per NUOVE categorie ambiente/sanità:
+- Malattia/emergenza (es. "Epatite A") → usa "epatite a" lowercase (entity = nome della malattia/emergenza, permette dedup aggiornamenti epidemia)
+- Operazione/inchiesta ambientale (es. "Terra dei Fuochi") → "terra dei fuochi" (permette dedup articoli sulla stessa maxi-operazione)
+- Per eventi ambientali locali generici (pulizie spiagge, iniziative) → null (non c'è entità centrale forte)
 
 Usa SEMPRE lo stesso formato per articoli sulla stessa persona/entità.
 
@@ -330,7 +342,7 @@ Rispondi SOLO con JSON valido, nessun testo aggiuntivo, nessun markdown:
   "tags": ["3-5 tag pertinenti, no nomi di luoghi già in cities"],
   "image_symbol": "slug del simbolo o null",
   "social_caption": "1-2 frasi per gruppi Facebook, max 200 caratteri",
-  "event_type": "uno dei 21 valori in CLASSIFICAZIONE EVENTO",
+  "event_type": "uno dei 24 valori in CLASSIFICAZIONE EVENTO",
   "event_entity": "nome proprio centrale in lowercase, o null"
 }
 PROMPT;
