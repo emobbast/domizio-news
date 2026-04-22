@@ -546,17 +546,21 @@ function dnap_is_featured_subject(string $text): bool {
    ============================================================ */
 function dnap_import_now() {
 
-    // Lock: evita run paralleli
-    if (get_transient('dnap_running')) {
-        dnap_log('⏸ Import già in corso, skip.');
+    // Atomic lock via INSERT IGNORE (add_option returns false if
+    // option already exists — atomic at DB level, safe without Redis)
+    if (!add_option('dnap_import_lock', time(), '', 'no')) {
+        dnap_log('Import già in esecuzione (lock attivo) — skip');
         return;
     }
-    set_transient('dnap_running', 1, 10 * MINUTE_IN_SECONDS);
+    // Register shutdown to release lock even on fatal errors
+    register_shutdown_function(function() {
+        delete_option('dnap_import_lock');
+    });
 
     $feeds = get_option('dnap_feeds', []);
     if (empty($feeds)) {
         dnap_log('Nessun feed configurato.');
-        delete_transient('dnap_running');
+        delete_option('dnap_import_lock');
         return;
     }
 
@@ -802,36 +806,50 @@ function dnap_import_now() {
         'errors'   => $total_errors,
     ]);
 
-    delete_transient('dnap_running');
+    delete_option('dnap_import_lock');
 }
 
 function dnap_send_telegram($post_id) {
   if (wp_is_post_revision($post_id)) return;
   if (get_post_status($post_id) !== 'publish') return;
-  if (get_post_meta($post_id, '_dnap_telegram_sent', true)) return;
+
+  // Check and set atomically to prevent duplicate dispatch
+  $already = get_post_meta($post_id, '_dnap_telegram_sent', true);
+  if ($already) {
+      dnap_log("Telegram già inviato per post {$post_id} — skip");
+      return;
+  }
+  // Mark as pending immediately (before HTTP call)
+  update_post_meta($post_id, '_dnap_telegram_sent', 'pending');
 
   $token   = get_option('dnap_telegram_token', '');
   $channel = get_option('dnap_telegram_channel', '');
-  if (!$token || !$channel) return;
+  if (!$token || !$channel) {
+    delete_post_meta($post_id, '_dnap_telegram_sent');
+    return;
+  }
 
   $url            = get_permalink($post_id);
   $social_caption = get_post_meta($post_id, '_dnap_social_caption', true);
 
   // Build message: social_caption (if present) + link on its own line.
   // Telegram renders the preview card automatically from Open Graph tags.
-  $link_markdown = "[Leggi l'articolo](" . $url . ")";
-
   if (!empty($social_caption)) {
-    $text = "💬 " . $social_caption . "\n\n" . $link_markdown;
+    $caption_escaped = htmlspecialchars(
+      $social_caption,
+      ENT_QUOTES | ENT_HTML5,
+      'UTF-8'
+    );
+    $text = "💬 {$caption_escaped}\n\n<a href=\"{$url}\">Leggi l'articolo</a>";
   } else {
-    $text = $link_markdown;
+    $text = "<a href=\"{$url}\">Leggi l'articolo</a>";
   }
 
   $endpoint = "https://api.telegram.org/bot{$token}/sendMessage";
   $payload  = [
     'chat_id'                  => $channel,
     'text'                     => $text,
-    'parse_mode'               => 'Markdown',
+    'parse_mode'               => 'HTML',
     'disable_web_page_preview' => false,
   ];
 
@@ -842,18 +860,22 @@ function dnap_send_telegram($post_id) {
   ]);
 
   if (is_wp_error($response)) {
-    dnap_log("Telegram errore: " . $response->get_error_message());
+    $error = $response->get_error_message();
+    delete_post_meta($post_id, '_dnap_telegram_sent');
+    dnap_log("Telegram fallito per post {$post_id}: {$error}");
     return;
   }
 
   $status = wp_remote_retrieve_response_code($response);
   if ($status !== 200) {
     $body = wp_remote_retrieve_body($response);
-    dnap_log("Telegram HTTP {$status}: " . mb_substr($body, 0, 200));
+    $error = "HTTP {$status}: " . mb_substr($body, 0, 200);
+    delete_post_meta($post_id, '_dnap_telegram_sent');
+    dnap_log("Telegram fallito per post {$post_id}: {$error}");
     return;
   }
 
-  update_post_meta($post_id, '_dnap_telegram_sent', true);
+  update_post_meta($post_id, '_dnap_telegram_sent', '1');
   if (!empty($social_caption)) {
     dnap_log("Telegram inviato con social_caption (post {$post_id})");
   } else {
@@ -862,8 +884,8 @@ function dnap_send_telegram($post_id) {
 }
 // Async Telegram dispatch: schedule a single WP-Cron event instead of sending
 // inline on publish. Keeps the import loop fast (no ~10s HTTP timeout stacking
-// inside the dnap_running transient lock) and the 10-second delay gives
-// taxonomy terms time to commit on bulk imports.
+// inside the import lock) and the 10-second delay gives taxonomy terms time
+// to commit on bulk imports.
 add_action( 'transition_post_status', 'dnap_schedule_telegram_dispatch', 10, 3 );
 function dnap_schedule_telegram_dispatch( $new_status, $old_status, $post ) {
     if ( $new_status !== 'publish' || $old_status === 'publish' ) return;

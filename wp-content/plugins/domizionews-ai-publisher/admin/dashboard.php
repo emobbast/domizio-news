@@ -71,9 +71,9 @@ add_action('admin_init', function () {
         exit;
     }
 
-    // Sblocca import: cancella il transient bloccato
+    // Sblocca import: cancella il lock bloccato
     if (isset($_GET['dnap_unlock']) && check_admin_referer('dnap_unlock_import')) {
-        delete_transient('dnap_running');
+        delete_option('dnap_import_lock');
         wp_redirect(admin_url('admin.php?page=dnap-dashboard&dnap_notice=import_unlocked'));
         exit;
     }
@@ -100,7 +100,7 @@ function dnap_dashboard() {
     $feeds        = get_option('dnap_feeds', []);
     $active_feeds = array_filter($feeds, function($f) { return !empty($f['active']); });
     $log_entries  = dnap_get_log();
-    $import_locked = (bool) get_transient('dnap_running');
+    $import_locked = (bool) get_option('dnap_import_lock');
 
     // Mappa notice → [tipo, messaggio]
     $notice_map = [
