@@ -57,6 +57,7 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
   - New Layer 1.5: similar_text on Claude-rewritten titles (75% threshold, 12h window)
   - Layer 2 relaxed: matches on city/entity + >=2 keyword overlap, no longer requires identical event_type
   - Legacy Layer 2 logic preserved as fallback for transition
+- [Bug #4 addendum] _dnap_event_city now persisted whenever a city is known (previously only when entity was empty), so Layer 2 keyword dedup candidate pool covers all articles.
 - [Bug #49] Source truncation raised from 1200 to 8000 chars in gpt.php:146 — articles now include full source material for Claude rewrite, fixing systematic information-poor output.
 - [Bug #33] Token usage tracking added:
   - `dnap_call_claude()` now logs input/output tokens per call

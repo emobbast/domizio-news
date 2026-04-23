@@ -892,7 +892,9 @@ function dnap_import_now() {
             if (!empty($rewritten['event_entity'])) {
                 update_post_meta($post_id, '_dnap_event_entity', sanitize_text_field(strtolower(trim($rewritten['event_entity']))));
             }
-            if (empty($rewritten['event_entity']) && !empty($rewritten['cities']) && is_array($rewritten['cities'])) {
+            // Always persist city when known — used by Layer 2 keyword dedup
+            // as candidate-pool filter, independent of entity presence.
+            if (!empty($rewritten['cities']) && is_array($rewritten['cities'])) {
                 $first_city = sanitize_key(reset($rewritten['cities']));
                 if ($first_city) {
                     update_post_meta($post_id, '_dnap_event_city', $first_city);
