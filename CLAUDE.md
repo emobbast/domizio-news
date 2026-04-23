@@ -52,3 +52,8 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
 ## Changelog
 
 - [Bug #49] Source truncation raised from 1200 to 8000 chars in gpt.php:146 — articles now include full source material for Claude rewrite, fixing systematic information-poor output.
+- [Bug #33] Token usage tracking added:
+  - `dnap_call_claude()` now logs input/output tokens per call
+  - Daily cumulative counters in wp_options `dnap_token_usage` (30-day rolling window, autoload=false)
+  - Dashboard widget shows today + last 7 days
+  - Helper: `dnap_get_token_usage_summary($days)`

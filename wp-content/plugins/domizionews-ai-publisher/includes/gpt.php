@@ -59,6 +59,20 @@ function dnap_call_claude(string $user_prompt, string $system_prompt, int $max_t
 
     $decoded = json_decode($raw, true);
 
+    // ── Token usage tracking (Bug #33) ─────────────────────────
+    $usage_in  = (int) ($decoded['usage']['input_tokens']  ?? 0);
+    $usage_out = (int) ($decoded['usage']['output_tokens'] ?? 0);
+
+    if ($usage_in > 0 || $usage_out > 0) {
+        dnap_log(sprintf(
+            'Claude usage: in=%d out=%d (model=%s)',
+            $usage_in,
+            $usage_out,
+            $decoded['model'] ?? 'claude-haiku-4-5'
+        ));
+        dnap_track_token_usage($usage_in, $usage_out);
+    }
+
     $block_type = $decoded['content'][0]['type'] ?? '';
     if ($block_type !== 'text') {
         dnap_log("Claude: blocco non testuale o vuoto (type: {$block_type})");
@@ -82,6 +96,57 @@ function dnap_call_claude(string $user_prompt, string $system_prompt, int $max_t
     }
 
     return $content;
+}
+
+/* ============================================================
+   TOKEN USAGE TRACKING (Bug #33)
+   ============================================================ */
+function dnap_track_token_usage(int $input_tokens, int $output_tokens): void {
+    $today = wp_date('Y-m-d');
+    $key   = 'dnap_token_usage';
+
+    $usage = get_option($key, []);
+    if (!is_array($usage)) $usage = [];
+
+    if (!isset($usage[$today])) {
+        $usage[$today] = ['in' => 0, 'out' => 0, 'calls' => 0];
+    }
+
+    $usage[$today]['in']    += $input_tokens;
+    $usage[$today]['out']   += $output_tokens;
+    $usage[$today]['calls'] += 1;
+
+    // Keep only last 30 days — prevent unbounded growth
+    if (count($usage) > 30) {
+        ksort($usage);
+        $usage = array_slice($usage, -30, null, true);
+    }
+
+    update_option($key, $usage, false); // autoload=false
+}
+
+function dnap_get_token_usage_summary(int $days = 7): array {
+    $usage = get_option('dnap_token_usage', []);
+    if (!is_array($usage)) $usage = [];
+
+    ksort($usage);
+    $today_key = wp_date('Y-m-d');
+    $today     = $usage[$today_key] ?? ['in' => 0, 'out' => 0, 'calls' => 0];
+
+    $cutoff = wp_date('Y-m-d', strtotime("-{$days} days"));
+    $in = $out = $calls = 0;
+    foreach ($usage as $date => $d) {
+        if ($date < $cutoff) continue;
+        $in    += $d['in']    ?? 0;
+        $out   += $d['out']   ?? 0;
+        $calls += $d['calls'] ?? 0;
+    }
+
+    return [
+        'today'        => $today,
+        'window_days'  => $days,
+        'window_total' => ['in' => $in, 'out' => $out, 'calls' => $calls],
+    ];
 }
 
 /* ============================================================

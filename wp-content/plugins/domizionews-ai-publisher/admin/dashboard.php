@@ -161,6 +161,29 @@ function dnap_dashboard() {
         <?php endforeach; ?>
     </div>
 
+    <!-- TOKEN USAGE CLAUDE (Bug #33) -->
+    <?php
+    $usage = dnap_get_token_usage_summary(7);
+    $today = $usage['today'];
+    $week  = $usage['window_total'];
+    ?>
+    <div class="dnap-card" style="background:#f6f7f7;padding:16px;border-left:4px solid #6750A4;margin:16px 0;">
+        <h3 style="margin-top:0;">📊 Token Usage Claude (Bug #33)</h3>
+        <p><strong>Oggi:</strong>
+            <?php echo number_format_i18n($today['in']); ?> in /
+            <?php echo number_format_i18n($today['out']); ?> out —
+            <?php echo (int) $today['calls']; ?> chiamate
+        </p>
+        <p><strong>Ultimi 7 giorni:</strong>
+            <?php echo number_format_i18n($week['in']); ?> in /
+            <?php echo number_format_i18n($week['out']); ?> out —
+            <?php echo (int) $week['calls']; ?> chiamate
+        </p>
+        <p style="color:#666;font-size:12px;margin-bottom:0;">
+            Costo stimato Haiku 4.5: input $1/Mtok, output $5/Mtok
+        </p>
+    </div>
+
     <!-- SE IL CRON NON È SCHEDULATO: WARNING -->
     <?php if (!$next_cron) : ?>
     <div class="notice notice-error">
