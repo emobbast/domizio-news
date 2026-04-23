@@ -72,3 +72,12 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
   - Layer 2b: same `event_entity` (any keywords) within 72 hours
   - Layer 2c preserved: keyword overlap within 6h (from Bug #4 fix)
   - Example: Iannitti 4-day murder arc (IDs 2230/2262/2302/2416) now caught by 2a/2b; separate Zannini inchieste over months stay distinct because keyword overlap differs.
+- [Bug #26] Prompt caching implemented:
+  - User prompt split into `$static_instructions` (cacheable) + `$dynamic_article` (per-call) in [includes/gpt.php](wp-content/plugins/domizionews-ai-publisher/includes/gpt.php)
+  - `cache_control` type=ephemeral, ttl=1h (requires `anthropic-beta: extended-cache-ttl-2025-04-11` header, set unconditionally by `dnap_call_claude`)
+  - 1h TTL covers the 30-min cron cycle — first call of each cache window pays `cache_creation` ($1.25/Mtok), subsequent calls read at $0.10/Mtok (90% savings on cached portion)
+  - `dnap_call_claude` now accepts either a string (legacy, no caching) or an array of content blocks (new, cacheable)
+  - Static block interpolates `$cat_list`, `$city_list`, `$symbol_list` — cache invalidates when a taxonomy term is added/removed, acceptable because rare
+  - Token tracking extended (Bug #33 → #26) to capture `cache_creation_input_tokens` + `cache_read_input_tokens` from the `usage` object; daily bucket gains `cache_w` + `cache_r` keys
+  - Dashboard widget shows cache hit rate % for today and last 7 days
+  - Expected ~70% overall input-token cost reduction at steady state

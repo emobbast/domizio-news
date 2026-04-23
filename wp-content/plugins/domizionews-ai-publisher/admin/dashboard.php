@@ -161,11 +161,25 @@ function dnap_dashboard() {
         <?php endforeach; ?>
     </div>
 
-    <!-- TOKEN USAGE CLAUDE (Bug #33) -->
+    <!-- TOKEN USAGE CLAUDE (Bug #33, cache metrics Bug #26) -->
     <?php
     $usage = dnap_get_token_usage_summary(7);
     $today = $usage['today'];
     $week  = $usage['window_total'];
+
+    $today_fresh_in = (int) ($today['in']      ?? 0);
+    $today_cache_r  = (int) ($today['cache_r'] ?? 0);
+    $today_total_in = $today_fresh_in + $today_cache_r;
+    $today_ratio    = $today_total_in > 0
+        ? round(100 * $today_cache_r / $today_total_in, 1)
+        : 0;
+
+    $week_fresh_in = (int) ($week['in']      ?? 0);
+    $week_cache_r  = (int) ($week['cache_r'] ?? 0);
+    $week_total_in = $week_fresh_in + $week_cache_r;
+    $week_ratio    = $week_total_in > 0
+        ? round(100 * $week_cache_r / $week_total_in, 1)
+        : 0;
     ?>
     <div class="dnap-card" style="background:#f6f7f7;padding:16px;border-left:4px solid #6750A4;margin:16px 0;">
         <h3 style="margin-top:0;">📊 Token Usage Claude (Bug #33)</h3>
@@ -174,13 +188,24 @@ function dnap_dashboard() {
             <?php echo number_format_i18n($today['out']); ?> out —
             <?php echo (int) $today['calls']; ?> chiamate
         </p>
+        <p><strong>Cache hit rate oggi:</strong> <?php echo $today_ratio; ?>%
+            (<?php echo number_format_i18n($today_cache_r); ?> token letti da cache,
+            <?php echo number_format_i18n($today_fresh_in); ?> fresh,
+            <?php echo number_format_i18n((int) ($today['cache_w'] ?? 0)); ?> scritti)
+        </p>
         <p><strong>Ultimi 7 giorni:</strong>
             <?php echo number_format_i18n($week['in']); ?> in /
             <?php echo number_format_i18n($week['out']); ?> out —
             <?php echo (int) $week['calls']; ?> chiamate
         </p>
+        <p><strong>Cache hit rate 7 giorni:</strong> <?php echo $week_ratio; ?>%
+            (<?php echo number_format_i18n($week_cache_r); ?> token letti da cache,
+            <?php echo number_format_i18n($week_fresh_in); ?> fresh,
+            <?php echo number_format_i18n((int) ($week['cache_w'] ?? 0)); ?> scritti)
+        </p>
         <p style="color:#666;font-size:12px;margin-bottom:0;">
-            Costo stimato Haiku 4.5: input $1/Mtok, output $5/Mtok
+            Costi Haiku 4.5: input fresh $1/Mtok, cache write $1.25/Mtok,
+            cache read $0.10/Mtok (90% risparmio), output $5/Mtok
         </p>
     </div>
 
