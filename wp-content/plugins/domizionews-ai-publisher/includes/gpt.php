@@ -326,6 +326,23 @@ Esempi per NUOVE categorie ambiente/sanità:
 
 Usa SEMPRE lo stesso formato per articoli sulla stessa persona/entità.
 
+### event_keywords — impronta fattuale per dedup
+
+3-5 parole chiave lowercase che identificano UNIVOCAMENTE il fatto, usate per dedup cross-publisher. Preferisci:
+- Sostantivi concreti del fatto ("discarica", "sequestro", "incidente")
+- Oggetti/materiali specifici ("pitone", "cocaina", "scooter")
+- Azioni caratterizzanti ("fiaccolata", "arresto", "fuga")
+
+Evita:
+- Nomi di città (già in cities)
+- Aggettivi generici ("grave", "nuovo", "importante")
+- Articoli e preposizioni
+
+Esempi:
+- "Casa-discarica con animali esotici a Mondragone" → ["discarica", "animali", "sequestro", "esotici"]
+- "Incidente stradale Domitiana, due feriti" → ["incidente", "stradale", "feriti", "domitiana"]
+- "Fiaccolata a Baia Domizia per Vincenzo" → ["fiaccolata", "commemorazione", "iannitti"]
+
 ## STILE DI SCRITTURA
 
 Scrivi come un cronista locale che racconta a lettori che conoscono il territorio. Obiettivo: un articolo naturale, non formulaico.
@@ -408,7 +425,8 @@ Rispondi SOLO con JSON valido, nessun testo aggiuntivo, nessun markdown:
   "image_symbol": "slug del simbolo o null",
   "social_caption": "1-2 frasi per gruppi Facebook, max 200 caratteri",
   "event_type": "uno dei 24 valori in CLASSIFICAZIONE EVENTO",
-  "event_entity": "nome proprio centrale in lowercase, o null"
+  "event_entity": "nome proprio centrale in lowercase, o null",
+  "event_keywords": ["3-5 parole chiave lowercase che identificano il fatto specifico (es. 'discarica', 'animali', 'sequestro'). Sostantivi concreti, no aggettivi generici, no nomi di città (già in cities)"]
 }
 PROMPT;
 
@@ -524,6 +542,19 @@ PROMPT;
     // ── Tags ─────────────────────────────────────────────────────
     $raw_tags = is_array($data['tags'] ?? null) ? $data['tags'] : [];
     $data['tags'] = array_slice(array_map('sanitize_text_field', $raw_tags), 0, 5);
+
+    // ── Event keywords (Bug #4 — cross-publisher dedup) ──────────
+    $raw_keywords = is_array($data['event_keywords'] ?? null) ? $data['event_keywords'] : [];
+    $data['event_keywords'] = [];
+    foreach ($raw_keywords as $kw) {
+        $kw = mb_strtolower(trim(sanitize_text_field($kw)));
+        $kw = preg_replace('/[^a-zàèéìòù\-\s]/u', '', $kw);
+        $kw = trim($kw);
+        if ($kw !== '' && mb_strlen($kw) >= 3 && mb_strlen($kw) <= 30) {
+            $data['event_keywords'][] = $kw;
+        }
+    }
+    $data['event_keywords'] = array_slice(array_unique($data['event_keywords']), 0, 5);
 
     // ── Image fields ─────────────────────────────────────────────
     $image_prompt = $data['image_prompt'] ?? null;

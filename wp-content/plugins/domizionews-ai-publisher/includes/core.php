@@ -725,12 +725,81 @@ function dnap_import_now() {
                 continue;
             }
 
-            // Layer 2 — event-based semantic dedup (event_type + entity or city, 6h window)
-            // Quando event_entity è null (articoli senza persona/entità specifica) si
-            // usa la prima città come chiave di fallback, per evitare che duplicati
-            // semantici dello stesso evento passino solo perché Claude non ha estratto
-            // un'entità (es. bandi pubblici, comunicati generici).
-            if (!empty($rewritten['event_type'])) {
+            // ── Layer 1.5: post-rewrite title similarity (Bug #4) ────────
+            // Layer 1 pre-Claude catches wire copies; this catches same-fact
+            // coverage with different phrasing rewritten by Claude into
+            // stylistically similar titles.
+            $rewritten_title = $rewritten['title'] ?? '';
+            if ($rewritten_title !== '') {
+                $recent = get_posts([
+                    'post_type'      => 'post',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => 100,
+                    'date_query'     => [['after' => '12 hours ago']],
+                    'fields'         => 'ids',
+                    'no_found_rows'  => true,
+                ]);
+                foreach ($recent as $rid) {
+                    $existing_title = get_the_title($rid);
+                    if ($existing_title === '') continue;
+                    $pct = 0.0;
+                    similar_text(
+                        mb_strtolower($rewritten_title),
+                        mb_strtolower($existing_title),
+                        $pct
+                    );
+                    if ($pct >= 75) {
+                        dnap_log(sprintf(
+                            '⏭ Layer 1.5 dedup: "%s" simile al %0.1f%% a post %d "%s"',
+                            $rewritten_title, $pct, $rid, $existing_title
+                        ));
+                        $total_skipped++;
+                        continue 2; // skip to next RSS item
+                    }
+                }
+            }
+
+            // ── Layer 2: event dedup with keyword overlap (Bug #4) ───────
+            // Primary: city/entity candidate pool + >=2 keyword overlap in 6h.
+            // Legacy fallback preserved for posts pre-event_keywords still
+            // within the 6h window.
+            $evt_keywords = is_array($rewritten['event_keywords'] ?? null) ? $rewritten['event_keywords'] : [];
+            $evt_entity   = !empty($rewritten['event_entity']) ? sanitize_text_field(strtolower(trim($rewritten['event_entity']))) : '';
+            $evt_city     = (!empty($rewritten['cities']) && is_array($rewritten['cities']))
+                ? sanitize_key(reset($rewritten['cities']))
+                : '';
+
+            if (!empty($evt_keywords) && ($evt_city !== '' || $evt_entity !== '')) {
+                $meta_query = ['relation' => 'OR'];
+                if ($evt_city !== '')   $meta_query[] = ['key' => '_dnap_event_city',   'value' => $evt_city];
+                if ($evt_entity !== '') $meta_query[] = ['key' => '_dnap_event_entity', 'value' => $evt_entity];
+
+                $candidates = get_posts([
+                    'post_type'      => 'post',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => 50,
+                    'date_query'     => [['after' => '6 hours ago']],
+                    'fields'         => 'ids',
+                    'no_found_rows'  => true,
+                    'meta_query'     => $meta_query,
+                ]);
+
+                foreach ($candidates as $cid) {
+                    $existing_kw = get_post_meta($cid, '_dnap_event_keywords', true);
+                    if (!is_array($existing_kw) || empty($existing_kw)) continue;
+                    $overlap = count(array_intersect($evt_keywords, $existing_kw));
+                    if ($overlap >= 2) {
+                        dnap_log(sprintf(
+                            '⏭ Dedup evento (keyword overlap=%d): "%s" duplica post %d',
+                            $overlap, $rewritten['title'], $cid
+                        ));
+                        $total_skipped++;
+                        continue 2; // skip to next RSS item
+                    }
+                }
+            } elseif (!empty($rewritten['event_type'])) {
+                // Legacy fallback (B4/B4.2) — preserved for backward compat
+                // with posts published before event_keywords existed.
                 $ev_type = sanitize_key($rewritten['event_type']);
 
                 $dedup_key_field = null;
@@ -768,7 +837,7 @@ function dnap_import_now() {
                         $existing_id    = $dup[0];
                         $existing_title = get_the_title($existing_id);
                         $key_label      = ($dedup_key_field === '_dnap_event_entity') ? 'entity' : 'city';
-                        dnap_log("⏭ Dedup evento: '{$ev_type}' + {$key_label}='{$dedup_key_value}' già pubblicato nelle ultime 6h (post {$existing_id}: {$existing_title})");
+                        dnap_log("⏭ Dedup evento (legacy): '{$ev_type}' + {$key_label}='{$dedup_key_value}' già pubblicato nelle ultime 6h (post {$existing_id}: {$existing_title})");
                         $total_skipped++;
                         continue;
                     }
@@ -828,6 +897,9 @@ function dnap_import_now() {
                 if ($first_city) {
                     update_post_meta($post_id, '_dnap_event_city', $first_city);
                 }
+            }
+            if (!empty($rewritten['event_keywords']) && is_array($rewritten['event_keywords'])) {
+                update_post_meta($post_id, '_dnap_event_keywords', $rewritten['event_keywords']);
             }
             if (!empty($rewritten['image_prompt'])) {
                 update_post_meta($post_id, '_dnap_image_prompt', sanitize_textarea_field($rewritten['image_prompt']));
