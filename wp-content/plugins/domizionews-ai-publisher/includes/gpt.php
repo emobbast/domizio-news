@@ -580,6 +580,10 @@ PROMPT;
     // ── Social caption ───────────────────────────────────────────
     $caption = $data['social_caption'] ?? '';
     if (is_string($caption)) {
+        // Decode upstream HTML entities from RSS feeds (&#039; / &apos; /
+        // &#8217; curly apostrophe) before storage so downstream Telegram
+        // escape works on clean UTF-8 input.
+        $caption = html_entity_decode($caption, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $caption = sanitize_text_field(trim($caption));
         if (mb_strlen($caption) > 200) {
             $caption = mb_substr($caption, 0, 200);

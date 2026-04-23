@@ -759,8 +759,12 @@ function dnap_import_now() {
                 }
             }
 
-            // ── Layer 2: event dedup with keyword overlap (Bug #4) ───────
-            // Primary: city/entity candidate pool + >=2 keyword overlap in 6h.
+            // ── Layer 2: multi-layer event dedup (Bug #4 + Bug B) ────────
+            // 2a: same entity + >=2 keyword overlap in 30 days (long-running
+            //     stories: inchieste, processi, scomparse).
+            // 2b: same entity in 72h (keywords may drift across arc).
+            // 2c: keyword overlap + city/entity in 6h (entity-null cases,
+            //     Bug #4 fix — preserved as primary for fresh events).
             // Legacy fallback preserved for posts pre-event_keywords still
             // within the 6h window.
             $evt_keywords = is_array($rewritten['event_keywords'] ?? null) ? $rewritten['event_keywords'] : [];
@@ -769,6 +773,61 @@ function dnap_import_now() {
                 ? sanitize_key(reset($rewritten['cities']))
                 : '';
 
+            // ── Layer 2a: same entity + >=2 keyword overlap, 30 days ──
+            if ($evt_entity !== '' && mb_strlen($evt_entity) >= 3 && count($evt_keywords) >= 2) {
+                $same_entity_30d = get_posts([
+                    'post_type'      => 'post',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => 20,
+                    'date_query'     => [['after' => '30 days ago']],
+                    'fields'         => 'ids',
+                    'no_found_rows'  => true,
+                    'meta_key'       => '_dnap_event_entity',
+                    'meta_value'     => $evt_entity,
+                ]);
+                foreach ($same_entity_30d as $cid) {
+                    $existing_kw = get_post_meta($cid, '_dnap_event_keywords', true);
+                    if (!is_array($existing_kw) || empty($existing_kw)) continue;
+                    $overlap = count(array_intersect($evt_keywords, $existing_kw));
+                    if ($overlap >= 2) {
+                        dnap_log(sprintf(
+                            '⏭ Dedup entità+keyword 30gg (overlap=%d, entity=%s): "%s" duplica post %d',
+                            $overlap, $evt_entity,
+                            $rewritten['title'] ?? '(no title)', $cid
+                        ));
+                        $total_skipped++;
+                        continue 2; // next RSS item (exit inner foreach + items foreach)
+                    }
+                }
+            }
+
+            // ── Layer 2b: same entity, 72h (keywords may drift) ──
+            // No inner loop here, so `continue` (level 1) targets the items
+            // foreach directly — `continue 2` would escape to the feeds loop.
+            if ($evt_entity !== '' && mb_strlen($evt_entity) >= 3) {
+                $same_entity_72h = get_posts([
+                    'post_type'      => 'post',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => 1,
+                    'date_query'     => [['after' => '72 hours ago']],
+                    'fields'         => 'ids',
+                    'no_found_rows'  => true,
+                    'meta_key'       => '_dnap_event_entity',
+                    'meta_value'     => $evt_entity,
+                ]);
+                if (!empty($same_entity_72h)) {
+                    dnap_log(sprintf(
+                        '⏭ Dedup entità 72h (entity=%s): "%s" duplica post %d',
+                        $evt_entity,
+                        $rewritten['title'] ?? '(no title)',
+                        $same_entity_72h[0]
+                    ));
+                    $total_skipped++;
+                    continue; // next RSS item
+                }
+            }
+
+            // ── Layer 2c: keyword overlap + city/entity, 6h (Bug #4) ──
             if (!empty($evt_keywords) && ($evt_city !== '' || $evt_entity !== '')) {
                 $meta_query = ['relation' => 'OR'];
                 if ($evt_city !== '')   $meta_query[] = ['key' => '_dnap_event_city',   'value' => $evt_city];
@@ -1017,10 +1076,14 @@ function dnap_send_telegram($post_id) {
   // Build message: social_caption (if present) + link on its own line.
   // Telegram renders the preview card automatically from Open Graph tags.
   if (!empty($social_caption)) {
-    $caption_escaped = htmlspecialchars(
-      $social_caption,
-      ENT_QUOTES | ENT_HTML5,
-      'UTF-8'
+    // Telegram HTML parse_mode decodes ONLY &lt; &gt; &amp;.
+    // Apostrophes/quotes must remain raw or they render as visible
+    // entity text (&apos; / &quot;). Order matters: & first, else
+    // &lt; becomes &amp;lt;.
+    $caption_escaped = str_replace(
+      ['&', '<', '>'],
+      ['&amp;', '&lt;', '&gt;'],
+      $social_caption
     );
     $text = "💬 {$caption_escaped}\n\n<a href=\"{$url}\">Leggi l'articolo</a>";
   } else {

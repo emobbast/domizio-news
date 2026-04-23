@@ -64,3 +64,11 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
   - Daily cumulative counters in wp_options `dnap_token_usage` (30-day rolling window, autoload=false)
   - Dashboard widget shows today + last 7 days
   - Helper: `dnap_get_token_usage_summary($days)`
+- [Bug A] Telegram apostrophe escape fixed (core.php:1020):
+  - Replaced `htmlspecialchars(ENT_QUOTES|ENT_HTML5)` with targeted `str_replace` for `< > &` only. Telegram HTML parse_mode does not decode `&apos;`, producing visible `l&apos;` in channel messages.
+  - Added `html_entity_decode` in gpt.php social_caption sanitization to normalize pre-encoded RSS entities (`&#039;` / `&#8217;`) before storage.
+- [Bug B] Multi-layer entity dedup for long-running stories:
+  - Layer 2a: same `event_entity` + ≥2 keyword overlap within 30 days
+  - Layer 2b: same `event_entity` (any keywords) within 72 hours
+  - Layer 2c preserved: keyword overlap within 6h (from Bug #4 fix)
+  - Example: Iannitti 4-day murder arc (IDs 2230/2262/2302/2416) now caught by 2a/2b; separate Zannini inchieste over months stay distinct because keyword overlap differs.
