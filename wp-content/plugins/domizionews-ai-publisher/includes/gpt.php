@@ -143,7 +143,7 @@ function dnap_get_image_symbols(): array {
    ============================================================ */
 function dnap_gpt_rewrite(string $text, string $original_title = '', string $source_url = '') {
 
-    $text_input = mb_substr($text, 0, 1200);
+    $text_input = mb_substr($text, 0, 8000);
     $categories = dnap_get_available_categories();
     $cities     = dnap_get_available_cities();
     $symbols    = dnap_get_image_symbols();

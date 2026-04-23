@@ -48,3 +48,7 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
 - **Activation hooks do NOT re-run on deploy** (it's a `git reset`, not a plugin install). One-shot migrations must therefore be implemented on an `admin_init` hook guarded by an option flag — see `dnap_migrate_secret_autoload` in [wp-content/plugins/domizionews-ai-publisher/domizionews-ai-publisher.php:87](wp-content/plugins/domizionews-ai-publisher/domizionews-ai-publisher.php:87) for the canonical pattern.
 - `.gitignore` excludes WordPress core (`/wp-admin/`, `/wp-includes/`, root `wp-*.php`), `wp-config.php`, `/wp-content/uploads/`, and every third-party plugin/theme — only `domizionews-ai-publisher` and `domizionews-theme` are versioned.
 - Secrets (Anthropic API key, Telegram token) live in WP options (`dnap_anthropic_key`, `dnap_telegram_token`) with `autoload=no`, not in code or env files.
+
+## Changelog
+
+- [Bug #49] Source truncation raised from 1200 to 8000 chars in gpt.php:146 — articles now include full source material for Claude rewrite, fixing systematic information-poor output.
