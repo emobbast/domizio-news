@@ -108,26 +108,6 @@ function dnap_source_exists(string $source_url, string $hash, string $new_title)
 }
 
 /* ============================================================
-   INSERT AD SLOT — posizioni configurabili
-   ============================================================ */
-function dnap_insert_ad_slots(string $content): string {
-    $pos2 = get_option('dnap_ad_pos_2', true);
-    $pos4 = get_option('dnap_ad_pos_4', true);
-
-    $paragraphs = explode('</p>', $content);
-    $total = count($paragraphs);
-
-    if ($pos2 && $total > 2) {
-        $paragraphs[1] .= '<div class="dn-ad-slot dn-ad-inline" aria-label="Pubblicità"></div>';
-    }
-    if ($pos4 && $total > 4) {
-        $paragraphs[3] .= '<div class="dn-ad-slot dn-ad-inline" aria-label="Pubblicità"></div>';
-    }
-
-    return implode('</p>', $paragraphs);
-}
-
-/* ============================================================
    RISOLVI URL GOOGLE NEWS (no sslverify false)
    ============================================================ */
 function dnap_resolve_google_url(string $url): string {
@@ -916,7 +896,6 @@ function dnap_import_now() {
                 : sanitize_title($rewritten['title']);
 
             $content = wpautop($rewritten['content']);
-            $content = dnap_insert_ad_slots($content);
 
             $post_id = wp_insert_post([
                 'post_title'   => wp_slash(sanitize_text_field($rewritten['title'])),

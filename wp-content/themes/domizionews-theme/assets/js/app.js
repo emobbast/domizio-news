@@ -355,8 +355,14 @@
       : slotId === 'article-bottom'
       ? 'display:block;text-align:center;'
       : 'display:block;';
+    const slotClassMap = {
+      'banner-nav':     'dn-ad-banner',
+      'home-feed':      'dn-ad-infeed',
+      'article-bottom': 'dn-ad-article',
+    };
+    const extraClass = slotClassMap[slotId] || '';
     return `
-      <div class="dn-ad-card">
+      <div class="dn-ad-card ${extraClass}">
         <span class="dn-ad-badge">ADV</span>
         <ins class="adsbygoogle"
              style="${style}"
@@ -1120,9 +1126,12 @@
     .dn-detail-content strong { color: var(--color-text); font-weight: 700; }
     .dn-local-context { background: #EADDFF; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
 
-    /* AD CARD SPONSORIZZATA */
-    .dn-ad-card { position: relative; padding: 16px; border-top: 8px solid #F2F2F2; border-bottom: 8px solid #F2F2F2; background: var(--color-card); }
-    .dn-ad-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; display: block; }
+    /* AD CARD SPONSORIZZATA — reserve space to prevent CLS (Bug #39) */
+    .dn-ad-card { position: relative; padding: 16px; border-top: 8px solid #F2F2F2; border-bottom: 8px solid #F2F2F2; background: var(--color-card); min-height: 280px; }
+    .dn-ad-card.dn-ad-banner { min-height: 120px; }
+    .dn-ad-card.dn-ad-infeed { min-height: 300px; }
+    .dn-ad-card.dn-ad-article { min-height: 280px; }
+    .dn-ad-card .adsbygoogle { display: block; min-height: inherit; }
     .dn-ad-badge { position: absolute; top: 24px; left: 24px; font-size: 10px; font-weight: 500; color: #5F6368; background: #F2F2F2; padding: 3px 8px; border-radius: 4px; letter-spacing: .3px; z-index: 1; }
 
     /* SCOPRI — griglia categorie */
@@ -1255,7 +1264,7 @@
       if (state.tab === 'search')     content = buildSearch();
     }
 
-    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${!state.loading ? renderAd('banner-nav') : ''}${buildNav()}</div>`;
+    root.innerHTML = `<style>${STYLES}</style><div class="dn-app">${content}${buildFooter()}${renderAd('banner-nav')}${buildNav()}</div>`;
     // Quando l'input di ricerca compare (header search mode o tab Cerca), dagli focus.
     // La delega globale di 'input' è già wirata una volta sola su root — non serve re-bindare.
     document.getElementById('dn-search-input')?.focus();
