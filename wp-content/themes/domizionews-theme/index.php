@@ -8,6 +8,7 @@
 
 $logo_url    = get_theme_file_uri('assets/images/logo.png');
 $single_post = is_single() ? get_queried_object() : null;
+$page_obj    = is_page()   ? get_queried_object() : null;
 
 // ── SEO META ─────────────────────────────────────────────────────────────────
 if ($single_post) {
@@ -17,6 +18,12 @@ if ($single_post) {
   $seo_image     = get_the_post_thumbnail_url($single_post->ID, 'large')
                 ?: (string) get_post_meta($single_post->ID, '_dnap_external_image', true);
   $seo_canonical = get_permalink($single_post->ID);
+} elseif ($page_obj) {
+  $seo_title     = wp_strip_all_tags($page_obj->post_title) . ' | Domizio News';
+  $raw_desc      = $page_obj->post_excerpt ?: $page_obj->post_content;
+  $seo_desc      = wp_trim_words(wp_strip_all_tags($raw_desc), 25, '...');
+  $seo_image     = '';
+  $seo_canonical = get_permalink($page_obj->ID);
 } else {
   $seo_title     = get_bloginfo('name');
   $seo_desc = get_bloginfo('description') ?: 'Notizie in tempo reale dal Litorale Domizio. Cronaca, sport, politica ed eventi da Mondragone, Castel Volturno, Baia Domizia e dintorni.';
@@ -40,13 +47,20 @@ add_filter('document_title_parts', function($parts) use ($seo_title) {
   return $parts;
 }, 999);
 
-add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_canonical, $single_post) {
+add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_canonical, $single_post, $page_obj) {
+  $og_type = ($single_post || $page_obj) ? 'article' : 'website';
   ?>
   <meta name="description" content="<?php echo esc_attr($seo_desc); ?>">
-  <meta property="og:type" content="<?php echo $single_post ? 'article' : 'website'; ?>">
+  <?php // WP core (rel_canonical) emette già <link rel=canonical> sulle viste singular; qui coprono solo home/archive dove core non lo fa. ?>
+  <?php if (!$single_post && !$page_obj): ?>
+  <link rel="canonical" href="<?php echo esc_url($seo_canonical); ?>">
+  <?php endif; ?>
+  <meta property="og:type" content="<?php echo esc_attr($og_type); ?>">
   <meta property="og:title" content="<?php echo esc_attr($seo_title); ?>">
   <meta property="og:description" content="<?php echo esc_attr($seo_desc); ?>">
   <meta property="og:url" content="<?php echo esc_url($seo_canonical); ?>">
+  <meta property="og:site_name" content="Domizio News">
+  <meta property="og:locale" content="it_IT">
   <?php if ($seo_image): ?>
   <meta property="og:image" content="<?php echo esc_url($seo_image); ?>">
   <?php endif; ?>
@@ -103,6 +117,16 @@ $latest = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_
         <?php echo wp_kses_post(apply_filters('the_content', $single_post->post_content)); ?>
       </div>
 
+    <?php elseif ($page_obj): ?>
+      <!-- WordPress Page SSR: contenuto indicizzabile per Googlebot con canonical corretto -->
+      <a href="https://domizionews.it/" style="color:#1A73E8;font-size:14px;display:block;margin-bottom:16px;">← Domizio News</a>
+      <h1 style="font-size:22px;font-weight:700;margin:0 0 12px;color:#202124;">
+        <?php echo esc_html(get_the_title($page_obj)); ?>
+      </h1>
+      <div style="font-size:16px;line-height:1.7;color:#202124;">
+        <?php echo wp_kses_post(apply_filters('the_content', $page_obj->post_content)); ?>
+      </div>
+
     <?php else: ?>
       <!-- Home SSR: latest posts list -->
       <h1 style="font-size:22px;font-weight:700;margin-bottom:16px;">
@@ -125,11 +149,17 @@ $latest = new WP_Query(['post_type'=>'post','post_status'=>'publish','posts_per_
       </ul>
     <?php endif; ?>
 
-    <nav style="margin-top:24px;font-size:13px;">
-      <a href="/privacy-policy" style="color:#1A73E8;margin-right:16px;">Privacy Policy</a>
-      <a href="/cookie-policy" style="color:#1A73E8;margin-right:16px;">Cookie Policy</a>
-      <a href="/chi-siamo" style="color:#1A73E8;">Chi Siamo</a>
-    </nav>
+    <footer style="margin-top:32px;padding-top:16px;border-top:1px solid #E8EAED;">
+      <nav style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;">
+        <a href="/chi-siamo/" style="color:#1A73E8;">Chi Siamo</a>
+        <a href="/contatti/" style="color:#1A73E8;">Contatti</a>
+        <a href="/privacy-policy/" style="color:#1A73E8;">Privacy Policy</a>
+        <a href="/cookie-policy/" style="color:#1A73E8;">Cookie Policy</a>
+        <a href="/note-legali/" style="color:#1A73E8;">Note Legali</a>
+        <a href="/disclaimer/" style="color:#1A73E8;">Disclaimer</a>
+      </nav>
+      <p style="margin:12px 0 0;color:#9AA0A6;font-size:12px;">© <?php echo esc_html(date('Y')); ?> Domizio News</p>
+    </footer>
   </main>
 </div>
 

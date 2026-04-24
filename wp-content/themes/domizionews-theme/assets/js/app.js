@@ -10,6 +10,11 @@
   const DOMIZIO_API = API.replace('/wp/v2', '') + '/domizio/v1';
   const STICKY_API  = DOMIZIO_API + '/sticky-news';
 
+  // Slug WordPress page pubblicati come pagine legali. Duplica la lista servita
+  // da SSR/footer: usata per routing URL (pushState su click, popstate su back,
+  // e rilevamento iniziale quando l'utente atterra direttamente su /<slug>/).
+  const LEGAL_SLUGS = ['chi-siamo','contatti','privacy-policy','cookie-policy','note-legali','disclaimer'];
+
   // ─── UTILS ──────────────────────────────────────────────────────────────────
   function timeAgo(date) {
     const diff = Date.now() - new Date(date).getTime();
@@ -662,12 +667,12 @@
     return `
       <footer class="dn-footer">
         <div class="dn-footer-links">
-          <a href="#" data-legal="chi-siamo">Chi Siamo</a>
-          <a href="#" data-legal="contatti">Contatti</a>
-          <a href="#" data-legal="privacy-policy">Privacy Policy</a>
-          <a href="#" data-legal="cookie-policy">Cookie Policy</a>
-          <a href="#" data-legal="note-legali">Note Legali</a>
-          <a href="#" data-legal="disclaimer">Disclaimer</a>
+          <a href="/chi-siamo/" data-legal="chi-siamo">Chi Siamo</a>
+          <a href="/contatti/" data-legal="contatti">Contatti</a>
+          <a href="/privacy-policy/" data-legal="privacy-policy">Privacy Policy</a>
+          <a href="/cookie-policy/" data-legal="cookie-policy">Cookie Policy</a>
+          <a href="/note-legali/" data-legal="note-legali">Note Legali</a>
+          <a href="/disclaimer/" data-legal="disclaimer">Disclaimer</a>
         </div>
         <p class="dn-footer-copy">© 2026 Domizio News</p>
       </footer>`;
@@ -1273,6 +1278,7 @@
       // Back button da legal page (usa data-action per distinguere da altre back)
       if (t.closest('[data-action="back-legal"]')) {
         setState({ selectedLegalPage: null });
+        history.pushState(null, '', '/');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
@@ -1339,11 +1345,13 @@
         return;
       }
 
-      // Footer legal links
+      // Footer legal links — aggiorna URL così il link è condivisibile/indicizzabile
       const legal = t.closest('[data-legal]');
       if (legal) {
         e.preventDefault();
-        setState({ selectedLegalPage: legal.dataset.legal, selectedPost: null });
+        const slug = legal.dataset.legal;
+        setState({ selectedLegalPage: slug, selectedPost: null });
+        history.pushState({ legalPage: slug }, '', '/' + slug + '/');
         return;
       }
 
@@ -1538,8 +1546,13 @@
 
     // ── History navigation (back del browser dalla detail view) ─────────────
     window.onpopstate = (e) => {
+      const path = window.location.pathname.replace(/^\/|\/$/g, '');
+      if (LEGAL_SLUGS.includes(path)) {
+        setState({ selectedPost: null, selectedLegalPage: path });
+        return;
+      }
       if (!e.state || !e.state.postId) {
-        setState({ selectedPost: null });
+        setState({ selectedPost: null, selectedLegalPage: null });
         history.replaceState(null, '', '/');
       }
     };
@@ -1547,6 +1560,14 @@
 
   // ─── BOOT ───────────────────────────────────────────────────────────────────
   function boot() {
+    // Initial-load URL detection per le pagine legali: chi atterra da Google,
+    // da un link condiviso o da un bookmark su /<slug>/ deve vedere subito
+    // la pagina legale senza passare per il lookup articolo. Va impostato
+    // prima del primo render().
+    const bootSlug = window.location.pathname.replace(/^\/|\/$/g, '');
+    if (LEGAL_SLUGS.includes(bootSlug)) {
+      state.selectedLegalPage = bootSlug;
+    }
     render();
     setupGlobalDelegation();
     loadData().then(() => {
@@ -1554,7 +1575,7 @@
       const path = window.location.pathname;
       if (path && path !== '/' && !path.startsWith('/wp-')) {
         const slug = path.replace(/^\/|\/$/g, ''); // strip leading/trailing slashes
-        if (slug) {
+        if (slug && !LEGAL_SLUGS.includes(slug)) {
           fetch(`${CUSTOM_API}/feed?slug=${encodeURIComponent(slug)}&per_page=1`)
             .then(r => r.ok ? r.json() : null)
             .then(data => {
