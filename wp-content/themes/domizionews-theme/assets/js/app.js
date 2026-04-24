@@ -1380,14 +1380,14 @@
             if (!container) return;
             posts.forEach(p => {
               const art = document.createElement('article');
-              art.style.cssText = 'margin-bottom:0;padding:16px 0;border-bottom:1px solid #E8EAED;';
+              art.className = 'dn-archive-item';
               const date = p.time_ago
                 || (p.date ? new Date(p.date).toLocaleDateString('it-IT') : '');
               art.innerHTML =
-                '<a href="' + escHtml(p.permalink || '#') + '" style="text-decoration:none;color:#202124;display:block;">' +
-                  '<h2 style="font-size:16px;font-weight:500;margin:0 0 8px;">' + escHtml(decodeHtml(p.title || '')) + '</h2>' +
-                  '<p style="font-size:13px;color:#5F6368;margin:0;">' + escHtml(decodeHtml(p.excerpt || '')) + '</p>' +
-                  '<span style="font-size:12px;color:#9AA0A6;display:block;margin-top:6px;">' + escHtml(date) + '</span>' +
+                '<a href="' + escHtml(p.permalink || '#') + '" class="dn-archive-item-link">' +
+                  '<h2>' + escHtml(decodeHtml(p.title || '')) + '</h2>' +
+                  '<p>' + escHtml(decodeHtml(p.excerpt || '')) + '</p>' +
+                  '<span class="dn-archive-item-date">' + escHtml(date) + '</span>' +
                 '</a>';
               container.insertBefore(art, loadMore);
             });
@@ -1401,7 +1401,7 @@
                 ? '/citta/' + slug + '/page/' + (nextPage + 1) + '/'
                 : '/category/' + slug + '/page/' + (nextPage + 1) + '/';
               loadMore.setAttribute('href', basePath);
-              loadMore.textContent = origLabel || 'Vedi altri articoli';
+              loadMore.textContent = origLabel || 'Vedi altro';
               loadMore.style.opacity = '1';
             }
 

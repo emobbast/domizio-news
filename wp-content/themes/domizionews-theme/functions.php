@@ -247,9 +247,23 @@ function dnapp_rest_config(): WP_REST_Response {
 
     $cities = get_terms( [ 'taxonomy' => 'city', 'hide_empty' => false ] );
 
+    // Individual city terms hidden from the SPA chip menu: the aggregate
+    // terms 'cellole-baia-domizia' and 'falciano-carinola' already cover
+    // them. Direct URLs like /citta/cellole/ still resolve (SSR reads
+    // term from URL, not from this config).
+    $hidden_from_menu = [ 'cellole', 'baia-domizia', 'falciano', 'carinola' ];
+
+    $cities_payload = [];
+    if ( ! is_wp_error( $cities ) ) {
+        foreach ( $cities as $c ) {
+            if ( in_array( $c->slug, $hidden_from_menu, true ) ) continue;
+            $cities_payload[] = [ 'id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug ];
+        }
+    }
+
     return new WP_REST_Response( [
         'categories' => array_map( fn( $c ) => [ 'id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug ], $cats ),
-        'cities'     => ! is_wp_error( $cities ) ? array_map( fn( $c ) => [ 'id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug ], $cities ) : [],
+        'cities'     => $cities_payload,
         'site_name'  => get_bloginfo( 'name' ),
     ], 200 );
 }

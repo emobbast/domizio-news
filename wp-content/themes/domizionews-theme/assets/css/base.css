@@ -51,3 +51,185 @@ body.dnapp-body {
 #domizionews-root {
   padding-top: env(safe-area-inset-top);
 }
+
+/* ────────────────────────────────────────────────────────────────────
+   SSR pages (server-rendered)
+   Material Design 3 — violet primary #6750A4, Roboto, 430px mobile-first.
+   Usate da index.php quando il tema rende in SSR per Googlebot e per
+   utenti che atterrano da Google / shared link prima dell'hydration SPA.
+   Single source of truth: le stesse classi coprono single article,
+   legal pages, archivi tassonomici (città / categoria), home fallback.
+   ──────────────────────────────────────────────────────────────────── */
+
+.dn-ssr-main {
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 16px;
+  font-family: 'Roboto', Arial, sans-serif;
+  color: #202124;
+}
+
+/* Torna-alla-home link (↑ sopra breadcrumb su articoli e pagine) */
+.dn-back-link {
+  display: block;
+  color: #1A73E8;
+  font-size: 14px;
+  text-decoration: none;
+  margin-bottom: 12px;
+}
+.dn-back-link:hover { text-decoration: underline; }
+
+/* H1 generica SSR — articolo, pagina, archivio, home */
+.dn-ssr-h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: #202124;
+  line-height: 1.25;
+}
+
+/* Data di pubblicazione sotto H1 (single article) */
+.dn-ssr-date {
+  font-size: 12px;
+  color: #9AA0A6;
+  margin: 0 0 16px;
+}
+
+/* Lead paragraph (home SSR) */
+.dn-ssr-lead {
+  font-size: 14px;
+  color: #5F6368;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+/* Hero image su articolo singolo */
+.dn-ssr-hero {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  margin: 0 0 16px;
+  height: auto;
+}
+
+/* Corpo articolo / legal page */
+.dn-ssr-content {
+  font-size: 16px;
+  line-height: 1.7;
+  color: #202124;
+}
+.dn-ssr-content h2,
+.dn-ssr-content h3 {
+  color: #202124;
+  margin: 1.5em 0 0.5em;
+}
+.dn-ssr-content p { margin: 0 0 1em; }
+.dn-ssr-content a { color: #6750A4; }
+.dn-ssr-content ul,
+.dn-ssr-content ol { padding-left: 1.5em; margin: 0 0 1em; }
+
+/* Breadcrumb (articolo + archivi) */
+.dn-breadcrumb {
+  font-size: 13px;
+  color: #5F6368;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.dn-breadcrumb a {
+  color: #1A73E8;
+  text-decoration: none;
+}
+.dn-breadcrumb a:hover { text-decoration: underline; }
+.dn-breadcrumb-sep {
+  color: #9AA0A6;
+  margin: 0 2px;
+}
+
+/* Etichetta "Pagina N" su archivi paginati */
+.dn-archive-page-label {
+  font-size: 13px;
+  color: #5F6368;
+  margin: 0 0 16px;
+}
+
+/* Lista card (archivi tassonomici + home) */
+.dn-archive-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.dn-archive-item {
+  border-bottom: 1px solid #E8EAED;
+  padding: 16px 0;
+}
+.dn-archive-item:last-child { border-bottom: none; }
+.dn-archive-item-link {
+  text-decoration: none;
+  color: #202124;
+  display: block;
+}
+.dn-archive-item-link h2 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0 0 8px;
+  color: #202124;
+  line-height: 1.35;
+}
+.dn-archive-item-link p {
+  font-size: 13px;
+  color: #5F6368;
+  margin: 0;
+  line-height: 1.5;
+}
+.dn-archive-item-date {
+  font-size: 12px;
+  color: #9AA0A6;
+  display: block;
+  margin-top: 6px;
+}
+
+/* Stato vuoto archivio */
+.dn-archive-empty {
+  color: #5F6368;
+  padding: 24px 0;
+  font-size: 14px;
+}
+
+/* Primary button (CTA "Vedi altro" su archivi paginati) */
+.dn-btn-primary {
+  display: block;
+  text-align: center;
+  padding: 12px 24px;
+  background: #6750A4;
+  color: #fff !important;
+  text-decoration: none;
+  border-radius: 8px;
+  margin: 24px 0;
+  font-weight: 500;
+  font-size: 14px;
+  transition: opacity 0.15s ease;
+}
+.dn-btn-primary:hover { opacity: 0.9; }
+
+/* Footer legale (6 link) */
+.dn-ssr-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid #E8EAED;
+}
+.dn-ssr-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 13px;
+}
+.dn-ssr-footer-nav a {
+  color: #1A73E8;
+  text-decoration: none;
+}
+.dn-ssr-footer-nav a:hover { text-decoration: underline; }
+.dn-ssr-footer-copy {
+  margin: 12px 0 0;
+  color: #9AA0A6;
+  font-size: 12px;
+}

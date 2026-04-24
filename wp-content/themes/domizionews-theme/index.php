@@ -17,6 +17,34 @@ $is_category_arch = is_category();
 $archive_term     = ($is_city_archive || $is_category_arch) ? get_queried_object() : null;
 $archive_paged    = max(1, (int) get_query_var('paged'));
 
+// Build the archive WP_Query eagerly (reused by wp_head rel=prev/next and
+// by the body loop). Forces posts_per_page=20 regardless of admin Reading
+// Settings, and uses term_id/cat for a clean tax filter.
+$archive_query = null;
+$archive_total_pages = 1;
+if (($is_city_archive || $is_category_arch) && $archive_term && !is_wp_error($archive_term)) {
+  $_archive_args = [
+    'post_type'      => 'post',
+    'post_status'    => 'publish',
+    'posts_per_page' => 20,
+    'paged'          => $archive_paged,
+    'orderby'        => 'date',
+    'order'          => 'DESC',
+    'ignore_sticky_posts' => true,
+  ];
+  if ($is_city_archive) {
+    $_archive_args['tax_query'] = [[
+      'taxonomy' => 'city',
+      'field'    => 'term_id',
+      'terms'    => $archive_term->term_id,
+    ]];
+  } else {
+    $_archive_args['cat'] = $archive_term->term_id;
+  }
+  $archive_query = new WP_Query($_archive_args);
+  $archive_total_pages = (int) $archive_query->max_num_pages;
+}
+
 // ── SEO META ─────────────────────────────────────────────────────────────────
 if ($single_post) {
   $seo_title     = wp_strip_all_tags($single_post->post_title) . ' | Domizio News';
@@ -97,9 +125,8 @@ add_action('wp_head', function() use ($seo_title, $seo_desc, $seo_image, $seo_ca
 
 // ── rel=prev/next + BreadcrumbList per archivi città/categoria ───────────────
 if (($is_city_archive || $is_category_arch) && $archive_term && !is_wp_error($archive_term)) {
-  add_action('wp_head', function() use ($archive_term, $archive_paged, $is_city_archive) {
-    global $wp_query;
-    $total = isset($wp_query->max_num_pages) ? (int) $wp_query->max_num_pages : 1;
+  add_action('wp_head', function() use ($archive_term, $archive_paged, $is_city_archive, $archive_total_pages) {
+    $total = $archive_total_pages;
     $base  = get_term_link($archive_term);
     if (is_wp_error($base)) return;
 
@@ -192,18 +219,18 @@ if ($single_post) {
   $cat    = !empty($cats) ? $cats[0] : null;
   $cities = wp_get_post_terms($single_post->ID, 'city');
   $city   = (!is_wp_error($cities) && !empty($cities)) ? $cities[0] : null;
-  $parts  = ['<a href="' . esc_url(home_url('/')) . '" style="color:#1A73E8;text-decoration:none;">Home</a>'];
+  $parts  = ['<a href="' . esc_url(home_url('/')) . '">Home</a>'];
   if ($cat) {
-    $parts[] = '<a href="' . esc_url(get_category_link($cat->term_id)) . '" style="color:#1A73E8;text-decoration:none;">' . esc_html($cat->name) . '</a>';
+    $parts[] = '<a href="' . esc_url(get_category_link($cat->term_id)) . '">' . esc_html($cat->name) . '</a>';
   }
   if ($city) {
     $city_link = get_term_link($city);
     if (!is_wp_error($city_link)) {
-      $parts[] = '<a href="' . esc_url($city_link) . '" style="color:#1A73E8;text-decoration:none;">' . esc_html($city->name) . '</a>';
+      $parts[] = '<a href="' . esc_url($city_link) . '">' . esc_html($city->name) . '</a>';
     }
   }
-  $single_breadcrumb_html = '<nav aria-label="Breadcrumb" style="font-size:13px;color:#5F6368;margin:0 0 12px;line-height:1.5;">'
-    . implode(' <span style="color:#9AA0A6;">›</span> ', $parts)
+  $single_breadcrumb_html = '<nav aria-label="Breadcrumb" class="dn-breadcrumb">'
+    . implode(' <span class="dn-breadcrumb-sep">›</span> ', $parts)
     . '</nav>';
 }
 ?>
@@ -218,42 +245,41 @@ if ($is_city_archive)      $ssr_body_class = 'dn-archive-ssr dn-archive-city';
 elseif ($is_category_arch) $ssr_body_class = 'dn-archive-ssr dn-archive-category';
 ?>
 <div id="domizionews-root">
-  <main<?php echo $ssr_body_class ? ' class="' . esc_attr($ssr_body_class) . '"' : ''; ?> style="font-family:sans-serif;max-width:430px;margin:0 auto;padding:16px;">
+  <main class="dn-ssr-main<?php echo $ssr_body_class ? ' ' . esc_attr($ssr_body_class) : ''; ?>">
 
     <?php if ($single_post): ?>
       <!-- Single article SSR for crawlers -->
-      <a href="<?php echo esc_url(home_url('/')); ?>" style="color:#1A73E8;font-size:14px;display:block;margin-bottom:12px;">← Domizio News</a>
+      <a href="<?php echo esc_url(home_url('/')); ?>" class="dn-back-link">← Domizio News</a>
       <?php echo $single_breadcrumb_html; ?>
-      <h1 style="font-size:22px;font-weight:700;margin:0 0 12px;color:#202124;">
+      <h1 class="dn-ssr-h1">
         <?php echo wp_strip_all_tags($single_post->post_title); ?>
       </h1>
-      <p style="font-size:12px;color:#9AA0A6;margin-bottom:16px;">
+      <p class="dn-ssr-date">
         <?php echo get_the_date('d/m/Y', $single_post); ?>
       </p>
       <?php
         $img = get_the_post_thumbnail_url($single_post->ID, 'large') ?: get_post_meta($single_post->ID, '_dnap_external_image', true);
         if ($img): ?>
-      <img src="<?php echo esc_url($img); ?>" style="width:100%;border-radius:8px;margin-bottom:16px;" alt="">
+      <img src="<?php echo esc_url($img); ?>" class="dn-ssr-hero" alt="">
       <?php endif; ?>
-      <div style="font-size:16px;line-height:1.7;color:#202124;">
+      <div class="dn-ssr-content">
         <?php echo wp_kses_post(apply_filters('the_content', $single_post->post_content)); ?>
       </div>
 
     <?php elseif ($page_obj): ?>
       <!-- WordPress Page SSR -->
-      <a href="<?php echo esc_url(home_url('/')); ?>" style="color:#1A73E8;font-size:14px;display:block;margin-bottom:16px;">← Domizio News</a>
-      <h1 style="font-size:22px;font-weight:700;margin:0 0 12px;color:#202124;">
+      <a href="<?php echo esc_url(home_url('/')); ?>" class="dn-back-link">← Domizio News</a>
+      <h1 class="dn-ssr-h1">
         <?php echo esc_html(get_the_title($page_obj)); ?>
       </h1>
-      <div style="font-size:16px;line-height:1.7;color:#202124;">
+      <div class="dn-ssr-content">
         <?php echo wp_kses_post(apply_filters('the_content', $page_obj->post_content)); ?>
       </div>
 
-    <?php elseif (($is_city_archive || $is_category_arch) && $archive_term): ?>
+    <?php elseif (($is_city_archive || $is_category_arch) && $archive_term && $archive_query): ?>
       <!-- Taxonomy archive SSR (city / category) -->
       <?php
-        global $wp_query;
-        $archive_total = isset($wp_query->max_num_pages) ? (int) $wp_query->max_num_pages : 1;
+        $archive_total = $archive_total_pages;
         $archive_base  = get_term_link($archive_term);
         if (is_wp_error($archive_base)) $archive_base = home_url('/');
         $archive_h1    = $is_city_archive
@@ -264,27 +290,27 @@ elseif ($is_category_arch) $ssr_body_class = 'dn-archive-ssr dn-archive-category
         $archive_next_url  = $archive_base . 'page/' . ($archive_paged + 1) . '/';
         $archive_kind_attr = $is_city_archive ? 'city' : 'category';
       ?>
-      <a href="<?php echo esc_url(home_url('/')); ?>" style="color:#1A73E8;font-size:14px;display:block;margin-bottom:12px;">← Domizio News</a>
-      <nav aria-label="Breadcrumb" style="font-size:13px;color:#5F6368;margin:0 0 12px;line-height:1.5;">
-        <a href="<?php echo esc_url(home_url('/')); ?>" style="color:#1A73E8;text-decoration:none;">Home</a>
-        <span style="color:#9AA0A6;"> › </span>
-        <a href="<?php echo esc_url($archive_lvl2_url); ?>" style="color:#1A73E8;text-decoration:none;"><?php echo esc_html($archive_lvl2_name); ?></a>
-        <span style="color:#9AA0A6;"> › </span>
+      <a href="<?php echo esc_url(home_url('/')); ?>" class="dn-back-link">← Domizio News</a>
+      <nav aria-label="Breadcrumb" class="dn-breadcrumb">
+        <a href="<?php echo esc_url(home_url('/')); ?>">Home</a>
+        <span class="dn-breadcrumb-sep"> › </span>
+        <a href="<?php echo esc_url($archive_lvl2_url); ?>"><?php echo esc_html($archive_lvl2_name); ?></a>
+        <span class="dn-breadcrumb-sep"> › </span>
         <span><?php echo esc_html($archive_term->name); ?></span>
       </nav>
-      <h1 style="font-size:24px;font-weight:700;margin:0 0 16px;color:#202124;"><?php echo $archive_h1; ?></h1>
+      <h1 class="dn-ssr-h1"><?php echo $archive_h1; ?></h1>
       <?php if ($archive_paged > 1): ?>
-      <p style="font-size:13px;color:#5F6368;margin:0 0 16px;">Pagina <?php echo (int) $archive_paged; ?></p>
+      <p class="dn-archive-page-label">Pagina <?php echo (int) $archive_paged; ?></p>
       <?php endif; ?>
 
-      <?php if (have_posts()): ?>
-        <ul style="list-style:none;padding:0;margin:0;">
-          <?php while (have_posts()): the_post(); ?>
-          <li style="border-bottom:1px solid #E8EAED;padding:16px 0;">
-            <a href="<?php the_permalink(); ?>" style="text-decoration:none;color:#202124;">
-              <h2 style="font-size:16px;font-weight:500;margin:0 0 8px;"><?php the_title(); ?></h2>
-              <p style="font-size:13px;color:#5F6368;margin:0;"><?php echo wp_trim_words(get_the_excerpt(), 28); ?></p>
-              <span style="font-size:12px;color:#9AA0A6;display:block;margin-top:6px;"><?php echo get_the_date('d/m/Y'); ?></span>
+      <?php if ($archive_query->have_posts()): ?>
+        <ul class="dn-archive-list">
+          <?php while ($archive_query->have_posts()): $archive_query->the_post(); ?>
+          <li class="dn-archive-item">
+            <a href="<?php the_permalink(); ?>" class="dn-archive-item-link">
+              <h2><?php the_title(); ?></h2>
+              <p><?php echo wp_trim_words(get_the_excerpt(), 28); ?></p>
+              <span class="dn-archive-item-date"><?php echo get_the_date('d/m/Y'); ?></span>
             </a>
           </li>
           <?php endwhile; wp_reset_postdata(); ?>
@@ -292,16 +318,15 @@ elseif ($is_category_arch) $ssr_body_class = 'dn-archive-ssr dn-archive-category
 
         <?php if ($archive_paged < $archive_total): ?>
         <a href="<?php echo esc_url($archive_next_url); ?>"
-           class="dn-load-more"
+           class="dn-load-more dn-btn-primary"
            data-next-page="<?php echo (int) ($archive_paged + 1); ?>"
            data-archive-type="<?php echo esc_attr($archive_kind_attr); ?>"
-           data-archive-slug="<?php echo esc_attr($archive_term->slug); ?>"
-           style="display:block;text-align:center;padding:12px 24px;background:#6750A4;color:#fff;text-decoration:none;border-radius:8px;margin:24px 0;font-weight:500;">
-          Vedi altri articoli
+           data-archive-slug="<?php echo esc_attr($archive_term->slug); ?>">
+          Vedi altro
         </a>
         <?php endif; ?>
       <?php else: ?>
-        <p style="color:#5F6368;padding:24px 0;">
+        <p class="dn-archive-empty">
           <?php echo $is_city_archive
             ? 'Nessun articolo disponibile per questa città.'
             : 'Nessun articolo disponibile per questa categoria.'; ?>
@@ -310,36 +335,36 @@ elseif ($is_category_arch) $ssr_body_class = 'dn-archive-ssr dn-archive-category
 
     <?php else: ?>
       <!-- Home SSR: latest posts list -->
-      <h1 style="font-size:22px;font-weight:700;margin-bottom:16px;">
+      <h1 class="dn-ssr-h1">
         Domizio News — Notizie dal Litorale Domizio
       </h1>
-      <p style="font-size:14px;color:#5F6368;margin-bottom:24px;">
+      <p class="dn-ssr-lead">
         Notizie locali da Mondragone, Castel Volturno, Baia Domizia,
         Cellole, Falciano del Massico, Carinola e Sessa Aurunca.
       </p>
-      <ul style="list-style:none;padding:0;margin:0;">
+      <ul class="dn-archive-list">
         <?php while ($latest && $latest->have_posts()): $latest->the_post(); ?>
-        <li style="border-bottom:1px solid #E0E0E0;padding:16px 0;">
-          <a href="<?php the_permalink(); ?>" style="text-decoration:none;color:#202124;">
-            <h2 style="font-size:16px;font-weight:500;margin:0 0 8px;"><?php the_title(); ?></h2>
-            <p style="font-size:13px;color:#5F6368;margin:0;"><?php echo wp_trim_words(get_the_excerpt(), 20); ?></p>
-            <span style="font-size:12px;color:#9AA0A6;display:block;margin-top:6px;"><?php echo get_the_date('d/m/Y'); ?></span>
+        <li class="dn-archive-item">
+          <a href="<?php the_permalink(); ?>" class="dn-archive-item-link">
+            <h2><?php the_title(); ?></h2>
+            <p><?php echo wp_trim_words(get_the_excerpt(), 20); ?></p>
+            <span class="dn-archive-item-date"><?php echo get_the_date('d/m/Y'); ?></span>
           </a>
         </li>
         <?php endwhile; if ($latest) wp_reset_postdata(); ?>
       </ul>
     <?php endif; ?>
 
-    <footer style="margin-top:32px;padding-top:16px;border-top:1px solid #E8EAED;">
-      <nav style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;">
-        <a href="/chi-siamo/" style="color:#1A73E8;">Chi Siamo</a>
-        <a href="/contatti/" style="color:#1A73E8;">Contatti</a>
-        <a href="/privacy-policy/" style="color:#1A73E8;">Privacy Policy</a>
-        <a href="/cookie-policy/" style="color:#1A73E8;">Cookie Policy</a>
-        <a href="/note-legali/" style="color:#1A73E8;">Note Legali</a>
-        <a href="/disclaimer/" style="color:#1A73E8;">Disclaimer</a>
+    <footer class="dn-ssr-footer">
+      <nav class="dn-ssr-footer-nav">
+        <a href="/chi-siamo/">Chi Siamo</a>
+        <a href="/contatti/">Contatti</a>
+        <a href="/privacy-policy/">Privacy Policy</a>
+        <a href="/cookie-policy/">Cookie Policy</a>
+        <a href="/note-legali/">Note Legali</a>
+        <a href="/disclaimer/">Disclaimer</a>
       </nav>
-      <p style="margin:12px 0 0;color:#9AA0A6;font-size:12px;">© <?php echo esc_html(date('Y')); ?> Domizio News</p>
+      <p class="dn-ssr-footer-copy">© <?php echo esc_html(date('Y')); ?> Domizio News</p>
     </footer>
   </main>
 </div>

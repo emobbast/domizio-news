@@ -63,13 +63,23 @@ function dnap_register_city_taxonomy() {
    ============================================================ */
 add_action('init', 'dnap_ensure_aggregate_city_terms', 10);
 function dnap_ensure_aggregate_city_terms() {
+    // Label senza slash ("e" al posto di "/"): leggibile, Material Design–friendly.
+    // Slug non cambiano: /citta/cellole-baia-domizia/ e /citta/falciano-carinola/
+    // sono già indicizzati, cambiarli romperebbe i permalink.
     $aggregates = [
-        'cellole-baia-domizia' => 'Cellole / Baia Domizia',
-        'falciano-carinola'    => 'Falciano / Carinola',
+        'cellole-baia-domizia' => 'Cellole e Baia Domizia',
+        'falciano-carinola'    => 'Falciano e Carinola',
     ];
     foreach ($aggregates as $slug => $name) {
-        if (!term_exists($slug, 'city')) {
+        $existing = term_exists($slug, 'city');
+        if (!$existing) {
             wp_insert_term($name, 'city', ['slug' => $slug]);
+            continue;
+        }
+        $term_id = is_array($existing) ? (int) $existing['term_id'] : (int) $existing;
+        $term    = get_term($term_id, 'city');
+        if ($term && !is_wp_error($term) && $term->name !== $name) {
+            wp_update_term($term_id, 'city', ['name' => $name]);
         }
     }
 }
