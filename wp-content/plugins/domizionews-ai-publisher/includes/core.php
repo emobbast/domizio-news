@@ -53,6 +53,28 @@ function dnap_register_city_taxonomy() {
 }
 
 /* ============================================================
+   AGGREGATE CITY TERMS
+   Virtual slugs che raggruppano coppie geografiche vicine
+   ("Cellole e Baia Domizia", "Falciano e Carinola") esposte
+   come slot unico nella home SPA. I termini sono creati qui
+   così esistono nel DB e i loro archivi /citta/<slug>/ sono
+   crawlabili da Googlebot anche prima che gli articoli siano
+   riassegnati (riassegnazione via WP-CLI post-deploy).
+   ============================================================ */
+add_action('init', 'dnap_ensure_aggregate_city_terms', 10);
+function dnap_ensure_aggregate_city_terms() {
+    $aggregates = [
+        'cellole-baia-domizia' => 'Cellole / Baia Domizia',
+        'falciano-carinola'    => 'Falciano / Carinola',
+    ];
+    foreach ($aggregates as $slug => $name) {
+        if (!term_exists($slug, 'city')) {
+            wp_insert_term($name, 'city', ['slug' => $slug]);
+        }
+    }
+}
+
+/* ============================================================
    AUTORE "REDAZIONE"
    ============================================================ */
 function dnap_get_redazione_author() {

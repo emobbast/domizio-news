@@ -254,6 +254,19 @@ add_filter( 'robots_txt', function ( $output ) {
     return $output;
 }, 10, 2 );
 
+// ─── SITEMAP: includi la tassonomia 'city' ───────────────────────────────────
+// WP core (5.5+) espone il sitemap XML su /wp-sitemap.xml ma include solo
+// le tassonomie registrate con public=true di default. 'city' lo è, ma il
+// provider core non la vede se show_in_rest è impostato dopo il filtro
+// iniziale — questo filtro la riaggiunge in modo esplicito così Googlebot
+// trova tutti gli URL /citta/<slug>/ direttamente dalla sitemap.
+add_filter( 'wp_sitemaps_taxonomies', function ( $taxonomies ) {
+    if ( ! isset( $taxonomies['city'] ) && taxonomy_exists( 'city' ) ) {
+        $taxonomies['city'] = get_taxonomy( 'city' );
+    }
+    return $taxonomies;
+} );
+
 // ─── REDIRECT SPA: tutte le URL → index.php ──────────────────────────────────
 // Così i link interni della React app non danno 404
 add_action( 'template_redirect', function () {

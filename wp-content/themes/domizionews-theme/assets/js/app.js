@@ -166,6 +166,7 @@
     render();
     requestAnimationFrame(() => restoreChipScroll(chipScroll));
     scrollToTopIfViewChanged(state, oldState);
+    syncBrowsingTitle();
   }
 
   // ─── API ────────────────────────────────────────────────────────────────────
@@ -196,6 +197,42 @@
     'cellole-baia-domizia': 'cellole',
     'falciano-carinola':    'falciano-del-massico',
   };
+
+  // Titolo fallback della home: viene ripristinato quando nessuna città e
+  // nessun chip-categoria sono selezionati. Replicato qui perché _origTitle
+  // (catturato al boot) può contenere il titolo SSR di una vista non-home
+  // quando l'utente atterra direttamente su /citta/<slug>/ o /category/<slug>/
+  const HOME_DEFAULT_TITLE = 'Domizio News — Notizie dal Litorale Domizio';
+
+  function capitalizeFirst(s) {
+    if (!s) return '';
+    const clean = String(s).replace(/-/g, ' ');
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+  }
+
+  // Aggiorna document.title in base alla vista corrente. Chiamato dopo ogni
+  // setState(), dal boot() iniziale e dal popstate. Ramificazioni:
+  //   - selectedPost → lasciato a updateArticleHead()
+  //   - selectedLegalPage → lasciato al flow esistente (titolo SSR)
+  //   - tab=cities + selectedCity → "<Nome città> | Domizio News"
+  //   - tab=home + activeHomeCat → "<Nome categoria> | Domizio News"
+  //   - default → HOME_DEFAULT_TITLE
+  function syncBrowsingTitle() {
+    if (state.selectedPost)      return;
+    if (state.selectedLegalPage) return;
+    if (state.tab === 'cities' && state.selectedCity) {
+      const label = CITY_SLUG_LABELS[state.selectedCity] || capitalizeFirst(state.selectedCity);
+      document.title = label + ' | Domizio News';
+      return;
+    }
+    if (state.tab === 'home' && state.activeHomeCat) {
+      const cat = HOME_CATEGORIES.find(c => c.slug === state.activeHomeCat);
+      const name = cat ? cat.name : capitalizeFirst(state.activeHomeCat);
+      document.title = name + ' | Domizio News';
+      return;
+    }
+    document.title = HOME_DEFAULT_TITLE;
+  }
 
   // Carica post filtrati per città (tab Città).
   // GET /wp-json/domizio/v1/posts?city=SLUG&per_page=20
@@ -705,7 +742,11 @@
         ${buildHeader()}
         <div class="dn-detail-header">
           <div style="width:32px;"></div>
-          <span style="font-size:16px;font-weight:500;color:var(--color-text);">Città</span>
+          <span style="font-size:16px;font-weight:500;color:var(--color-text);">${
+            state.selectedCity
+              ? escHtml(CITY_SLUG_LABELS[state.selectedCity] || capitalizeFirst(state.selectedCity))
+              : 'Città'
+          }</span>
           <div style="width:32px;"></div>
         </div>
         <main>
@@ -1284,6 +1325,82 @@
     root.addEventListener('click', (e) => {
       const t = e.target;
 
+      // ── "Vedi altri articoli" — progressive enhancement ────────────────────
+      // Il bottone è renderizzato dal SSR archive (index.php) come <a> con
+      // href=/citta/<slug>/page/N/ — Googlebot lo segue nativamente. Qui lo
+      // intercettiamo per utenti con JS: fetch della pagina successiva via
+      // REST, inserimento card prima del bottone, pushState dell'URL. Niente
+      // full-page reload. Rispettiamo Ctrl/Cmd/Shift+click per l'apertura
+      // nativa in nuova tab.
+      const loadMore = t.closest('.dn-load-more');
+      if (loadMore) {
+        if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+        e.preventDefault();
+
+        const nextPage = parseInt(loadMore.dataset.nextPage, 10);
+        const type     = loadMore.dataset.archiveType; // 'city' | 'category'
+        const slug     = loadMore.dataset.archiveSlug;
+        if (!nextPage || !slug || !type) return;
+
+        const origLabel = loadMore.textContent;
+        loadMore.textContent = 'Caricamento...';
+        loadMore.style.opacity = '0.6';
+
+        const param = type === 'city' ? 'city' : 'category';
+        const url   = `${DOMIZIO_API}/posts?${param}=${encodeURIComponent(slug)}&page=${nextPage}&per_page=20`;
+        fetch(url)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            const posts = (data && data.posts) ? data.posts : [];
+            if (posts.length === 0) {
+              loadMore.remove();
+              return;
+            }
+            const container = loadMore.parentElement;
+            if (!container) return;
+            posts.forEach(p => {
+              const art = document.createElement('article');
+              art.style.cssText = 'margin-bottom:0;padding:16px 0;border-bottom:1px solid #E8EAED;';
+              const date = p.time_ago
+                || (p.date ? new Date(p.date).toLocaleDateString('it-IT') : '');
+              art.innerHTML =
+                '<a href="' + escHtml(p.permalink || '#') + '" style="text-decoration:none;color:#202124;display:block;">' +
+                  '<h2 style="font-size:16px;font-weight:500;margin:0 0 8px;">' + escHtml(decodeHtml(p.title || '')) + '</h2>' +
+                  '<p style="font-size:13px;color:#5F6368;margin:0;">' + escHtml(decodeHtml(p.excerpt || '')) + '</p>' +
+                  '<span style="font-size:12px;color:#9AA0A6;display:block;margin-top:6px;">' + escHtml(date) + '</span>' +
+                '</a>';
+              container.insertBefore(art, loadMore);
+            });
+
+            const totalPages = data && data.total_pages ? parseInt(data.total_pages, 10) : nextPage;
+            if (nextPage >= totalPages || posts.length < 20) {
+              loadMore.remove();
+            } else {
+              loadMore.dataset.nextPage = nextPage + 1;
+              const basePath = type === 'city'
+                ? '/citta/' + slug + '/page/' + (nextPage + 1) + '/'
+                : '/category/' + slug + '/page/' + (nextPage + 1) + '/';
+              loadMore.setAttribute('href', basePath);
+              loadMore.textContent = origLabel || 'Vedi altri articoli';
+              loadMore.style.opacity = '1';
+            }
+
+            const curPath = type === 'city'
+              ? '/citta/' + slug + '/page/' + nextPage + '/'
+              : '/category/' + slug + '/page/' + nextPage + '/';
+            history.pushState(
+              { archiveType: type, archiveSlug: slug, page: nextPage },
+              '',
+              curPath
+            );
+          })
+          .catch(() => {
+            loadMore.textContent = 'Errore — riprova';
+            loadMore.style.opacity = '1';
+          });
+        return;
+      }
+
       // Back button da legal page (usa data-action per distinguere da altre back)
       if (t.closest('[data-action="back-legal"]')) {
         setState({ selectedLegalPage: null });
@@ -1409,8 +1526,10 @@
         if (!slug) {
           // "Tutte": ripristina le sezioni per città caricate al boot
           setState({ activeHomeCat: '', homeCatPosts: {}, homeCatLoading: false });
+          history.pushState({}, '', '/');
         } else {
           loadCategoryFeed(slug);
+          history.pushState({ categoryPage: slug }, '', '/category/' + slug + '/');
         }
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
@@ -1424,6 +1543,7 @@
         const slug = gotoCity.dataset.gotoCity;
         setState({ tab: 'cities', selectedCity: slug, cityFeed: [], cityFeedLoading: true });
         loadCityFeed(slug);
+        history.pushState({ cityPage: slug }, '', '/citta/' + slug + '/');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
@@ -1435,6 +1555,13 @@
         const newSlug = state.selectedCity === slug ? '' : slug;
         setState({ selectedCity: newSlug, cityFeed: [], cityFeedLoading: !!newSlug });
         loadCityFeed(newSlug);
+        if (newSlug) {
+          history.pushState({ cityPage: newSlug }, '', '/citta/' + newSlug + '/');
+        } else {
+          // Deselezione: niente city attiva → feed generale. Non esiste
+          // un archivio /citta/ root, torniamo a '/' per un URL canonico.
+          history.pushState({}, '', '/');
+        }
         return;
       }
 
@@ -1554,36 +1681,100 @@
     });
 
     // ── History navigation (back del browser dalla detail view) ─────────────
+    // Ordine di precedenza:
+    //   1. Legal slug (exact match su LEGAL_SLUGS)
+    //   2. /citta/<slug>/ o /citta/<slug>/page/N/
+    //   3. /category/<slug>/ o /category/<slug>/page/N/
+    //   4. articolo singolo (detect via e.state.postId)
+    //   5. fallback: home root
     window.onpopstate = (e) => {
       const path = window.location.pathname.replace(/^\/|\/$/g, '');
+
       if (LEGAL_SLUGS.includes(path)) {
         setState({ selectedPost: null, selectedLegalPage: path });
         return;
       }
+
+      const cityMatch = path.match(/^citta\/([^/]+?)(?:\/page\/(\d+))?$/);
+      if (cityMatch) {
+        const slug = cityMatch[1];
+        setState({
+          tab: 'cities',
+          selectedCity: slug,
+          selectedPost: null,
+          selectedLegalPage: null,
+          cityFeed: [],
+          cityFeedLoading: true,
+        });
+        loadCityFeed(slug);
+        return;
+      }
+
+      const catMatch = path.match(/^category\/([^/]+?)(?:\/page\/(\d+))?$/);
+      if (catMatch) {
+        const slug = catMatch[1];
+        setState({
+          tab: 'home',
+          activeHomeCat: slug,
+          selectedPost: null,
+          selectedLegalPage: null,
+          selectedCity: '',
+        });
+        loadCategoryFeed(slug);
+        return;
+      }
+
       if (!e.state || !e.state.postId) {
-        setState({ selectedPost: null, selectedLegalPage: null });
-        history.replaceState(null, '', '/');
+        setState({
+          selectedPost: null,
+          selectedLegalPage: null,
+          selectedCity: '',
+          activeHomeCat: '',
+          tab: 'home',
+        });
       }
     };
   }
 
   // ─── BOOT ───────────────────────────────────────────────────────────────────
   function boot() {
-    // Initial-load URL detection per le pagine legali: chi atterra da Google,
-    // da un link condiviso o da un bookmark su /<slug>/ deve vedere subito
-    // la pagina legale senza passare per il lookup articolo. Va impostato
-    // prima del primo render().
-    const bootSlug = window.location.pathname.replace(/^\/|\/$/g, '');
-    if (LEGAL_SLUGS.includes(bootSlug)) {
-      state.selectedLegalPage = bootSlug;
+    // Initial-load URL detection. Precedenza:
+    //   1. Legal slug (match esatto su LEGAL_SLUGS)
+    //   2. /citta/<slug>/ o /citta/<slug>/page/N/
+    //   3. /category/<slug>/ o /category/<slug>/page/N/
+    //   4. fallback: pretty permalink → lookup articolo dopo loadData()
+    // I primi tre rami vanno impostati PRIMA del primo render() così
+    // Googlebot, share link e bookmark atterrano direttamente sulla vista
+    // corretta senza un flash di home.
+    const bootPath  = window.location.pathname.replace(/^\/|\/$/g, '');
+    const cityBoot  = bootPath.match(/^citta\/([^/]+?)(?:\/page\/(\d+))?$/);
+    const catBoot   = bootPath.match(/^category\/([^/]+?)(?:\/page\/(\d+))?$/);
+    const isLegal   = LEGAL_SLUGS.includes(bootPath);
+
+    if (isLegal) {
+      state.selectedLegalPage = bootPath;
+    } else if (cityBoot) {
+      state.tab             = 'cities';
+      state.selectedCity    = cityBoot[1];
+      state.cityFeedLoading = true;
+    } else if (catBoot) {
+      state.tab            = 'home';
+      state.activeHomeCat  = catBoot[1];
+      state.homeCatLoading = true;
     }
+
     render();
+    syncBrowsingTitle();
     setupGlobalDelegation();
     loadData().then(() => {
+      if (cityBoot)  { loadCityFeed(cityBoot[1]);    return; }
+      if (catBoot)   { loadCategoryFeed(catBoot[1]); return; }
+      if (isLegal)   return;
+
       // Check if we landed on a pretty permalink (e.g. /titolo-articolo/)
       const path = window.location.pathname;
       if (path && path !== '/' && !path.startsWith('/wp-')) {
-        const slug = path.replace(/^\/|\/$/g, ''); // strip leading/trailing slashes
+        const slug = path.replace(/^\/|\/$/g, '');
         if (slug && !LEGAL_SLUGS.includes(slug)) {
           fetch(`${CUSTOM_API}/feed?slug=${encodeURIComponent(slug)}&per_page=1`)
             .then(r => r.ok ? r.json() : null)
