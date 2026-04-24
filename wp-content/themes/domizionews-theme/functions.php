@@ -73,11 +73,14 @@ add_action( 'init', function () {
 add_action( 'wp_enqueue_scripts', function () {
 
     // CSS reset + base
+    // Use filemtime() so browsers re-download after every edit
+    // instead of serving a stale cached copy under a fixed version.
+    $base_css_path = DNAPP_DIR . '/assets/css/base.css';
     wp_enqueue_style(
         'dnapp-base',
         DNAPP_URL . '/assets/css/base.css',
         [],
-        DNAPP_VERSION
+        file_exists( $base_css_path ) ? filemtime( $base_css_path ) : DNAPP_VERSION
     );
 
     // React bundle (compilato con Vite)
@@ -88,7 +91,7 @@ add_action( 'wp_enqueue_scripts', function () {
             'dnapp-react',
             DNAPP_URL . '/assets/js/app.js',
             [],
-            DNAPP_VERSION,
+            filemtime( $bundle ),
             true
         );
     }
@@ -251,7 +254,7 @@ function dnapp_rest_config(): WP_REST_Response {
     // terms 'cellole-baia-domizia' and 'falciano-carinola' already cover
     // them. Direct URLs like /citta/cellole/ still resolve (SSR reads
     // term from URL, not from this config).
-    $hidden_from_menu = [ 'cellole', 'baia-domizia', 'falciano', 'carinola' ];
+    $hidden_from_menu = [ 'cellole', 'baia-domizia', 'falciano-del-massico', 'carinola' ];
 
     $cities_payload = [];
     if ( ! is_wp_error( $cities ) ) {
