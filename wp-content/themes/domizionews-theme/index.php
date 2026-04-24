@@ -208,8 +208,17 @@ if ($single_post) {
 }
 ?>
 
+<?php
+// Marker class letto dall'SPA in boot() per attivare la "hydration mode":
+// quando il browser atterra su /citta/<slug>/ o /category/<slug>/, il SSR
+// è già a schermo — l'SPA riconosce la classe, setta state senza chiamare
+// render() e lascia il contenuto SSR visibile fino alla prima interazione.
+$ssr_body_class = '';
+if ($is_city_archive)      $ssr_body_class = 'dn-archive-ssr dn-archive-city';
+elseif ($is_category_arch) $ssr_body_class = 'dn-archive-ssr dn-archive-category';
+?>
 <div id="domizionews-root">
-  <main style="font-family:sans-serif;max-width:430px;margin:0 auto;padding:16px;">
+  <main<?php echo $ssr_body_class ? ' class="' . esc_attr($ssr_body_class) . '"' : ''; ?> style="font-family:sans-serif;max-width:430px;margin:0 auto;padding:16px;">
 
     <?php if ($single_post): ?>
       <!-- Single article SSR for crawlers -->

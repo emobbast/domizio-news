@@ -23,12 +23,22 @@ add_action( 'init', function () {
 // Merge our index/noindex logic into WP core's wp_robots output so a single
 // <meta name="robots"> tag is emitted (max-image-preview:large preserved).
 // The manual echo previously in index.php has been removed.
+//
+// noindex viene emesso SOLO per il force-home 404 fallback (SPA URL
+// risolte client-side che atterrano su index.php via template_redirect)
+// e per le viste che WP considera archivio di secondo livello ma non
+// abbiamo SSR dedicato (search / author / date).
+//
+// is_paged() è stato RIMOSSO deliberatamente: Google dal 2019 tratta
+// ogni URL paginato come contenuto indipendente, e mettere noindex su
+// /citta/<slug>/page/N/ nascondeva ~80% degli articoli dell'archivio
+// all'indicizzazione. Con il SSR archive ora in place (rel=prev/next +
+// canonical paged-aware) le pagine N>=2 sono legittime e indicizzabili.
 add_filter( 'wp_robots', function ( $robots ) {
     $is_non_canonical = ! empty( $GLOBALS['dnapp_was_404'] )
         || is_search()
         || is_author()
-        || is_date()
-        || is_paged();
+        || is_date();
     if ( $is_non_canonical ) {
         $robots['noindex'] = true;
         unset( $robots['index'] );

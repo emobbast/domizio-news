@@ -163,6 +163,12 @@
     const oldState = state;
     const chipScroll = snapshotChipScroll();
     state = Object.assign({}, state, patch);
+    // Qualsiasi state change uscita dal click di un utente esce dalla
+    // hydration mode: il prossimo render() legittimamente sostituisce il
+    // SSR con la view SPA (non è un flash automatico — è un'azione
+    // user-initiated). loadData() usa una via alternativa (mutazione
+    // diretta di state) per popolare i dati senza triggherare render.
+    state.hydrated = false;
     render();
     requestAnimationFrame(() => restoreChipScroll(chipScroll));
     scrollToTopIfViewChanged(state, oldState);
@@ -322,17 +328,31 @@
         homeCityPosts[slug] = cityResults[i]?.posts || [];
       });
 
-      setState({
+      const patch = {
         posts:         feed.posts || [],
         cities:        config.cities || [],
         categories:    config.categories || [],
         stickyNews:    Array.isArray(sticky) ? sticky : [],
         homeCityPosts: homeCityPosts,
         loading:       false,
-      });
+      };
+
+      // In hydration mode (landing su archive SSR) scriviamo state
+      // direttamente per evitare render() che flasherebbe il SSR fuori.
+      // Al primo click user → setState → exit hydration → render con
+      // dati già popolati: nessun flash, nessuna UI vuota.
+      if (state.hydrated) {
+        Object.assign(state, patch);
+      } else {
+        setState(patch);
+      }
     } catch (e) {
       console.error('Errore API:', e);
-      setState({ loading: false });
+      if (state.hydrated) {
+        state.loading = false;
+      } else {
+        setState({ loading: false });
+      }
     }
   }
 
@@ -1740,16 +1760,47 @@
   function boot() {
     // Initial-load URL detection. Precedenza:
     //   1. Legal slug (match esatto su LEGAL_SLUGS)
-    //   2. /citta/<slug>/ o /citta/<slug>/page/N/
-    //   3. /category/<slug>/ o /category/<slug>/page/N/
+    //   2. /citta/<slug>/ o /citta/<slug>/page/N/  (SSR archive → hydration)
+    //   3. /category/<slug>/ o /category/<slug>/page/N/ (SSR archive → hydration)
     //   4. fallback: pretty permalink → lookup articolo dopo loadData()
-    // I primi tre rami vanno impostati PRIMA del primo render() così
-    // Googlebot, share link e bookmark atterrano direttamente sulla vista
-    // corretta senza un flash di home.
+    //
+    // HYDRATION MODE: se SSR ha già renderizzato l'archive (classe marker
+    // .dn-archive-city / .dn-archive-category su <main>), NON chiamiamo
+    // render() iniziale — il SSR resta a schermo senza flash. state viene
+    // popolato direttamente; loadData() scrive i dati senza setState;
+    // "Vedi altro" è intercettato con manipolazione DOM (no setState).
+    // Al primo click user su un altro elemento (tab, chip, logo), setState
+    // setta hydrated=false e render() rimpiazza il SSR con la view SPA —
+    // azione user-initiated, non flash.
     const bootPath  = window.location.pathname.replace(/^\/|\/$/g, '');
     const cityBoot  = bootPath.match(/^citta\/([^/]+?)(?:\/page\/(\d+))?$/);
     const catBoot   = bootPath.match(/^category\/([^/]+?)(?:\/page\/(\d+))?$/);
     const isLegal   = LEGAL_SLUGS.includes(bootPath);
+
+    const rootEl        = document.getElementById('domizionews-root');
+    const hasSsrArchive = !!(rootEl && rootEl.querySelector('.dn-archive-city, .dn-archive-category'));
+    const canHydrate    = hasSsrArchive && (cityBoot || catBoot);
+
+    if (canHydrate) {
+      state.hydrated = true;
+      if (cityBoot) {
+        state.tab          = 'cities';
+        state.selectedCity = cityBoot[1];
+        state.cityPage     = cityBoot[2] ? parseInt(cityBoot[2], 10) : 1;
+      } else {
+        state.tab           = 'home';
+        state.activeHomeCat = catBoot[1];
+        state.catPage       = catBoot[2] ? parseInt(catBoot[2], 10) : 1;
+      }
+      syncBrowsingTitle();
+      setupGlobalDelegation();
+      // loadData() popola state.cities/categories/posts senza render in
+      // hydration mode (vedi ramo if state.hydrated in loadData). Pre-
+      // caricare qui garantisce che il primo render post-hydration abbia
+      // dati già pronti.
+      loadData();
+      return;
+    }
 
     if (isLegal) {
       state.selectedLegalPage = bootPath;
