@@ -92,3 +92,9 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
   - DIVIETI ASSOLUTI (anti-cliché list) preserved
   - Context: AdSense rejected site 24/4 for "contenuti di scarso valore"; production audit showed 60-75% compression on sources (ecaserta.com 2458 -61%, pupia.tv 2457 -74%)
   - Cache impact: changes are inside static_instructions heredoc (Bug #26 caching); cache invalidates once on deploy, resumes normally after first import cycle — trivial cost
+- [Density tuning v2 — 24/4 mattina] Density-v1 insufficiente (caso 2470: fonte 465 parole, output 140 parole = -72% compression ancora). Introdotte 3 modifiche forti:
+  - LUNGHEZZA OBBLIGATORIA con minimi numerici (fonte 200-400 → min 300 parole output) al posto di "almeno 60%"
+  - ESEMPIO 1 e 2 riscritti densi (5 paragrafi ~280 parole ciascuno) per evitare che Claude li usi come target implicito corto
+  - CHECKPOINT obbligatorio pre-output: conta fatti fonte vs output, regola 80%, verifica lunghezza
+  - Cache impact: tutto inside static_instructions, 1 cache invalidation post-deploy poi cache normale (~$0.005 una tantum)
+  - Costo atteso: +$5/mese (output medio 600→900 token)

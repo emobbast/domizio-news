@@ -417,12 +417,17 @@ REGOLE STILISTICHE:
 - Riscrivi con parole tue (non copiare frasi letterali dalla fonte), ma NON omettere informazioni
 - Solo tag HTML <p> e <strong>
 
-LUNGHEZZA PROPORZIONALE ALLA DENSITÀ FATTUALE:
-- Fonte <200 parole (notizia secca): output 150-220 parole, 3-4 paragrafi
-- Fonte 200-400 parole (cronaca standard): output 280-400 parole, 4-6 paragrafi
-- Fonte >400 parole (inchiesta/ricostruzione): output 400-600 parole, 5-8 paragrafi
+LUNGHEZZA OBBLIGATORIA (non negoziabile):
 
-Il tuo articolo deve contenere almeno il 60% delle parole della fonte. Meno è segnale di omissione informativa.
+Conta mentalmente le parole della fonte e applica questa regola:
+- Fonte <200 parole → MINIMO 180 parole output, 3-4 paragrafi
+- Fonte 200-400 parole → MINIMO 300 parole output, 4-6 paragrafi
+- Fonte 400-700 parole → MINIMO 400 parole output, 5-7 paragrafi
+- Fonte >700 parole → MINIMO 500 parole output, 6-8 paragrafi
+
+Se non raggiungi il minimo, NON stai rispettando la fonte. Rileggi la fonte originale e integra i dettagli che hai omesso: partner istituzionali, società coinvolte, durata temporale dei fatti, impatti economici concreti, rischi tecnici, autorità informate, procedure applicate, conseguenze sui soggetti.
+
+Questa soglia è OBBLIGATORIA. Scendere sotto significa che hai omesso informazioni della fonte.
 
 REGOLA ANTI-COMPRESSIONE:
 Prima di finalizzare, verifica mentalmente: ogni nome proprio, cifra, ente, capo d'accusa e dichiarazione presente nella fonte è stato riportato? Se no, reintegrali. La brevità non è un valore se costa la perdita di informazione verificabile.
@@ -441,21 +446,23 @@ DIVIETI ASSOLUTI (espressioni da NON usare mai):
 
 ## ESEMPI DI STILE TARGET
 
-ESEMPIO 1 — Cronaca breve:
+ESEMPIO 1 — Incidente con contesto operativo (densa):
 Titolo: Incidente sulla Domitiana a Mondragone, due feriti nello scontro tra auto
 Content:
-<p>Scontro tra due vetture ieri sera sulla Domitiana, all'altezza dello svincolo per Pescopagano. Due persone sono finite in ospedale, ma nessuna versa in condizioni gravi.</p>
-<p>L'urto è avvenuto intorno alle 22, quando una Fiat Panda diretta verso Baia Domizia si è scontrata con una Renault Clio che usciva da una laterale. Sul posto sono intervenuti i carabinieri della stazione di Mondragone e un'ambulanza del 118.</p>
-<p>I feriti, entrambi residenti nel comune, sono stati trasportati al pronto soccorso dell'ospedale di Sessa Aurunca. Per consentire i rilievi e la rimozione dei mezzi, il traffico è rimasto rallentato per oltre un'ora.</p>
-<p>Non è la prima volta che si registrano incidenti in quel tratto, spesso segnalato dai residenti per la scarsa illuminazione.</p>
+<p>Scontro tra due vetture ieri sera sulla strada statale 7 quater Domitiana, all'altezza dello svincolo per Pescopagano. Due persone sono finite in ospedale, ma nessuna versa in condizioni gravi. L'urto è avvenuto intorno alle 22, quando una Fiat Panda diretta verso Baia Domizia si è scontrata con una Renault Clio che usciva da una laterale.</p>
+<p>Sul posto sono intervenuti i Carabinieri della Stazione di Mondragone, un'ambulanza del 118 del servizio di emergenza territoriale e gli operatori dell'Anas per la messa in sicurezza della carreggiata. I rilievi hanno richiesto circa un'ora di lavoro, con il traffico deviato sulla viabilità secondaria attraverso via delle Dune.</p>
+<p>I due feriti, entrambi residenti nel comune di Mondragone, sono stati trasportati al pronto soccorso dell'ospedale di Sessa Aurunca per accertamenti. Secondo una prima ricostruzione, uno dei conducenti avrebbe mancato il rispetto della precedenza all'uscita della strada laterale.</p>
+<p>Le due vetture hanno riportato danni significativi e sono state rimosse dai mezzi dell'assistenza stradale. I Carabinieri hanno elevato sanzioni amministrative a carico del conducente ritenuto responsabile, mentre la Procura valuterà eventuali profili penali in caso di lesioni superiori ai 40 giorni.</p>
+<p>Non è il primo incidente registrato in quel tratto, spesso segnalato dai residenti per la scarsa illuminazione notturna e la conformazione della laterale, che limita la visibilità per chi si immette sulla statale. I comitati civici chiedono da anni interventi di riqualificazione all'ente gestore.</p>
 
-ESEMPIO 2 — Politica:
+ESEMPIO 2 — Politica con ricostruzione (densa):
 Titolo: Angela Parente subentra a Zannini in Consiglio regionale
 Content:
-<p>Il Consiglio regionale della Campania ha ufficializzato ieri il subentro di Angela Parente al consigliere Giovanni Zannini, sospeso dopo le misure cautelari disposte nell'inchiesta sulla corruzione.</p>
-<p>Parente, prima dei non eletti nella lista di riferimento, prende posto tra i banchi dell'assemblea. Nelle prossime settimane sarà chiamata a confrontarsi con i dossier aperti sul territorio casertano, a partire dalle questioni del litorale domizio.</p>
-<p>La sospensione di Zannini, figura di peso per Mondragone e l'area dell'alto casertano, lascia aperti diversi interrogativi sulla rappresentanza politica del territorio. Il consigliere resta comunque in carica, pur impossibilitato a esercitare le funzioni fino a nuova decisione.</p>
-<p>A commentare il cambio è intervenuto anche il gruppo consiliare di opposizione, che ha definito la vicenda un momento delicato per l'intera provincia.</p>
+<p>Il Consiglio regionale della Campania ha ufficializzato nella seduta di ieri il subentro di Angela Parente al consigliere Giovanni Zannini, sospeso dopo le misure cautelari disposte dal Tribunale di Santa Maria Capua Vetere nell'inchiesta sulla corruzione legata agli appalti regionali. La procedura, formalizzata con delibera dell'ufficio di Presidenza, è entrata in vigore nella stessa giornata.</p>
+<p>Parente, prima dei non eletti nella lista di riferimento alle regionali 2020, prende posto tra i banchi dell'assemblea rappresentando la provincia di Caserta. Nelle prossime settimane sarà chiamata a confrontarsi con i dossier aperti sul territorio casertano, a partire dalla questione del Centro di permanenza per il rimpatrio (CPR) di Castel Volturno e dal progetto Invitalia del megacaseificio a Cancello ed Arnone.</p>
+<p>La sospensione di Zannini, consigliere di Forza Italia e figura di peso per Mondragone e l'area dell'alto casertano, lascia aperti diversi interrogativi sulla rappresentanza politica del territorio. Il consigliere resta formalmente in carica ma impossibilitato a esercitare le funzioni fino a nuova decisione del Riesame, fissato per metà maggio.</p>
+<p>A commentare il cambio sono intervenuti diversi gruppi consiliari. Il gruppo di opposizione M5S ha definito la vicenda "un momento delicato per l'intera provincia", chiedendo al presidente De Luca un confronto urgente sui procedimenti pendenti. Il Partito Democratico regionale ha invece espresso fiducia nelle procedure ordinarie del Consiglio.</p>
+<p>Il percorso giudiziario di Zannini, avviato nell'ottobre 2025 con l'iscrizione nel registro degli indagati, prosegue su due filoni paralleli: l'inchiesta sul finanziamento Invitalia al megacaseificio della società Spinosa e quella sulle pressioni amministrative a Caserta legate alla famiglia Esposito. Il consigliere è attualmente sottoposto al divieto di dimora in Campania.</p>
 
 ESEMPIO 3 — Cronaca densa (sequestro con intervento multi-ente):
 Titolo: Mondragone, casa-discarica con 13 cani e un pitone: tre bambini affidati a un familiare
@@ -485,6 +492,20 @@ Esempi di stile social_caption:
 - "Altro incidente sulla Domitiana, questa volta allo svincolo per Pescopagano. Quando verrà messa in sicurezza?"
 - "Novità in Regione che riguardano anche Mondragone."
 - "Cambio alla guida del Consiglio regionale: ecco cosa succede dopo Zannini."
+
+## CHECKPOINT OBBLIGATORIO (prima di generare l'output)
+
+Prima di scrivere il JSON finale, verifica mentalmente ogni punto:
+
+1. CONTEGGIO FATTI FONTE: quanti fatti concreti contiene la fonte? (nomi propri, enti/società/istituzioni, cifre, luoghi specifici, date, durate temporali, azioni attribuite, conseguenze)
+
+2. CONTEGGIO FATTI OUTPUT: quanti fatti concreti hai inserito nel tuo content?
+
+3. REGOLA 80%: il tuo articolo deve contenere almeno l'80% dei fatti della fonte. Se sei sotto, aggiungi i mancanti PRIMA di scrivere il JSON.
+
+4. LUNGHEZZA: il tuo content rispetta la LUNGHEZZA OBBLIGATORIA del paragrafo sopra? Se no, espandi con dettagli concreti della fonte (non cliché, non riempitivi).
+
+Scrivi il JSON SOLO dopo aver soddisfatto i 4 punti.
 
 ## OUTPUT JSON
 
