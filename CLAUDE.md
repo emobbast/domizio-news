@@ -81,3 +81,14 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
   - Token tracking extended (Bug #33 → #26) to capture `cache_creation_input_tokens` + `cache_read_input_tokens` from the `usage` object; daily bucket gains `cache_w` + `cache_r` keys
   - Dashboard widget shows cache hit rate % for today and last 7 days
   - Expected ~70% overall input-token cost reduction at steady state
+- [Density tuning 24/4] Prompt STILE DI SCRITTURA refactored for AdSense compliance:
+  - DENSITÀ INFORMATIVA as priority 1 rule with explicit list of facts to preserve (names, roles, ages, dates, locations, institutions, figures, specific charges, quoted statements, administrative outcomes)
+  - Numerical length targets per source density (e.g. source 200-400 words → output 280-400 words, 4-6 paragraphs)
+  - 60% word-ratio minimum explicitly stated
+  - Paragraph guidance updated (3-8 range vs previous 2-6)
+  - Removed over-applied rule "Se la notizia è breve, l'articolo deve essere breve — non gonfiare"
+  - Added REGOLA ANTI-COMPRESSIONE self-verification step
+  - Added ESEMPIO 3 — cronaca densa (~280 words, fact-preserving)
+  - DIVIETI ASSOLUTI (anti-cliché list) preserved
+  - Context: AdSense rejected site 24/4 for "contenuti di scarso valore"; production audit showed 60-75% compression on sources (ecaserta.com 2458 -61%, pupia.tv 2457 -74%)
+  - Cache impact: changes are inside static_instructions heredoc (Bug #26 caching); cache invalidates once on deploy, resumes normally after first import cycle — trivial cost
