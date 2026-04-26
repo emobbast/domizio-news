@@ -26,6 +26,26 @@
     return Math.floor(hrs / 24) + 'g fa';
   }
 
+  // Hydrate every [data-timestamp] node in the given root (or document) by
+  // replacing its text with the relative timeAgo() label. Decision A: the SSR
+  // emits an absolute date as the initial label and the ISO string in the
+  // [data-timestamp] attribute — so it stays meaningful even when the page is
+  // page-cached and served stale. After SPA boot (and on every render() that
+  // re-emits SPA cards) we walk the DOM and rewrite each label to the correct
+  // relative form. Cards inserted later (e.g. by the .dn-load-more handler)
+  // also call this on the new nodes.
+  function hydrateTimestamps(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    const nodes = scope.querySelectorAll ? scope.querySelectorAll('[data-timestamp]') : [];
+    nodes.forEach(n => {
+      const iso = n.getAttribute('data-timestamp');
+      if (!iso) return;
+      const t = new Date(iso).getTime();
+      if (Number.isNaN(t)) return;
+      n.textContent = timeAgo(iso);
+    });
+  }
+
   function stripHtml(html) {
     const d = document.createElement('div');
     d.innerHTML = html || '';
@@ -481,7 +501,7 @@
         <div class="dn-card-hero-body">
           ${buildCardBadges(post)}
           <h3 class="dn-card-hero-title">${escHtml(decodeHtml(post.title))}</h3>
-          <span class="dn-time">${timeAgo(post.date)}</span>
+          <span class="dn-time" data-timestamp="${escHtml(post.date)}">${timeAgo(post.date)}</span>
         </div>
       </article>`;
   }
@@ -497,7 +517,7 @@
         <div class="dn-card-body">
           ${buildCardBadges(post)}
           <h3>${escHtml(decodeHtml(post.title))}</h3>
-          <span class="dn-time">${timeAgo(post.date)}</span>
+          <span class="dn-time" data-timestamp="${escHtml(post.date)}">${timeAgo(post.date)}</span>
         </div>
         ${img ? `<img src="${img}" alt="${altTxt}" loading="lazy">` : thumbPlaceholder}
       </article>`;
@@ -1042,255 +1062,7 @@
   }
 
   // ─── STYLES ─────────────────────────────────────────────────────────────────
-  const STYLES = `
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
-
-    :root {
-      --color-text: #202124;
-      --color-text-secondary: #5F6368;
-      --color-primary: #6750A4;
-      --color-brand: #1C1B1F;
-      --color-divider: #E0E0E0;
-      --color-background: #FEF7FF;
-      --color-card: #FFFFFF;
-      --color-chip-inactive-bg: transparent;
-      --color-chip-active-bg: #EADDFF;
-      --color-chip-active-text: #21005D;
-      --color-separator: #E8EAED;
-      --elevation-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
-      --elevation-0: none;
-      --md-sys-color-primary: #6750A4;
-      --md-sys-color-primary-container: #EADDFF;
-      --md-sys-color-surface: #FEF7FF;
-      --md-sys-color-outline: #79747E;
-      --md-sys-color-on-surface: #1C1B1F;
-    }
-
-    * { font-family: 'Roboto', Arial, sans-serif; }
-    .dn-app { font-family: 'Roboto', Arial, sans-serif; background: var(--color-background); min-height: 100vh; padding-bottom: 64px; }
-
-    /* LOADING */
-    .dn-loading { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #FEF7FF; color: #1C1B1F; gap: 8px; }
-
-    /* SPINNER MD3 */
-    .dn-spinner { width: 48px; height: 48px; border: 4px solid #EADDFF; border-top-color: #6750A4; border-radius: 50%; animation: dn-spin 0.8s linear infinite; }
-    @keyframes dn-spin { to { transform: rotate(360deg); } }
-
-    /* LOGO */
-    .dn-logo { display: flex; align-items: baseline; gap: 3px; pointer-events: none; position: absolute; left: 0; right: 0; justify-content: center; }
-    /* pointer-events:auto sui singoli span (non sul container) così il box
-       assoluto full-width del logo NON intercetta i click destinati al
-       pulsante ricerca/avatar sottostanti — clickable solo sul testo. */
-    .dn-logo-domizio { font-family: 'Roboto', Arial, sans-serif; font-weight: 700; font-size: 24px; color: #6750A4; letter-spacing: -0.02em; line-height: 1; pointer-events: auto; }
-    .dn-logo-news { font-family: 'Roboto', Arial, sans-serif; font-weight: 300; font-size: 24px; color: #49454F; letter-spacing: -0.02em; line-height: 1; pointer-events: auto; }
-
-    /* TOP HEADER — M3 */
-    .dn-top-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: #FEF7FF; }
-    .dn-top-header.dn-search-active { padding: 10px 16px; gap: 12px; background: #FFFFFF; box-shadow: var(--elevation-1); }
-    .dn-header-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; }
-    .dn-header-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; flex-shrink: 0; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-search-back-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; flex-shrink: 0; }
-    #dn-search-input { flex: 1; padding: 10px 14px; border-radius: 24px; border: none; background: #F1F3F4; font-size: 16px; outline: none; font-family: 'Roboto', Arial, sans-serif; color: var(--color-text); width: 100%; box-sizing: border-box; }
-
-    /* PAGE HEADER (tabs secondari) */
-    .dn-page-header { padding: 16px 16px 0; }
-    .dn-page-header h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
-
-    /* CHIP MENU — M3 Filter Chips */
-    .dn-home-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; background: var(--color-background) !important; border: none !important; border-bottom: none !important; box-shadow: none !important; scrollbar-width: none; -ms-overflow-style: none; position: sticky; top: 0; z-index: 10; }
-    .dn-home-chips::-webkit-scrollbar { display: none; }
-    .dn-home-chip { flex-shrink: 0; height: 32px !important; padding: 0 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 14px !important; font-weight: 500 !important; letter-spacing: 0.1px !important; background: transparent !important; color: #444746 !important; transition: background 0.2s, color 0.2s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; display: inline-flex !important; align-items: center !important; }
-    .dn-home-chip.active { background: #EADDFF !important; color: #21005D !important; font-weight: 500 !important; }
-
-    /* SLIDER NOTIZIE IN EVIDENZA */
-    .dn-slider-wrap { padding: 16px 0 8px; border-bottom: 8px solid var(--color-separator); background: transparent !important; box-shadow: none !important; border-left: none !important; border-right: none !important; border-top: none !important; }
-    .dn-slider { display: flex; gap: 12px; overflow-x: auto; padding-left: 16px; padding-right: 4px; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; background: transparent !important; box-shadow: none !important; }
-    .dn-slider::-webkit-scrollbar { display: none; }
-    .dn-slider-card { flex-shrink: 0; width: calc(75% - 6px); scroll-snap-align: start; cursor: pointer; background: transparent !important; border: none !important; box-shadow: none !important; }
-    .dn-slider-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; background: transparent !important; }
-    .dn-slider-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .dn-slider-body { padding: 8px 0 0; background: transparent !important; box-shadow: none !important; border: none !important; }
-    .dn-slider-title { margin: 6px 0 0; font-size: 22px; font-weight: 700; letter-spacing: 0; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .dn-slider-dots { display: flex; gap: 4px; justify-content: center; padding: 10px 0 4px; }
-    .dn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-divider); transition: background 0.2s; flex-shrink: 0; }
-    .dn-dot.active { background: var(--color-primary); }
-    .dn-vip-badge { font-size: 10px; font-weight: 600; color: #fff; background: var(--color-primary); padding: 2px 7px; border-radius: 4px; letter-spacing: .3px; }
-
-    /* SEZIONI CITTÀ */
-    .dn-city-section { background: #FFFFFF; border-radius: 12px; overflow: hidden; margin: 8px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .dn-section-label { font-size: 22px; font-weight: 500; letter-spacing: 0; color: #202124; padding: 16px 16px 8px 16px; display: block; cursor: pointer; background: transparent; border-left: none; text-transform: none; }
-    .dn-section-separator { display: none; }
-
-    /* BOTTONE "VEDI ALTRO" */
-    .dn-city-more-wrap { padding: 8px 16px 16px; background: transparent; display: flex; justify-content: center; }
-    .dn-city-more { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 50px; cursor: pointer; color: #6750A4; font-size: 14px; font-weight: 500; letter-spacing: 0.1px; font-family: 'Roboto', Arial, sans-serif; margin: 12px 16px; }
-    .dn-city-more:active { opacity: 0.7; }
-
-    /* FEED CONTAINER */
-    .dn-feed { background: transparent; }
-
-    /* HERO CARD — M3 elevation-1 */
-    .dn-card-hero { cursor: pointer; background: var(--color-card); border-radius: 16px; margin: 12px 16px; overflow: hidden; box-shadow: var(--elevation-1); border-bottom: none; }
-    .dn-card-hero.dn-card-last { border-bottom: none; }
-    .dn-card-hero:active { opacity: 0.85; }
-    .dn-card-hero-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; }
-    .dn-card-hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 0; }
-    .dn-card-hero-body { padding: 12px 16px 16px; }
-    .dn-card-hero-title { margin: 0 0 6px; font-size: 24px; font-weight: 600; letter-spacing: 0; color: var(--color-brand); font-family: 'Roboto', Arial, sans-serif; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: break-word; }
-
-    /* LIST CARDS — M3 outline card */
-    .dn-card-list { display: flex; gap: 12px; padding: 16px; border: 1px solid #E0E0E0; border-radius: 12px; margin: 8px 16px; overflow: hidden; background: var(--color-card); cursor: pointer; align-items: flex-start; transition: background 0.1s; }
-    .dn-card-list.dn-card-last { border-bottom: 1px solid #E0E0E0; }
-    .dn-card-list:active { background: #F1F3F4; }
-    .dn-card-list > img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
-    .dn-card-body { flex: 1; min-width: 0; }
-    .dn-card-body h3 { margin: 0 0 6px; font-size: 16px; font-weight: 400; letter-spacing: 0.5px; color: var(--color-brand); font-family: 'Roboto', Arial, sans-serif; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: break-word; }
-
-    /* CARD BADGES (categoria + città) */
-    .dn-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
-    .dn-cat-label { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; color: var(--color-primary); background: var(--color-chip-active-bg); padding: 2px 8px; border-radius: 4px; }
-    .dn-city-label { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; color: var(--color-text-secondary); background: #E8EAED; padding: 2px 8px; border-radius: 4px; }
-
-    /* TIME */
-    .dn-time { font-size: 12px; font-weight: 400; letter-spacing: 0.4px; color: #5F6368; display: block; margin-top: 6px; }
-
-    /* CHIPS (tab Città e Scopri) — M3 Filter Chips */
-    .dn-chips-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; background: var(--color-background); border: none; box-shadow: none; scrollbar-width: none; -ms-overflow-style: none; }
-    .dn-chips-scroll::-webkit-scrollbar { display: none; }
-    .dn-chip { flex-shrink: 0; height: 32px !important; padding: 0 12px !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; cursor: pointer; font-size: 14px !important; font-weight: 500 !important; letter-spacing: 0.1px !important; background: transparent !important; color: #444746 !important; transition: background 0.2s, color 0.2s; font-family: 'Roboto', Arial, sans-serif; white-space: nowrap; display: inline-flex !important; align-items: center !important; }
-    .dn-chip.active { background: #EADDFF !important; color: #21005D !important; font-weight: 500 !important; border-radius: 50px !important; border: none !important; box-shadow: none !important; }
-
-    /* CATEGORY GRID */
-    .dn-cat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 0 16px 20px; }
-    .dn-cat-tile { padding: 14px 8px; border-radius: 8px; border: 1px solid var(--color-divider); cursor: pointer; font-size: 13px; font-weight: 500; line-height: 1.3; background: var(--color-card); color: var(--color-text); transition: all 0.15s; font-family: 'Roboto', Arial, sans-serif; text-align: center; }
-    .dn-cat-tile.active { background: var(--color-chip-active-bg); border-color: var(--color-primary); color: var(--color-primary); }
-
-    /* SEARCH (tab Cerca legacy) */
-    .dn-search-wrap { position: relative; }
-
-    /* EMPTY */
-    .dn-empty { color: var(--color-text-secondary); text-align: center; font-size: 15px; }
-
-    /* ARTICLE DETAIL */
-    .dn-detail { min-height: 100vh; background: var(--color-background); padding-bottom: 80px; }
-    .dn-detail-header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-divider); }
-    .dn-detail-header-left { display: flex; align-items: center; gap: 16px; }
-    .dn-back-btn { background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 15px; font-weight: 500; padding: 0; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-share-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 14px; font-weight: 500; padding: 0; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-detail-img-wrap { position: relative; width: calc(100% - 32px); margin: 16px 16px 0; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; }
-    .dn-detail-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; }
-
-    .dn-photo-credit { font-size: 11px; color: #5F6368; padding: 4px 16px 0; text-align: right; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-photo-credit a { color: #5F6368; text-decoration: underline; }
-    .dn-detail-body { padding: 0 16px; margin-top: 16px; }
-    .dn-badges { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-    .dn-badge-cat { background: var(--color-primary); color: #fff; font-size: 12px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 4px; }
-    .dn-badge-city { background: var(--color-divider); color: var(--color-text-secondary); font-size: 12px; font-weight: 500; letter-spacing: 0.5px; padding: 3px 10px; border-radius: 4px; }
-    .dn-detail-title { margin: 0 0 12px; font-size: 32px; font-weight: 700; letter-spacing: 0; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; line-height: 1.2; }
-    .dn-detail-byline { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--color-divider); }
-    .dn-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; flex-shrink: 0; }
-    .dn-byline-name { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); }
-    .dn-byline-date { font-size: 13px; color: var(--color-text-secondary); }
-    .dn-detail-content { font-size: 16px; font-weight: 400; letter-spacing: 0.5px; line-height: 1.65; color: var(--color-text); font-family: 'Roboto', Arial, sans-serif; }
-    .dn-detail-content p { margin: 0 0 16px; line-height: 1.75; }
-    .dn-detail-content strong { color: var(--color-text); font-weight: 700; }
-    .dn-local-context { background: #EADDFF; border-left: 3px solid var(--color-primary); padding: 12px; border-radius: 0 8px 8px 0; font-size: 14px !important; }
-
-    /* AD CARD SPONSORIZZATA — reserve space to prevent CLS (Bug #39) */
-    .dn-ad-card { position: relative; padding: 16px; border-top: 8px solid #F2F2F2; border-bottom: 8px solid #F2F2F2; background: var(--color-card); min-height: 280px; }
-    .dn-ad-card.dn-ad-banner { min-height: 120px; }
-    .dn-ad-card.dn-ad-infeed { min-height: 300px; }
-    .dn-ad-card.dn-ad-article { min-height: 280px; }
-    .dn-ad-card .adsbygoogle { display: block; min-height: inherit; }
-    .dn-ad-badge { position: absolute; top: 24px; left: 24px; font-size: 10px; font-weight: 500; color: #5F6368; background: #F2F2F2; padding: 3px 8px; border-radius: 4px; letter-spacing: .3px; z-index: 1; }
-
-    /* SCOPRI — griglia categorie */
-    .dn-scopri-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
-    .dn-scopri-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; border-radius: 8px; overflow: hidden; cursor: pointer; background: #FEF7FF; }
-    .dn-scopri-card:active { opacity: 0.85; }
-    .dn-scopri-card-name { color: #202124; font-size: 14px; font-weight: 600; line-height: 1.2; text-align: center; font-family: 'Roboto', Arial, sans-serif; }
-
-    /* SCOPRI — header risultati */
-    .dn-scopri-header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); padding: 14px 16px; display: flex; align-items: center; border-bottom: 1px solid var(--color-divider); }
-    .dn-scopri-back { background: none; border: none; cursor: pointer; color: var(--color-primary); font-size: 15px; font-weight: 500; padding: 0; flex-shrink: 0; width: 72px; text-align: left; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-scopri-title { font-size: 16px; font-weight: 700; color: var(--color-text); flex: 1; text-align: center; font-family: 'Roboto', Arial, sans-serif; }
-
-    /* SCOPRI — card attività */
-    .dn-card-attivita { background: var(--color-card); border-bottom: 8px solid var(--color-separator); }
-    .dn-card-attivita-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; }
-    .dn-card-attivita-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 0; display: block; }
-    .dn-card-attivita-body { padding: 12px 16px 16px; }
-    .dn-badge-attivita { font-size: 11px; font-weight: 500; color: #2E7D32; background: #E8F4EA; padding: 2px 8px; border-radius: 4px; }
-    .dn-card-attivita-price { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); margin: 6px 0 2px; }
-    .dn-card-attivita-title { font-size: 16px; font-weight: 700; color: var(--color-text); margin: 8px 0 4px; line-height: 1.3; font-family: 'Roboto', Arial, sans-serif; }
-    .dn-card-attivita-addr { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 12px; }
-    .dn-card-attivita-btns { display: flex; gap: 8px; }
-    .dn-btn-action { flex: 1; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--color-divider); background: var(--color-card); font-size: 13px; font-weight: 500; color: var(--color-primary); cursor: pointer; text-align: center; font-family: 'Roboto', Arial, sans-serif; text-decoration: none; display: inline-block; }
-    .dn-btn-action:active { background: var(--color-chip-active-bg); }
-
-    /* SCOPRI — card articolo */
-    .dn-card-scopri-art { background: var(--color-card); border-bottom: 1px solid var(--color-divider); cursor: pointer; }
-    .dn-card-scopri-art:active { opacity: 0.8; }
-    .dn-card-scopri-art-img { width: 100%; aspect-ratio: 16/9; overflow: hidden; }
-    .dn-card-scopri-art-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .dn-card-scopri-art-body { padding: 12px 16px 16px; }
-    .dn-badge-articolo { font-size: 11px; font-weight: 500; color: var(--color-primary); background: var(--color-chip-active-bg); padding: 2px 8px; border-radius: 4px; }
-    .dn-card-scopri-art-title { font-size: 16px; font-weight: 700; color: var(--color-text); margin: 8px 0 4px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-family: 'Roboto', Arial, sans-serif; }
-
-    /* BOTTOM NAV */
-    .dn-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--color-card); border-top: 1px solid var(--color-divider); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
-    .dn-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 10px 0 6px; gap: 2px; color: #5F6368; transition: color 0.15s; }
-    .dn-nav-tab.active { color: #21005D; }
-    .dn-nav-icon-wrap { display: flex; align-items: center; justify-content: center; padding: 4px 16px; border-radius: 50px; transition: background 0.15s; }
-    .dn-nav-icon-wrap .material-symbols-outlined { font-size: 24px; }
-    .dn-nav-icon-wrap.active { background: #EADDFF; }
-    .dn-nav-label { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; font-family: 'Roboto', Arial, sans-serif; }
-
-    /* ── FOOTER ─────────────────────────────────────────────── */
-    .dn-footer {
-      padding: 24px 16px 40px;
-      border-top: 1px solid #E8EAED;
-      margin-top: 16px;
-      text-align: center;
-    }
-    .dn-footer-links {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px 16px;
-      margin-bottom: 12px;
-    }
-    .dn-footer-links a {
-      font-size: 12px;
-      color: #5F6368;
-      text-decoration: none;
-    }
-    .dn-footer-links a:hover {
-      text-decoration: underline;
-    }
-    .dn-footer-copy {
-      font-size: 11px;
-      color: #9AA0A6;
-      margin: 0;
-    }
-
-    /* ── LEGAL PAGE ──────────────────────────────────────────── */
-    .dn-legal-page {
-      padding-bottom: 80px;
-    }
-    .dn-legal-content {
-      padding: 16px;
-      font-size: 14px;
-      line-height: 1.7;
-      color: #3C4043;
-    }
-    .dn-legal-content p {
-      margin-bottom: 16px;
-    }
-    .dn-legal-content a {
-      color: #6750A4;
-    }
-  `;
+  const STYLES = ''; // Migrated to base.css — keep var so render() interpolation stays valid.
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   function render() {
@@ -1339,6 +1111,7 @@
     // La delega globale di 'input' è già wirata una volta sola su root — non serve re-bindare.
     document.getElementById('dn-search-input')?.focus();
     initAds();
+    hydrateTimestamps(root);
   }
 
   // Delegazione globale: attaccata UNA VOLTA sola a #domizionews-root durante boot().
@@ -1354,13 +1127,12 @@
     root.addEventListener('click', (e) => {
       const t = e.target;
 
-      // ── "Vedi altri articoli" — progressive enhancement ────────────────────
-      // Il bottone è renderizzato dal SSR archive (index.php) come <a> con
-      // href=/citta/<slug>/page/N/ — Googlebot lo segue nativamente. Qui lo
-      // intercettiamo per utenti con JS: fetch della pagina successiva via
-      // REST, inserimento card prima del bottone, pushState dell'URL. Niente
-      // full-page reload. Rispettiamo Ctrl/Cmd/Shift+click per l'apertura
-      // nativa in nuova tab.
+      // ── "Vedi altro" — progressive enhancement ────────────────────────────
+      // Il bottone è renderizzato sia dal SSR archive (index.php, ora con la
+      // stessa shape SPA: .dn-feed > .dn-card-list) sia dal SPA buildCities.
+      // Single code path: fetch REST, append cards via buildArticleCard,
+      // pushState dell'URL, niente full reload. Ctrl/Cmd/Shift+click per
+      // apertura nativa in nuova tab.
       const loadMore = t.closest('.dn-load-more');
       if (loadMore) {
         if (e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -1370,14 +1142,6 @@
         const type     = loadMore.dataset.archiveType; // 'city' | 'category'
         const slug     = loadMore.dataset.archiveSlug;
         if (!nextPage || !slug || !type) return;
-
-        // SPA context: bottone dentro .dn-feed (tab Città SPA) → usa
-        // buildArticleCard per mantenere lo stile cards coerente e
-        // sincronizza state.cityFeed/cityPage/cityFeedTotalPages tramite
-        // mutation diretta (no setState → no re-render → no scroll loss).
-        // SSR archive context: bottone dentro .dn-archive-list (index.php)
-        // → mantiene il path esistente dn-archive-item.
-        const isSpaContext = !!loadMore.closest('.dn-feed');
 
         const origLabel = loadMore.textContent;
         loadMore.textContent = 'Caricamento...';
@@ -1396,32 +1160,24 @@
             const container = loadMore.parentElement;
             if (!container) return;
 
-            if (isSpaContext) {
-              const tmp = document.createElement('div');
-              tmp.innerHTML = posts.map(p => buildArticleCard(p)).join('');
-              Array.from(tmp.children).forEach(card => container.insertBefore(card, loadMore));
-              if (type === 'city') {
-                state.cityFeed = state.cityFeed.concat(posts);
-                state.cityPage = nextPage;
-              }
-            } else {
-              posts.forEach(p => {
-                const art = document.createElement('article');
-                art.className = 'dn-archive-item';
-                const date = p.time_ago
-                  || (p.date ? new Date(p.date).toLocaleDateString('it-IT') : '');
-                art.innerHTML =
-                  '<a href="' + escHtml(p.permalink || '#') + '" class="dn-archive-item-link">' +
-                    '<h2>' + escHtml(decodeHtml(p.title || '')) + '</h2>' +
-                    '<p>' + escHtml(decodeHtml(p.excerpt || '')) + '</p>' +
-                    '<span class="dn-archive-item-date">' + escHtml(date) + '</span>' +
-                  '</a>';
-                container.insertBefore(art, loadMore);
-              });
+            const tmp = document.createElement('div');
+            tmp.innerHTML = posts.map(p => buildArticleCard(p)).join('');
+            const inserted = Array.from(tmp.children);
+            inserted.forEach(card => container.insertBefore(card, loadMore));
+            // I nuovi nodi hanno [data-timestamp] dal builder — re-hydrate
+            // così le label si aggiornano subito (timeAgo invece della data
+            // assoluta SSR).
+            inserted.forEach(hydrateTimestamps);
+
+            // Se siamo nel SPA City tab, sincronizza lo state senza setState
+            // (no re-render → preserva scroll position).
+            if (type === 'city' && state.tab === 'cities' && state.selectedCity === slug) {
+              state.cityFeed = state.cityFeed.concat(posts);
+              state.cityPage = nextPage;
             }
 
             const totalPages = data && data.total_pages ? parseInt(data.total_pages, 10) : nextPage;
-            if (isSpaContext && type === 'city') {
+            if (type === 'city' && state.tab === 'cities' && state.selectedCity === slug) {
               state.cityFeedTotalPages = totalPages;
             }
             if (nextPage >= totalPages || posts.length < 20) {
@@ -1488,14 +1244,19 @@
       }
 
       // Header: click logo → torna alla home
+      // SSR emette il logo come <a href="/"> per JS-off; in hydration mode
+      // serve preventDefault() per restare in SPA (no full reload).
       if (t.closest('#dn-logo-home')) {
+        e.preventDefault();
         setState({ tab: 'home', selectedPost: null, selectedLegalPage: null, searchMode: false });
+        history.pushState({}, '', '/');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
-      // Detail view: click logo → torna alla home
+      // Detail view: click logo → torna alla home (anche qui SSR usa <a>).
       if (t.closest('#dn-article-logo')) {
+        e.preventDefault();
         restoreHead();
         setState({ tab: 'home', selectedPost: null, selectedLegalPage: null, searchMode: false });
         history.pushState({}, '', '/');
@@ -1569,9 +1330,12 @@
         return;
       }
 
-      // Chip categorie (home) — "Tutte" resetta, le altre caricano dal server
+      // Chip categorie (home) — "Tutte" resetta, le altre caricano dal server.
+      // SSR emette i chip come <a> con href=/category/<slug>/ (o "/" per Tutte);
+      // preventDefault qui evita il full reload in hydration mode.
       const homeCat = t.closest('[data-home-cat]');
       if (homeCat) {
+        e.preventDefault();
         const slug = homeCat.dataset.homeCat;
         if (slug === state.activeHomeCat) return; // stesso chip: nessuna azione
         if (!slug) {
@@ -1587,10 +1351,10 @@
       }
 
       // Section label città cliccabile + "Vedi altro" → tab Città
-      // (Il precedente attachEvents bindava due volte [data-goto-city] — qui una sola,
-      // con lo scrollTo ereditato dal ramo .dn-section-label[data-goto-city].)
+      // SSR emette section label e bottone come <a> con href=/citta/<slug>/.
       const gotoCity = t.closest('[data-goto-city]');
       if (gotoCity) {
+        e.preventDefault();
         const slug = gotoCity.dataset.gotoCity;
         setState({
           tab: 'cities',
@@ -1606,9 +1370,10 @@
         return;
       }
 
-      // City chips (tab Città) — fetch server-side per slug corretto
+      // City chips (tab Città) — SSR usa <a href=/citta/slug/>.
       const cityChip = t.closest('[data-city]');
       if (cityChip) {
+        e.preventDefault();
         const slug    = cityChip.dataset.city;
         const newSlug = state.selectedCity === slug ? '' : slug;
         setState({
@@ -1637,9 +1402,10 @@
         return;
       }
 
-      // Bottom nav
+      // Bottom nav — SSR usa <a> con href reale; preventDefault per restare in SPA.
       const tabEl = t.closest('[data-tab]');
       if (tabEl) {
+        e.preventDefault();
         setState({ tab: tabEl.dataset.tab, selectedLegalPage: null });
         return;
       }
@@ -1648,10 +1414,13 @@
       // IMPORTANTE: data-post-id va per ULTIMO perché più generico — alcuni
       // wrapper esterni (es. section label) potrebbero non essere post ma
       // contenere card annidate con data-post-id più in profondità.
+      // SSR card = <a href="permalink">; SPA card = <article> (no href).
+      // Se troviamo il post nello state, e.preventDefault() per restare in SPA;
+      // altrimenti lasciamo che l'anchor href navighi normalmente (post fuori
+      // dai feed pre-caricati: full reload è il fallback corretto).
       const postCard = t.closest('[data-post-id]');
       if (postCard) {
         const id   = postCard.dataset.postId;
-        // Cerca nel feed principale e nel city feed (post non presenti nei 20 iniziali)
         const post = state.posts.find(p => p.id == id)
                   || state.cityFeed.find(p => p.id == id)
                   || Object.values(state.homeCityPosts).flat().find(p => p.id == id)
@@ -1659,14 +1428,17 @@
                   || state.scopriResults.find(p => p.type === 'articolo' && p.id == id)
                   || searchResults.find(p => p.id == id);
         if (post) {
+          e.preventDefault();
           setState({ selectedPost: post });
           if (post.permalink) {
             history.pushState({ postId: post.id }, post.title, post.permalink);
           }
         } else if (postCard.dataset.stickyHref) {
-          // Post sticky non nel feed locale: apri permalink
+          e.preventDefault();
           window.location.href = postCard.dataset.stickyHref;
         }
+        // Else: nessun post in state, nessuno stickyHref → la card SSR ha href
+        // sul permalink reale; la navigazione browser nativa è il fallback.
         return;
       }
     });
@@ -1810,11 +1582,11 @@
     //   3. /category/<slug>/ o /category/<slug>/page/N/ (SSR archive → hydration)
     //   4. fallback: pretty permalink → lookup articolo dopo loadData()
     //
-    // HYDRATION MODE: se SSR ha già renderizzato l'archive (classe marker
-    // .dn-archive-city / .dn-archive-category su <main>), NON chiamiamo
-    // render() iniziale — il SSR resta a schermo senza flash. state viene
-    // popolato direttamente; loadData() scrive i dati senza setState;
-    // "Vedi altro" è intercettato con manipolazione DOM (no setState).
+    // HYDRATION MODE: se SSR ha già renderizzato l'archive (attributo marker
+    // [data-ssr-archive="city"|"category"] sul wrapper .dn-screen — emesso da
+    // index.php), NON chiamiamo render() iniziale — il SSR resta a schermo
+    // senza flash. state viene popolato direttamente; loadData() scrive i
+    // dati senza setState; "Vedi altro" è intercettato con manipolazione DOM.
     // Al primo click user su un altro elemento (tab, chip, logo), setState
     // setta hydrated=false e render() rimpiazza il SSR con la view SPA —
     // azione user-initiated, non flash.
@@ -1824,7 +1596,7 @@
     const isLegal   = LEGAL_SLUGS.includes(bootPath);
 
     const rootEl        = document.getElementById('domizionews-root');
-    const hasSsrArchive = !!(rootEl && rootEl.querySelector('.dn-archive-city, .dn-archive-category'));
+    const hasSsrArchive = !!(rootEl && rootEl.querySelector('[data-ssr-archive]'));
     const canHydrate    = hasSsrArchive && (cityBoot || catBoot);
 
     if (canHydrate) {
@@ -1840,6 +1612,10 @@
       }
       syncBrowsingTitle();
       setupGlobalDelegation();
+      // SSR ha emesso .dn-time con data-timestamp + data assoluta come label
+      // iniziale. Riscriviamo le label in formato relativo (timeAgo) — utile
+      // soprattutto quando la pagina è servita da cache e la data è "vecchia".
+      hydrateTimestamps(rootEl);
       // loadData() popola state.cities/categories/posts senza render in
       // hydration mode (vedi ramo if state.hydrated in loadData). Pre-
       // caricare qui garantisce che il primo render post-hydration abbia
