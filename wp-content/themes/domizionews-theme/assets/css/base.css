@@ -316,8 +316,7 @@ a.dn-chip { text-decoration: none; }
 }
 
 
-/* Primary button (CTA "Vedi altro" su archivi paginati). Used by both SSR
-   and SPA on the .dn-load-more anchor. */
+/* unused after vedialtro-style-align — candidate for removal */
 .dn-btn-primary {
   display: block;
   text-align: center;

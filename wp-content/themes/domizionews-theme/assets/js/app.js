@@ -776,11 +776,13 @@
         const nextPage = state.cityPage + 1;
         const slug     = state.selectedCity;
         feedHtml += `
-          <a class="dn-load-more dn-btn-primary"
-             href="/citta/${escHtml(slug)}/page/${nextPage}/"
-             data-archive-type="city"
-             data-archive-slug="${escHtml(slug)}"
-             data-next-page="${nextPage}">Vedi altro</a>`;
+          <div class="dn-city-more-wrap">
+            <a class="dn-load-more dn-city-more"
+               href="/citta/${escHtml(slug)}/page/${nextPage}/"
+               data-archive-type="city"
+               data-archive-slug="${escHtml(slug)}"
+               data-next-page="${nextPage}"><span class="material-symbols-outlined" style="font-size:18px;">newspaper</span>Vedi altro</a>
+          </div>`;
       }
     }
 

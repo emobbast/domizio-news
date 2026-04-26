@@ -50,6 +50,25 @@ add_filter( 'wp_robots', function ( $robots ) {
     return $robots;
 } );
 
+// ─── PER-PAGE SU ARCHIVI TASSONOMICI ─────────────────────────────────────────
+// Allinea il `posts_per_page` della global query agli archivi (city/category)
+// con quello della SSR archive query (index.php usa 20 esplicitamente).
+//
+// Default Reading Settings di questo sito è ~100; con quel valore città
+// con <100 post hanno max_num_pages=1 sulla global query → /citta/<slug>/page/2/
+// triggera handle_404() → template_redirect assorbe in home con noindex →
+// Googlebot deindexizza tutti gli URL paginati. Con 20 post/pagina la global
+// query e $archive_query in [index.php](index.php) producono lo stesso
+// max_num_pages → "Vedi altro" punta a URL realmente esistenti.
+add_action( 'pre_get_posts', function ( $query ) {
+    if ( is_admin() || ! $query->is_main_query() ) {
+        return;
+    }
+    if ( $query->is_tax( 'city' ) || $query->is_category() ) {
+        $query->set( 'posts_per_page', 20 );
+    }
+} );
+
 // ─── SUPPORTO TEMA ───────────────────────────────────────────────────────────
 add_action( 'after_setup_theme', function () {
     add_theme_support( 'title-tag' );
@@ -294,6 +313,17 @@ add_filter( 'wp_sitemaps_taxonomies', function ( $taxonomies ) {
 // Così i link interni della React app non danno 404
 add_action( 'template_redirect', function () {
     if ( is_404() && ! is_admin() ) {
+        // Bail per archivi tassonomici/categoria paginati: quegli URL
+        // devono mantenere il loro 404 naturale (o rendere un archivio
+        // vuoto) invece di essere assorbiti silenziosamente nella home
+        // con noindex. Senza questa guardia, /citta/<slug>/page/N/ con
+        // paged > max_num_pages della global query veniva ricondotto a
+        // home (S5) e Googlebot deindexizzava tutti i paginati.
+        $is_paged_archive = is_paged() && ( is_tax( 'city' ) || is_category() );
+        if ( $is_paged_archive ) {
+            return;
+        }
+
         // Normalize the request to a 200 "home" response so Googlebot
         // indexes SPA URLs that resolve client-side and index.php renders
         // the home SSR branch (with the correct canonical to the homepage).

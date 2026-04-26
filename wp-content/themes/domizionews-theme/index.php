@@ -464,6 +464,25 @@ function dnapp_ssr_hero_card($post_id) {
   <?php
 }
 
+// Bottone "Vedi altro" stile pillola (mirror della .dn-city-more della home,
+// app.js:721-723). Single source of truth per S3 (city archive) e S4
+// (category archive), e — combinato con il SPA emit in buildCities — riusa
+// la regola CSS .dn-city-more in base.css. La classe .dn-load-more resta
+// invariata: il delegate handler in app.js la intercetta sia su SSR sia su SPA.
+function dnapp_ssr_vedi_altro_button($next_url, $archive_type, $archive_slug, $next_page) {
+  ?>
+  <div class="dn-city-more-wrap">
+    <a class="dn-load-more dn-city-more"
+       href="<?php echo esc_url($next_url); ?>"
+       data-archive-type="<?php echo esc_attr($archive_type); ?>"
+       data-archive-slug="<?php echo esc_attr($archive_slug); ?>"
+       data-next-page="<?php echo (int) $next_page; ?>">
+      <span class="material-symbols-outlined" style="font-size:18px;">newspaper</span>Vedi altro
+    </a>
+  </div>
+  <?php
+}
+
 function dnapp_ssr_detail_header($title) {
   printf(
     '<div class="dn-detail-header"><div style="width:32px;"></div><span style="font-size:16px;font-weight:500;color:var(--color-text);">%s</span><div style="width:32px;"></div></div>',
@@ -632,13 +651,12 @@ elseif ($is_category_arch) $ssr_archive_attr = ' data-ssr-archive="category"';
             <?php endwhile; wp_reset_postdata(); ?>
 
             <?php if ($archive_paged < $archive_total): ?>
-              <a href="<?php echo esc_url($archive_next_url); ?>"
-                 class="dn-load-more dn-btn-primary"
-                 data-next-page="<?php echo (int) ($archive_paged + 1); ?>"
-                 data-archive-type="<?php echo esc_attr($archive_kind_attr); ?>"
-                 data-archive-slug="<?php echo esc_attr($archive_term->slug); ?>">
-                Vedi altro
-              </a>
+              <?php dnapp_ssr_vedi_altro_button(
+                $archive_next_url,
+                $archive_kind_attr,
+                $archive_term->slug,
+                $archive_paged + 1
+              ); ?>
             <?php endif; ?>
           <?php else: ?>
             <p class="dn-empty" style="padding:40px 16px">
