@@ -165,3 +165,4 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
   * Out of scope (separate work):
     - Sitemap inclusion for aggregate URLs (term `count=0` excludes them from `wp-sitemap-taxonomies-city`; needs custom provider/filter)
     - Aggregate sticky-news (not a use case today; `dnap_get_sticky_per_city()` iterates only individual slugs by design)
+- [Aggregate "Vedi altro" fix — 26/4] Removed obsolete `CITY_GOTO_TARGET` map from app.js (was redirecting `cellole-baia-domizia` → `cellole` and `falciano-carinola` → `falciano-del-massico` because aggregate URLs used to be empty). After the aggregate-post-union deploy aggregate URLs return real merged content, so `data-goto-city` now uses the slug directly — home "Vedi altro" buttons correctly link to `/citta/cellole-baia-domizia/` and `/citta/falciano-carinola/`.

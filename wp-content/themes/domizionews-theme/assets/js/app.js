@@ -200,12 +200,6 @@
     'sessa-aurunca':        'Sessa Aurunca',
   };
 
-  // Mappa slug virtuali → slug reale DB per navigazione "Vedi altro"
-  const CITY_GOTO_TARGET = {
-    'cellole-baia-domizia': 'cellole',
-    'falciano-carinola':    'falciano-del-massico',
-  };
-
   // City slugs that are virtual aggregates (multiple physical cities
   // grouped in a single section). Used to filter them out from UI
   // surfaces that list individual cities (e.g. the "Città" tab chip bar).
@@ -674,10 +668,9 @@
           citySections += renderAd('home-feed');
         }
         const shown = cityPosts.slice(0, 3);
-        const gotoSlug = CITY_GOTO_TARGET[slug] || slug;
         citySections += `
           <section class="dn-city-section" id="city-section-${slug}">
-            <div class="dn-section-label" data-goto-city="${gotoSlug}">${label}</div>
+            <div class="dn-section-label" data-goto-city="${slug}">${label}</div>
             <div class="dn-feed">
               ${shown.map((p, idx) => {
                 const isLast = idx === shown.length - 1;
@@ -685,7 +678,7 @@
               }).join('')}
             </div>
             <div class="dn-city-more-wrap">
-              <button class="dn-city-more" data-goto-city="${gotoSlug}"><span class="material-symbols-outlined" style="font-size:18px;">newspaper</span>Vedi altro</button>
+              <button class="dn-city-more" data-goto-city="${slug}"><span class="material-symbols-outlined" style="font-size:18px;">newspaper</span>Vedi altro</button>
             </div>
           </section>
           <div class="dn-section-separator"></div>`;
