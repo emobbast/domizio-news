@@ -250,16 +250,12 @@ function dnapp_rest_config(): WP_REST_Response {
 
     $cities = get_terms( [ 'taxonomy' => 'city', 'hide_empty' => false ] );
 
-    // Individual city terms hidden from the SPA chip menu: the aggregate
-    // terms 'cellole-baia-domizia' and 'falciano-carinola' already cover
-    // them. Direct URLs like /citta/cellole/ still resolve (SSR reads
-    // term from URL, not from this config).
-    $hidden_from_menu = [ 'cellole', 'baia-domizia', 'falciano-del-massico', 'carinola' ];
-
+    // REST returns ALL cities (individuals + aggregates).
+    // Client-side filtering in buildCities() / buildHome() decides
+    // what to show per UI surface.
     $cities_payload = [];
     if ( ! is_wp_error( $cities ) ) {
         foreach ( $cities as $c ) {
-            if ( in_array( $c->slug, $hidden_from_menu, true ) ) continue;
             $cities_payload[] = [ 'id' => $c->term_id, 'name' => $c->name, 'slug' => $c->slug ];
         }
     }

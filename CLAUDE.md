@@ -142,3 +142,11 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
 - [Fix Pack C — part 3 addendum 4] Two post-verify fixes:
   * base.css and app.js enqueue switched to `filemtime()` for automatic cache-busting. Prior `ver=1.0.0` was cached browser-side, making the new SSR classes (`.dn-ssr-main`, `.dn-archive-item`, `.dn-btn-primary`, …) invisible to returning visitors. Every future CSS/JS edit now auto-busts without manual version bumps.
   * `$hidden_from_menu` filter in `dnapp_rest_config()` used the slug `falciano` but the real DB slug is `falciano-del-massico` (verified via `/wp-json/wp/v2/city` → `{id:6, name:"Falciano", slug:"falciano-del-massico"}`). Corrected so the SPA menu shows only the aggregates + Castel Volturno, Mondragone, Sessa Aurunca.
+- [Cities menu asymmetric — 26/4]
+  Owner spec: tab "Città" must show 7 individual cities, home must keep 5 entries with aggregates.
+  * functions.php: removed server-side `$hidden_from_menu` filter in `dnapp_rest_config`. REST `/wp-json/dnapp/v1/config` now returns all 9 cities (7 individual + 2 aggregates).
+  * app.js: added `AGGREGATE_CITY_SLUGS` constant (`['cellole-baia-domizia', 'falciano-carinola']`).
+  * app.js: extended `CITY_SLUG_LABELS` with explicit `'cellole'` and `'baia-domizia'` entries (avoids `capitalizeFirst` fallback producing "Baia domizia" with lowercase d).
+  * app.js: `buildCities()` chip iteration now applies `.filter(c => !AGGREGATE_CITY_SLUGS.includes(c.slug))` so the city tab shows only the 7 individuals.
+  * Home unchanged: already iterates hardcoded `CITY_SLUGS` (5-entry constant with aggregates) — independent of REST.
+  * Direct URLs `/citta/<slug>/` for all 9 cities continue to resolve via SSR (no change to taxonomy archive branches).

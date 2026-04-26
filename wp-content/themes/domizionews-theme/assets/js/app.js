@@ -191,6 +191,8 @@
   const CITY_SLUG_LABELS = {
     'mondragone':           'Mondragone',
     'castel-volturno':      'Castel Volturno',
+    'cellole':              'Cellole',
+    'baia-domizia':         'Baia Domizia',
     'cellole-baia-domizia': 'Cellole e Baia Domizia',
     'falciano-del-massico': 'Falciano del Massico',
     'carinola':             'Carinola',
@@ -203,6 +205,11 @@
     'cellole-baia-domizia': 'cellole',
     'falciano-carinola':    'falciano-del-massico',
   };
+
+  // City slugs that are virtual aggregates (multiple physical cities
+  // grouped in a single section). Used to filter them out from UI
+  // surfaces that list individual cities (e.g. the "Città" tab chip bar).
+  const AGGREGATE_CITY_SLUGS = ['cellole-baia-domizia', 'falciano-carinola'];
 
   // Titolo fallback della home: viene ripristinato quando nessuna città e
   // nessun chip-categoria sono selezionati. Replicato qui perché _origTitle
@@ -771,9 +778,11 @@
         </div>
         <main>
           <div class="dn-chips-scroll">
-            ${state.cities.map(c => `
-              <button class="dn-chip ${state.selectedCity === c.slug ? 'active' : ''}" data-city="${escHtml(c.slug)}">${escHtml(c.name)}</button>
-            `).join('')}
+            ${state.cities
+              .filter(c => !AGGREGATE_CITY_SLUGS.includes(c.slug))
+              .map(c => `
+                <button class="dn-chip ${state.selectedCity === c.slug ? 'active' : ''}" data-city="${escHtml(c.slug)}">${escHtml(c.name)}</button>
+              `).join('')}
           </div>
           <div class="dn-feed">
             ${feedHtml}
