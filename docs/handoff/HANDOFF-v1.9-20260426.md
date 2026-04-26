@@ -1,7 +1,7 @@
 # HANDOFF — Domizio News
-**Versione:** v1.8 | **Data:** 26 aprile 2026, fine giornata | **Branch attivo:** develop
+**Versione:** v1.9 | **Data:** 26 aprile 2026, sera tardi | **Branch attivo:** develop
 
-> Consolidato da v1.6 (infrastruttura + sessione mattino/pomeriggio) e v1.7 (SSR↔SPA parity, sera). Sostituisce entrambi.
+> Consolida v1.8 (5 deploy della giornata) aggiungendo: 6° deploy (paged404+vedialtro-style), verifica visiva SSR/SPA parity completata, audit completo bug immagini Google News + duplicati contenuti, decisione strategia SEO per cancellazioni. Sostituisce v1.8.
 
 ---
 
@@ -227,6 +227,146 @@ Slider (`buildSlider`) intenzionalmente omesso su SSR — UX flair, non SEO-crit
 - Home SSR (S5): 5 `WP_Query` con `no_found_rows=true` + 1 ItemList JSON-LD + 1 SEO meta = 7 queries totali. Within budget.
 - Aggregate cities usano multi-slug `tax_query` via `dnap_get_aggregate_city_subterms()`.
 
+### 3.6 Paged archive 404 fix + Vedi altro style align ✅ DEPLOYATO (sera tardi)
+
+**Branch:** `claude/paged404-and-vedialtro-style` (SHA `6b9fac8`) — merged → main
+
+**Problema A (CRITICO SEO):** dopo v1.7 deploy, gli URL `/citta/<slug>/page/N/` venivano assorbiti dal force-home fallback con noindex. Causa: mismatch tra global query `posts_per_page` (~100, da Reading Settings) e SSR archive query `posts_per_page=20`. SSR emetteva link "Vedi altro" che superavano il `max_num_pages` della global, triggerando `handle_404` → `template_redirect` force-home + `noindex`. Tutte le pagine paged di city con <100 post erano deindicizzate da Google.
+
+**Problema B (cosmetico ma SSR↔SPA parity):** bottone "Vedi altro" su SPA Città tab + SSR archivi usava `.dn-btn-primary` (rettangolo viola pieno), HOME usava `.dn-city-more` (pillola bianca con icona newspaper). Inconsistenza visiva.
+
+**Modifiche FIX A (`functions.php`):**
+- Nuovo filter `pre_get_posts` che setta `posts_per_page=20` su query main archivi city/category. Allineamento global ↔ SSR.
+- Defensive guard in `template_redirect`: paged > 1 su archivi city/category bypassano force-home (renderizzano natural 404).
+
+**Modifiche FIX B:**
+- Nuovo helper `dnapp_ssr_vedi_altro_button($next_url, $type, $slug, $next_page)` in `index.php` — single source of truth per SSR.
+- SPA `buildCities()` (`app.js:778-786`) emette stesso markup: `<div class="dn-city-more-wrap"><a class="dn-load-more dn-city-more">...newspaper icon...Vedi altro</a></div>`.
+- `.dn-btn-primary` rule in `base.css` marcato come "cleanup candidate" (regola preservata, comment aggiunto).
+
+**Touched files:** `functions.php` (+30), `index.php` (+32/-7), `app.js` (+7/-5), `base.css` (+1/-2), `CLAUDE.md` (+12).
+
+**Verifica post-deploy:**
+- ✅ `/citta/carinola/page/2/` → `data-ssr-archive="city"` + title "Carinola | Domizio News — Pagina 2" + `<meta robots index, follow>` (NO noindex)
+- ✅ `/citta/cellole/page/2/` e `/citta/baia-domizia/page/2/` → marker SSR presente
+- ⚠️ `/citta/carinola/page/99/` → 200 + noindex + body home. **Delta intentional: soft-404 SEO-safe.** Googlebot non segue link a page out-of-range (segue solo `<a href>` esistenti, e SSR emette solo link a pagine valide). Utenti che digitano manualmente vedono home + noindex, accettabile.
+
+### 3.7 Verifica visiva SSR↔SPA parity (post v1.7 + 3.6) ✅ COMPLETATA
+
+Verifica eseguita dall'utente con JavaScript disabilitato in Chrome (DevTools → Disable JavaScript).
+
+| Path | JS off | JS on | Esito |
+|---|---|---|---|
+| `/citta/carinola/` | Top header + chip + card thumb + "Vedi altro" pillola bianca + bottom nav + footer | Stesso markup, swap invisibile, date passano da assolute a "Nh fa" | ✅ |
+| Click chip città | Browser segue href, full reload | JS intercetta, fluido | ✅ |
+| Click "Vedi altro" | Reload + scroll torna in cima (atteso, no JS) | Append card, scroll preservato | ✅ |
+| Background `#FEF7FF` | ✅ Coerente | ✅ Coerente | ✅ |
+| Material Symbols icons | ✅ Renderizzate (font caricato da `header.php`) | ✅ Renderizzate | ✅ |
+| `.dn-ssr-*` classes | ❌ Assenti dal markup (dead code rimosso) | ❌ Assenti | ✅ |
+
+**Conclusione:** la parità SSR↔SPA è confermata. Hydration takeover invisibile come progettato.
+
+### 3.8 Audit Issue 1+2 — Coverage immagini + duplicati contenuti (read-only) ✅ COMPLETATO
+
+Audit diagnostico eseguito su database produzione (1078 post pubblicati totali). Read-only, nessuna modifica.
+
+#### Issue 1 — Image coverage map
+
+**Aggregate totali (1078 post):**
+
+| Categoria | Post | % |
+|---|---|---|
+| Featured image WP (`_thumbnail_id`) | 624 | 57.9% |
+| URL esterno Unsplash (`_dnap_external_image`) | 208 | 19.3% |
+| Nessuna immagine | 246 | 22.8% |
+
+Coverage rate totale: 77.2%. Roughly 1 card su 4 mostra placeholder.
+
+**Smoking gun — breakdown per fonte feed:**
+
+| Host | Total | Real thumb | Unsplash | No image | Thumb % |
+|---|---|---|---|---|---|
+| **news.google.com** | 476 | 29 | 207 | **240** | **6%** |
+| ecaserta.com | 133 | 133 | 0 | 0 | 100% |
+| edizionecaserta.net | 129 | 129 | 0 | 0 | 100% |
+| pupia.tv | 93 | 91 | 0 | 2 | 98% |
+| thereportzone.it | 72 | 71 | 0 | 1 | 99% |
+| cronachedi.it | 34 | 34 | 0 | 0 | 100% |
+| ilmattino.it, ansa.it, altri | 100% | | | | |
+
+**Diagnosi:** feed diretti funzionano al 98-100%. Google News (44% del corpus) è il problema unico. 240/246 post no-image vengono da `news.google.com`. Tutti i 207 placeholder Unsplash vengono da Google News.
+
+**Causa tecnica (`media.php`):**
+1. Step 0-3 (RSS enclosure / og:image / inline img): vuoti per Google News (RSS metadata-only)
+2. Step 4 (`dnap_fetch_article_image`): early-return se host = google.com (`media.php:385`). Funziona solo se `dnap_resolve_google_news_url` ha decodificato il payload base64 e upgradeato `$source_url` al canonical publisher PRIMA di `dnap_set_featured_image`
+3. Step 6 (Unsplash API): solo se `DNAP_UNSPLASH_KEY` definita e ≠ placeholder
+
+I 240 no-image hanno fallito tutti e tre: base64 decode missato + URL non risolto a host non-Google + Unsplash API non risposta (intermittente).
+
+**Distribuzione temporale (NON è artefatto di sviluppo):**
+- 2026-02: 8 no-image
+- 2026-03: 118 no-image
+- 2026-04: 120 no-image
+
+Il problema è **ongoing in produzione**, non legacy.
+
+**Drift documentazione:** CLAUDE.md menziona `_dnap_unsplash_used = 1` ma il codice in `media.php:280` non scrive mai questo meta. Distinzione recuperabile via `_dnap_external_image` host check (Unsplash hostname).
+
+**Render no-image:**
+- SSR helper `dnapp_ssr_post_image($post_id)` ritorna empty string → SSR card emette placeholder div 80×80 viola `#EADDFF` con icona Material `article` `#6750A4` (`index.php:422-426`)
+- SPA `buildArticleCard` emette identico placeholder (`app.js:511-524`)
+- Hero card usa `buildImagePlaceholder()` variante 16:9
+
+#### Issue 2 — Content duplicates
+
+**2.1 Title duplicates esatti (case-insensitive):** 11 gruppi, 23 post
+
+```
+4x | 1931, 1936, 1988, 2022 | "Castel Volturno, scoperti 19 lavoratori in nero in un beach club"
+2x | 2151, 2170 | "Aggressione a Mondragone: arrestato 37enne con una pala"
+2x | 1443, 1948 | "Carinola conferisce cittadinanza onoraria al generale Luongo"
+2x | 1995, 2030 | "Castel Volturno celebra il 25 aprile con enogastronomia e musica"
+2x | 2388, 2397 | "Castel Volturno, 35enne sorpreso con moto rubata e targa falsa"
+2x | 1255, 1256 | "Furto di bici elettrica a Mondragone: denunciato il responsabile"
+2x | 1026, 1061 | "Furto in farmacia a Mondragone: arrestato dopo inseguimento"
+2x | 2497, 2512 | "Incendio al depuratore aziendale a Sessa Aurunca"
+2x | 1926, 1978 | "Incendio distrugge barche in capannone a Castel Volturno"
+2x | 1983, 2076 | "Incendio distrugge rimessaggio barche a Castel Volturno"
+2x | 1085, 1219 | "Mondragone: due denunciati per guida di auto rubata"
+```
+
+**2.2 Near-duplicate titles (60-char normalized):** 14 gruppi (3 extra catch encoding/punteggiatura):
+- 921, 2074: "Litorale Domizio, maxi operazione contro l'abusivismo edilizio"
+- 741, 760: "Rosa Di Maio guida Fratelli d'Italia a Mondragone"
+- 2060, 2109: "Settimana Santa 2026 a Sessa Aurunca con il Vescovo Cirulli"
+
+**2.3 Body content duplicates (200-char normalized):** 0 gruppi. Claude rewrite varia abbastanza da non collidere mai sul body, anche su titoli identici.
+
+**2.4 Cluster Iannitti:** 11 post in 13 giorni. Arc giornalistico legittimo (ritrovamento → arresto → interrogatorio → udienza → scuse). Solo coppia 2366/2378 (4h apart, near-identical) borderline — entity meta gap.
+
+**2.5 Causa dedup pipeline:**
+
+| Layer | Status | Causa fallimento |
+|---|---|---|
+| Layer 1 (URL/hash/feed-title) | ✅ Funziona | Catch reposts da stesso feed |
+| Layer 1.5 (Claude-title 12h) | ⚠️ Window troppo stretta | Misses same-event reposts >12h apart |
+| Layer 2a/2b (entity 30gg/72h) | ⚠️ Underfed | Solo 38/1078 post (3.5%) hanno `_dnap_event_entity` |
+| Layer 2c (keywords) | ⚠️ Underfed | Solo 85/1078 post (7.9%) hanno `_dnap_event_keywords` |
+
+**Coverage meta keys:**
+| Meta | Post con valore | % |
+|---|---|---|
+| `_source_url` | 1076 | 99.8% |
+| `_source_hash` | 1076 | 99.8% |
+| `_dnap_event_entity` | 38 | 3.5% |
+| `_dnap_event_keywords` | 85 | 7.9% |
+| `_dnap_event_city` | 96 | 8.9% |
+| `_dnap_event_type` | 124 | 11.5% |
+
+92%+ del corpus si affida solo a Layers 1+1.5. Per eventi senza persona/entità (collective subjects: "scoperti 19 lavoratori", "Settimana Santa") Claude restituisce entity vuoto e keywords sparse → dedup non scatta.
+
+**Conclusione audit:** i due bug sono indipendenti. Immagini = scraping failure Google News-specifico. Duplicati = Claude metadata gap. Entrambi hanno fix code-level disponibili.
+
 ---
 
 ## 4. Architettura post 26/4
@@ -288,15 +428,18 @@ Slider (`buildSlider`) intenzionalmente omesso su SSR — UX flair, non SEO-crit
 | 1.5 | Fix "Vedi altro" aggregati (CITY_GOTO_TARGET) | 5 min | `2853669` | ✅ Deployato |
 | 2 | SPA paginazione + "Vedi altro" in buildCities | 35 min | `720efdb` | ✅ Deployato |
 | 3 | SSR pixel-identical (card + chrome + CSS unification) | 4h | `5008735` | ✅ Deployato |
-| 4 | Hydration true takeover boot() | 30 min | — | 🔜 Possibile prossimo (vedi nota) |
+| 3.6 | Paged 404 fix + Vedi altro style align | 30 min | `6b9fac8` | ✅ Deployato |
+| 4 | Hydration true takeover boot() | 30 min | — | 🟢 De facto già implementato in v1.7 |
 
-**Nota Fase 4:** la v1.7 ha già parzialmente implementato l'hydration takeover — `boot()` rileva `[data-ssr-archive]` e va in modalità hydration senza fare innerHTML replacement. Il `hydrateTimestamps()` rinfresca le date. Il marker class-based è stato sostituito da data-attribute. Quindi Fase 4 originale potrebbe essere già al 70%; resta da valutare se serve ancora un branch separato o se il lavoro è già confluito qui.
+**Nota Fase 4:** v1.7 ha già implementato l'hydration takeover — `boot()` rileva `[data-ssr-archive]` e va in modalità hydration senza innerHTML replacement. Verificato in 3.7 che lo swap è invisibile. Branch separato per Fase 4 non necessario.
+
+**Roadmap hydration COMPLETATA** ✅ — la fondazione SSR/SPA è stabile.
 
 ---
 
-## 6. Bug Status — 26 aprile fine giornata
+## 6. Bug Status — 26 aprile sera tardi
 
-### ✅ Risolti oggi (5 deploy)
+### ✅ Risolti oggi (6 deploy)
 
 | Bug/feature | Branch | SHA |
 |---|---|---|
@@ -305,9 +448,32 @@ Slider (`buildSlider`) intenzionalmente omesso su SSR — UX flair, non SEO-crit
 | Vedi altro aggregati (CITY_GOTO_TARGET) | aggregate-vedi-altro-fix | 2853669 |
 | SPA pagination Città | spa-pagination-vedi-altro | 720efdb |
 | SSR ↔ SPA HTML parity | ssr-spa-html-parity | 5008735 |
+| Paged 404 + Vedi altro style align | paged404-and-vedialtro-style | 6b9fac8 |
 
-### 🟠 Possibile prossimo
-- Fase 4 hydration takeover — verificare se v1.7 lo copre o serve fine-tuning separato
+### 🔴 Bug critici emersi oggi (audit completato, fix da pianificare)
+
+#### **A. Cleanup duplicati DB con strategia SEO 301**
+- 23 post duplicati esatti in 11 gruppi (sez. 3.8.2.1)
+- **Strategia richiesta:** non solo cancellare, ma reindirizzare 301 dal "perdente" al "vincitore" della coppia per preservare SEO + backlink + indicizzazione Google
+- **Vincitore = post più vecchio del gruppo** (probabile già indicizzato + più backlink)
+- **Effort:** ~30 min (cleanup) + setup plugin Redirection o regole .htaccess
+
+#### **A2. Recovery URL già cancellati indicizzati da Google**
+- Aspetto SEO emerso: cancellazioni passate (es. ~45 Iannitti documentati in v1.6 da pulire) ritornano 404 senza redirect
+- **Effort:** 1-2h (audit Google Search Console "Pagine non trovate" + decisione 301 vs 410 per ognuno)
+- **Pre-requisito:** verificare se c'è già un plugin redirect installato + check GSC quanti URL 404 sono indicizzati
+
+#### **B. Pipeline immagini Google News broken**
+- 246 post no-image (22.8% del corpus), 207 placeholder Unsplash
+- Causa: `dnap_resolve_google_news_url` base64 decode + URL upgrade a publisher canonical fallisce, Unsplash fallback intermittente
+- **Effort:** 2-3h (patch `media.php`, debug iterativo del payload base64 Google News)
+- **Beneficio:** sblocca 50%+ nuovi import; post storici no-image sono persi (fonti hanno perso le immagini originali nel frattempo)
+
+#### **C. Pipeline dedup sotto-alimentata**
+- Layer 1.5 finestra 12h troppo stretta
+- Layer 2a/2b/2c richiede `_dnap_event_entity`/keywords ma solo 3.5-7.9% dei post li hanno
+- **Effort:** 1-2h (patch `core.php`, allargare finestra Layer 1.5 a 72h + tightening Claude prompt per entity extraction sui collective subjects)
+- **Beneficio:** preventivo, ferma i prossimi 23+ duplicati
 
 ### 🟠 P1 aperti (preesistenti)
 - **#URL-tab-sync** — Tab principali (Home, Città, Scopri, Cerca) non aggiornano URL su click
@@ -323,12 +489,13 @@ Slider (`buildSlider`) intenzionalmente omesso su SSR — UX flair, non SEO-crit
 - **#34** rsync+symlink deploy atomico
 - **#35** CI gate `php -l` pre-deploy
 - **#36** opcache reload post-deploy
-- **#CSS-unification** — ✅ RISOLTO con v1.7 SSR↔SPA parity (era previsto naturalmente con Fase 3)
-- **#import-aggregate-cities** — Plugin auto-assegna aggregati ai nuovi articoli (ora meno urgente con post union server-side)
 - **#42** preconnect domini esterni
 - **#sitemap-aggregates** — Aggregati non in `wp-sitemap-taxonomies-city` (count=0). Custom provider, ~30 min
+- **#dn-btn-primary-cleanup** — Rule preserved in base.css ma marcato unused. Cleanup branch separato dopo verifica zero consumers altrove.
 
-### 🟢 Risolti per side-effect v1.7
+### 🟢 Risolti per side-effect oggi
+- **#CSS-unification** — ✅ Risolto con v1.7 SSR↔SPA parity
+- **Paged archive SEO regression** — ✅ Risolto con 3.6 (era stato introdotto da v1.7, fixato stesso giorno)
 - Footer markup divergence SSR/SPA — unificato via helper
 - Material Symbols caricato ma non usato su SSR — ora usato per chrome
 - Roboto weight 300 mismatch SPA/base.css — allineato
@@ -336,6 +503,10 @@ Slider (`buildSlider`) intenzionalmente omesso su SSR — UX flair, non SEO-crit
 ### Task non-bug
 - 16 simboli Unsplash da scaricare manualmente
 - AdSense re-submit (24/4 +48h finestra) — DA FARE
+- Verifica Google Search Console su URL 404 indicizzati (pre-requisito A2)
+
+### Soft delta intentional documentati
+- `/citta/<slug>/page/99/` (out-of-range) → 200 + noindex su body home. Soft-404 SEO-safe; Googlebot non segue link a pagine inesistenti, utenti raramente digitano URL out-of-range manualmente.
 
 ---
 
@@ -381,21 +552,45 @@ Slider (`buildSlider`) intenzionalmente omesso su SSR — UX flair, non SEO-crit
 
 ### 🔴 Imminente (prossima sessione)
 
-1. **Manual QA checklist v1.7** completa (sezione 7) — verifica visiva su prod su tutti i path principali, sia con JS che senza.
-2. **Re-submit AdSense** — finestra ottimale ora (+48h dal deploy 24/4 e con SSR/SPA parity live, l'esperienza utente è massimamente coerente).
-3. **Ping Google Search Console** sui URL aggregati `/citta/cellole-baia-domizia/` e `/citta/falciano-carinola/` per accelerare indicizzazione.
+**Macro-task A — Strategia SEO post-cancellazione (struttura + framework)**
+1. Verificare se plugin redirect è installato (es. "Redirection" by John Godley) — prerequisito per A1+A2
+2. Audit Google Search Console → "Pagine non trovate (404)" e "Pagina con reindirizzamento" — capire perimetro reale di URL 404 indicizzati
+3. Decidere strategia: 301 (a duplicato sopravvissuto) vs 410 Gone (contenuto morto senza sostituto)
+
+**Task A1 — Cleanup 23 duplicati esatti con redirect 301**
+- Per ogni gruppo: identificare il "vincitore" (post più vecchio = più probabile indicizzato + backlink)
+- Cancellare i "perdenti" + creare 301 dal loro permalink al vincitore
+- ~30 min
+
+**Task A2 — Recovery cancellazioni passate (Iannitti cluster + altri)**
+- Audit GSC per quantificare URL 404 indicizzati
+- 301 verso post equivalente attuale o 410 Gone se nessun sostituto valido
+- 1-2h
+
+**Task B — Fix pipeline immagini Google News**
+- Patch `media.php` step 4 (Google News URL resolution) e step 6 (Unsplash retry)
+- Beneficio: sblocca 50%+ dei nuovi import Google News
+- 2-3h, mente fresca consigliata
+
+**Task C — Fix pipeline dedup**
+- Patch `core.php`: Layer 1.5 finestra da 12h → 72h
+- Patch Claude prompt: forzare entity extraction anche su collective subjects (gruppi/eventi senza persona singola)
+- 1-2h
+
+### 🎯 Dopo cleanup + fix pipeline
+- **Re-submit AdSense** — finestra ottimale dopo che immagini Google News sono fixate (sito visivamente più ricco)
+- **Ping Google Search Console** sui URL aggregati `/citta/cellole-baia-domizia/` e `/citta/falciano-carinola/`
 
 ### 🎯 Medio termine
-
-4. **Fase 4 hydration** (eventuale) — verificare se serve ancora separatamente dopo v1.7.
-5. **VIP/Slider bug #44-48** — pulizia accumulo sticky_post + dedup cross-slot.
-6. **#URL-tab-sync** — sincronizzare URL su click tab principali.
-7. **#sitemap-aggregates** — custom sitemap provider per aggregati.
+5. **VIP/Slider bug #44-48** — pulizia accumulo sticky_post + dedup cross-slot
+6. **#URL-tab-sync** — sincronizzare URL su click tab principali
+7. **#sitemap-aggregates** — custom sitemap provider per aggregati
+8. **#dn-btn-primary-cleanup** — rimuovere rule unused dopo verifica zero consumers
 
 ### 🟢 Side opportunities
 
-8. **Quattro siti `<style>${STYLES}</style>` in render()** — possono essere rimossi (STYLES ora è `''`). Out of scope di v1.7 per limitare surface area.
-9. **Footer SPA hardcoded "© 2026"** (`app.js:734`) — passare a dinamico al rollover anno.
+9. **Quattro siti `<style>${STYLES}</style>` in render()** — possono essere rimossi (STYLES ora è `''`).
+10. **Footer SPA hardcoded "© 2026"** (`app.js:734`) — passare a dinamico al rollover anno.
 
 ---
 
@@ -417,9 +612,16 @@ Slider (`buildSlider`) intenzionalmente omesso su SSR — UX flair, non SEO-crit
 - **Slider omesso su SSR**: pure UX flair, nessun impatto SEO. Mantiene SSR snello e veloce.
 - **`functions.php` intoccato**: prova rigorosa che il lavoro v1.7 è body-only. SEO tutto in wp_head, callback intatti.
 
+### Sera tardi (3.6 + audit issue 1+2)
+- **Paged 404 SEO regression**: il bug era stato introdotto da v1.7 ma è preesistente nel comportamento (mascherato fino a quando wp_robots era is_paged-aware). Risolto con `pre_get_posts` + defensive guard nello stesso giorno = mai entrato in produzione "stantio".
+- **`/citta/<slug>/page/99/` → soft-404**: accettato come delta intentional. Googlebot non segue link inesistenti, utenti raramente digitano URL out-of-range. Trade-off: noindex sulla home se URL fuori range, vs lavoro non banale per ricostruire `is_paged()` post-handle_404. Non vale il rischio.
+- **Bottone "Vedi altro" stile pillola bianca per tutte le superfici**: deciso opzione "allinea SPA + SSR a HOME". Coerente con design language Material 3 più morbido.
+- **Strategia SEO 301 invece di hard-delete**: per i 23 duplicati e per cancellazioni future, sempre 301 verso il "vincitore" (post più vecchio del gruppo). Massima conservazione SEO + UX (utenti da SERP non vedono 404).
+
 ### Pattern operativi consolidati
-- **Audit-prima-di-implementare**: quando ci sono dubbi sul codice (selettori, signature, attributi), Claude chat genera prompt PHASE 1 read-only, lancia, poi sulla base dell'output reale costruisce PHASE 2 implement. Mai indovinare. Mai chiedere all'utente di copiare codice.
-- **Pattern audit → review → implement**: tre prompt separati. Ogni prompt ha output deterministico. L'utente sa sempre dove siamo.
+- **Audit-prima-di-implementare** (consolidata mattino, riapplicata 3 volte nella stessa giornata): per ogni decisione importante, prima audit read-only, poi implement. Ha permesso di evitare regressioni multiple.
+- **Pattern audit → review → implement**: tre prompt separati, ogni prompt ha output deterministico, l'utente sa sempre dove siamo.
+- **Pattern fix critico + cosmetico stesso branch**: quando i due fix toccano lo stesso file (es. paged404 + Vedi altro style toccano entrambi index.php), branch unico riduce friction senza accoppiare logicamente.
 
 ---
 
@@ -568,10 +770,12 @@ Tutti gli altri delta sono **bug** e vanno corretti subito, non documentati.
 
 ---
 
-*Fine HANDOFF v1.8 — 26 aprile 2026, fine giornata*
+*Fine HANDOFF v1.9 — 26 aprile 2026, sera tardi*
 
-*Sessione 26/4: 5 deploy in giornata (cities asymmetric → aggregate union → vedi-altro fix → SPA pagination → SSR/SPA parity)*
+*Sessione 26/4: 6 deploy in giornata (cities asymmetric → aggregate union → vedi-altro fix → SPA pagination → SSR/SPA parity → paged404+vedialtro-style)*
 
-*Roadmap hydration: Fase 1, 1.5, 2, 3 ✅ — solo Fase 4 (eventuale) residua*
+*Roadmap hydration COMPLETATA: Fase 1, 1.5, 2, 3, 3.6 ✅. Fase 4 de-facto già implementata in v1.7.*
 
-*Prossima priorità: QA checklist v1.7 → re-submit AdSense → ping GSC → valutazione Fase 4*
+*Bug critici emersi dall'audit serale: A (cleanup duplicati con SEO 301), A2 (recovery URL già cancellati), B (immagini Google News), C (dedup pipeline). Tutti pianificati con effort stimato.*
+
+*Prossima priorità: Task A — strategia 301 + cleanup duplicati con preservazione SEO.*
