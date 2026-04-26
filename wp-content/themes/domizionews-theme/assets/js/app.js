@@ -267,8 +267,9 @@
   }
 
   // Carica post filtrati per categoria (chip home).
-  // GET /wp-json/domizio/v1/posts?category=SLUG&per_page=50
-  // Raggruppa per city_slug per alimentare le sezioni home.
+  // Parallel fetch per CITY_SLUGS — REST handles aggregate union server-side,
+  // così homeCatPosts è keyed direttamente dagli slug di CITY_SLUGS (incluse
+  // le aggregate) e buildHome può leggere uniformemente.
   async function loadCategoryFeed(catSlug) {
     if (!catSlug) {
       setState({ activeHomeCat: '', homeCatPosts: {}, homeCatLoading: false });
@@ -276,15 +277,17 @@
     }
     setState({ activeHomeCat: catSlug, homeCatLoading: true });
     try {
-      const url  = DOMIZIO_API + '/posts?category=' + encodeURIComponent(catSlug) + '&per_page=50';
-      const data = await fetch(url).then(r => r.json()).catch(() => ({ posts: [] }));
+      const results = await Promise.all(
+        CITY_SLUGS.map(slug =>
+          fetch(DOMIZIO_API + '/posts?city=' + encodeURIComponent(slug)
+            + '&category=' + encodeURIComponent(catSlug) + '&per_page=5')
+            .then(r => r.json())
+            .catch(() => ({ posts: [] }))
+        )
+      );
       const grouped = {};
-      (data.posts || []).forEach(p => {
-        const citySlug = p.cities?.[0]?.slug;
-        if (citySlug) {
-          if (!grouped[citySlug]) grouped[citySlug] = [];
-          if (grouped[citySlug].length < 3) grouped[citySlug].push(p);
-        }
+      CITY_SLUGS.forEach((slug, i) => {
+        grouped[slug] = (results[i]?.posts || []).slice(0, 3);
       });
       setState({ homeCatPosts: grouped, homeCatLoading: false });
     } catch (e) {
@@ -296,28 +299,9 @@
   async function loadData() {
     try {
       // Fetch feed principale, config, sticky news e i feed città in parallelo.
-      // 'cellole-baia-domizia' e 'falciano-carinola' richiedono due fetch separate poi merge per data.
+      // REST honors aggregate slugs natively (server-side post union),
+      // so a single fetch covers both individual and aggregate cities.
       const fetchCityPosts = (slug) => {
-        if (slug === 'cellole-baia-domizia') {
-          return Promise.all([
-            fetch(DOMIZIO_API + '/posts?city=cellole&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
-            fetch(DOMIZIO_API + '/posts?city=baia-domizia&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
-          ]).then(([a, b]) => {
-            const merged = [...(a.posts || []), ...(b.posts || [])];
-            merged.sort((x, y) => new Date(y.date) - new Date(x.date));
-            return { posts: merged };
-          });
-        }
-        if (slug === 'falciano-carinola') {
-          return Promise.all([
-            fetch(DOMIZIO_API + '/posts?city=falciano-del-massico&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
-            fetch(DOMIZIO_API + '/posts?city=carinola&per_page=5').then(r => r.json()).catch(() => ({ posts: [] })),
-          ]).then(([a, b]) => {
-            const merged = [...(a.posts || []), ...(b.posts || [])];
-            merged.sort((x, y) => new Date(y.date) - new Date(x.date));
-            return { posts: merged };
-          });
-        }
         return fetch(DOMIZIO_API + '/posts?city=' + encodeURIComponent(slug) + '&per_page=5')
           .then(r => r.json())
           .catch(() => ({ posts: [] }));
@@ -678,20 +662,9 @@
         const label = CITY_SLUG_LABELS[slug] || slug;
         // "Tutte" → homeCityPosts (caricati al boot)
         // Categoria specifica → homeCatPosts (raggruppati per città)
-        // Per la sezione unificata in homeCatPosts cerchiamo entrambi gli slug
         let cityPosts;
         if (activeCat) {
-          if (slug === 'cellole-baia-domizia') {
-            const a = state.homeCatPosts['cellole'] || [];
-            const b = state.homeCatPosts['baia-domizia'] || [];
-            cityPosts = [...a, ...b].sort((x, y) => new Date(y.date) - new Date(x.date));
-          } else if (slug === 'falciano-carinola') {
-            const a = state.homeCatPosts['falciano-del-massico'] || [];
-            const b = state.homeCatPosts['carinola'] || [];
-            cityPosts = [...a, ...b].sort((x, y) => new Date(y.date) - new Date(x.date));
-          } else {
-            cityPosts = state.homeCatPosts[slug] || [];
-          }
+          cityPosts = state.homeCatPosts[slug] || [];
         } else {
           cityPosts = state.homeCityPosts[slug] || [];
         }

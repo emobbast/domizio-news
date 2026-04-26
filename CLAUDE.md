@@ -150,3 +150,18 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
   * app.js: `buildCities()` chip iteration now applies `.filter(c => !AGGREGATE_CITY_SLUGS.includes(c.slug))` so the city tab shows only the 7 individuals.
   * Home unchanged: already iterates hardcoded `CITY_SLUGS` (5-entry constant with aggregates) — independent of REST.
   * Direct URLs `/citta/<slug>/` for all 9 cities continue to resolve via SSR (no change to taxonomy archive branches).
+- [Aggregate city post union — 26/4]
+  Server-side post union for virtual aggregate city terms (cellole-baia-domizia, falciano-carinola). Previously aggregates had zero posts directly assigned, requiring client-side double-fetch + JS merge in two locations of app.js (boot loadData + buildHome category path).
+  * core.php: new helper `dnap_get_aggregate_city_subterms($slug)` — single source of truth, returns `['cellole','baia-domizia']` for `cellole-baia-domizia`, `['falciano-del-massico','carinola']` for `falciano-carinola`, `[]` otherwise. Lives next to `dnap_ensure_aggregate_city_terms()` to keep the aggregate definition co-located with its sub-term map.
+  * rest.php: `/domizio/v1/posts?city=<slug>` expands aggregate slugs into multi-slug `tax_query` with `operator=IN`. WP_Query handles dedup (DISTINCT join) + global date sort.
+  * index.php: SSR `is_tax('city')` branch detects aggregate via `$archive_term->slug` (with `function_exists()` guard for plugin-deactivated edge case), swaps `tax_query` from `term_id` to slug-array. Breadcrumb / canonical / h1 / `get_term_link($archive_term)` continue to use the aggregate term itself — only the posts query swaps.
+  * app.js cleanup A: removed double-fetch + JS merge in `loadData` `fetchCityPosts` — single fetch path covers individual + aggregate uniformly.
+  * app.js cleanup B: removed aggregate-aware merge branches in `buildHome` activeCat block — `state.homeCatPosts[slug]` lookup works for all CITY_SLUGS entries.
+  * app.js loadCategoryFeed restructured: switched from one category-wide fetch + group-by-`p.cities[0].slug` to parallel per-CITY_SLUGS fetches (with both `city` + `category` REST params). This was required to make cleanup B safe — old grouping keyed `homeCatPosts` by physical sub-slugs (`cellole`, `baia-domizia`), so dropping the aggregate merge would have left the category-filter aggregate sections empty. Now `homeCatPosts` is keyed by CITY_SLUGS (matching `homeCityPosts`), and the new REST aggregate union populates aggregate buckets server-side.
+  * Behavior:
+    - `/citta/cellole-baia-domizia/` and `/citta/falciano-carinola/` now return merged posts (was empty)
+    - REST honors aggregate slugs natively → SPA `loadCityFeed` works without special-casing
+    - Correctness improvement: server merge sees ALL posts (not just first per_page from each sub-feed); the JS merge could miss recent posts in long-tail sub-cities
+  * Out of scope (separate work):
+    - Sitemap inclusion for aggregate URLs (term `count=0` excludes them from `wp-sitemap-taxonomies-city`; needs custom provider/filter)
+    - Aggregate sticky-news (not a use case today; `dnap_get_sticky_per_city()` iterates only individual slugs by design)

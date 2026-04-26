@@ -33,11 +33,24 @@ if (($is_city_archive || $is_category_arch) && $archive_term && !is_wp_error($ar
     'ignore_sticky_posts' => true,
   ];
   if ($is_city_archive) {
-    $_archive_args['tax_query'] = [[
-      'taxonomy' => 'city',
-      'field'    => 'term_id',
-      'terms'    => $archive_term->term_id,
-    ]];
+    // Expand aggregate slug to sub-terms; otherwise use the term_id directly.
+    $aggregate_subs = function_exists('dnap_get_aggregate_city_subterms')
+      ? dnap_get_aggregate_city_subterms($archive_term->slug)
+      : [];
+    if (!empty($aggregate_subs)) {
+      $_archive_args['tax_query'] = [[
+        'taxonomy' => 'city',
+        'field'    => 'slug',
+        'terms'    => $aggregate_subs,
+        'operator' => 'IN',
+      ]];
+    } else {
+      $_archive_args['tax_query'] = [[
+        'taxonomy' => 'city',
+        'field'    => 'term_id',
+        'terms'    => $archive_term->term_id,
+      ]];
+    }
   } else {
     $_archive_args['cat'] = $archive_term->term_id;
   }

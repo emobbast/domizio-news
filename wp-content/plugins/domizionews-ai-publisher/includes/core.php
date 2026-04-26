@@ -84,6 +84,21 @@ function dnap_ensure_aggregate_city_terms() {
     }
 }
 
+/**
+ * Map of aggregate city slugs to their sub-term slugs.
+ * Single source of truth — used by REST handler and SSR archive
+ * branch to expand aggregate queries into multi-slug tax_query.
+ *
+ * Synchronized with $aggregates in dnap_ensure_aggregate_city_terms().
+ */
+function dnap_get_aggregate_city_subterms(string $slug): array {
+    $map = [
+        'cellole-baia-domizia' => ['cellole', 'baia-domizia'],
+        'falciano-carinola'    => ['falciano-del-massico', 'carinola'],
+    ];
+    return $map[$slug] ?? [];
+}
+
 /* ============================================================
    AUTORE "REDAZIONE"
    ============================================================ */

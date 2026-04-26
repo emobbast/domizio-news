@@ -121,10 +121,14 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
     $cat_slug     = sanitize_text_field($request['category']);
 
     if ($city_slug) {
+        // Expand aggregate slug to its sub-terms; pass-through otherwise.
+        $sub_slugs   = dnap_get_aggregate_city_subterms($city_slug);
+        $city_terms  = !empty($sub_slugs) ? $sub_slugs : [$city_slug];
         $tax_query[] = [
             'taxonomy' => 'city',
             'field'    => 'slug',
-            'terms'    => $city_slug,
+            'terms'    => $city_terms,
+            'operator' => 'IN', // explicit, default but documents intent
         ];
     }
     if ($cat_slug) {
