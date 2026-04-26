@@ -93,6 +93,8 @@
     homeCatLoading: false,  // spinner mentre si caricano post per categoria
     cityFeed: [],           // post caricati server-side per la città selezionata (tab Città)
     cityFeedLoading: false, // spinner mentre si aspetta la risposta
+    cityPage: 1,            // pagina corrente del feed città (1-based) — pilota "Vedi altro"
+    cityFeedTotalPages: 1,  // totale pagine disponibili dal REST (max_num_pages)
     scopriStep:      'categorie', // 'categorie' | 'risultati'
     scopriCategoria: null,        // slug categoria Scopri selezionata
     scopriCity:      'tutte',     // slug città Scopri ('tutte' = nessun filtro)
@@ -242,18 +244,37 @@
   }
 
   // Carica post filtrati per città (tab Città).
-  // GET /wp-json/domizio/v1/posts?city=SLUG&per_page=20
-  async function loadCityFeed(slug) {
+  // GET /wp-json/domizio/v1/posts?city=SLUG&page=N&per_page=20
+  // append=true: nuove card concatenate a state.cityFeed (usato dalla "Vedi altro" SPA).
+  // append=false: replace puro (caso default — selezione città / boot).
+  async function loadCityFeed(slug, page = 1, append = false) {
     if (!slug) {
-      setState({ cityFeed: [], cityFeedLoading: false });
+      setState({ cityFeed: [], cityFeedLoading: false, cityPage: 1, cityFeedTotalPages: 1 });
       return;
     }
-    const url = DOMIZIO_API + '/posts?city=' + encodeURIComponent(slug) + '&per_page=20';
+    const url = DOMIZIO_API + '/posts?city=' + encodeURIComponent(slug)
+      + '&page=' + page + '&per_page=20';
     console.log('[DomizioNews] fetch città:', url);
     try {
       const res  = await fetch(url);
       const data = await res.json();
-      setState({ cityFeed: data.posts || [], cityFeedLoading: false });
+      const newPosts   = data.posts || [];
+      const totalPages = data.total_pages ? parseInt(data.total_pages, 10) : 1;
+      if (append) {
+        setState({
+          cityFeed:           state.cityFeed.concat(newPosts),
+          cityFeedLoading:    false,
+          cityPage:           page,
+          cityFeedTotalPages: totalPages,
+        });
+      } else {
+        setState({
+          cityFeed:           newPosts,
+          cityFeedLoading:    false,
+          cityPage:           page,
+          cityFeedTotalPages: totalPages,
+        });
+      }
     } catch (e) {
       console.error('[DomizioNews] errore fetch città:', e);
       setState({ cityFeedLoading: false });
@@ -728,6 +749,19 @@
       feedHtml = `<p class="dn-empty" style="padding:40px 16px">Nessun articolo per questa città.</p>`;
     } else {
       feedHtml = state.cityFeed.map(p => buildArticleCard(p)).join('');
+      // "Vedi altro" — riusa il delegate handler .dn-load-more (stesse data-*
+      // attributes del SSR archive). href punta all'URL paginato SSR per
+      // progressive enhancement (Googlebot/condivisione/Ctrl+click).
+      if (state.cityFeedTotalPages > state.cityPage) {
+        const nextPage = state.cityPage + 1;
+        const slug     = state.selectedCity;
+        feedHtml += `
+          <a class="dn-load-more dn-btn-primary"
+             href="/citta/${escHtml(slug)}/page/${nextPage}/"
+             data-archive-type="city"
+             data-archive-slug="${escHtml(slug)}"
+             data-next-page="${nextPage}">Vedi altro</a>`;
+      }
     }
 
     return `
@@ -1337,6 +1371,14 @@
         const slug     = loadMore.dataset.archiveSlug;
         if (!nextPage || !slug || !type) return;
 
+        // SPA context: bottone dentro .dn-feed (tab Città SPA) → usa
+        // buildArticleCard per mantenere lo stile cards coerente e
+        // sincronizza state.cityFeed/cityPage/cityFeedTotalPages tramite
+        // mutation diretta (no setState → no re-render → no scroll loss).
+        // SSR archive context: bottone dentro .dn-archive-list (index.php)
+        // → mantiene il path esistente dn-archive-item.
+        const isSpaContext = !!loadMore.closest('.dn-feed');
+
         const origLabel = loadMore.textContent;
         loadMore.textContent = 'Caricamento...';
         loadMore.style.opacity = '0.6';
@@ -1353,21 +1395,35 @@
             }
             const container = loadMore.parentElement;
             if (!container) return;
-            posts.forEach(p => {
-              const art = document.createElement('article');
-              art.className = 'dn-archive-item';
-              const date = p.time_ago
-                || (p.date ? new Date(p.date).toLocaleDateString('it-IT') : '');
-              art.innerHTML =
-                '<a href="' + escHtml(p.permalink || '#') + '" class="dn-archive-item-link">' +
-                  '<h2>' + escHtml(decodeHtml(p.title || '')) + '</h2>' +
-                  '<p>' + escHtml(decodeHtml(p.excerpt || '')) + '</p>' +
-                  '<span class="dn-archive-item-date">' + escHtml(date) + '</span>' +
-                '</a>';
-              container.insertBefore(art, loadMore);
-            });
+
+            if (isSpaContext) {
+              const tmp = document.createElement('div');
+              tmp.innerHTML = posts.map(p => buildArticleCard(p)).join('');
+              Array.from(tmp.children).forEach(card => container.insertBefore(card, loadMore));
+              if (type === 'city') {
+                state.cityFeed = state.cityFeed.concat(posts);
+                state.cityPage = nextPage;
+              }
+            } else {
+              posts.forEach(p => {
+                const art = document.createElement('article');
+                art.className = 'dn-archive-item';
+                const date = p.time_ago
+                  || (p.date ? new Date(p.date).toLocaleDateString('it-IT') : '');
+                art.innerHTML =
+                  '<a href="' + escHtml(p.permalink || '#') + '" class="dn-archive-item-link">' +
+                    '<h2>' + escHtml(decodeHtml(p.title || '')) + '</h2>' +
+                    '<p>' + escHtml(decodeHtml(p.excerpt || '')) + '</p>' +
+                    '<span class="dn-archive-item-date">' + escHtml(date) + '</span>' +
+                  '</a>';
+                container.insertBefore(art, loadMore);
+              });
+            }
 
             const totalPages = data && data.total_pages ? parseInt(data.total_pages, 10) : nextPage;
+            if (isSpaContext && type === 'city') {
+              state.cityFeedTotalPages = totalPages;
+            }
             if (nextPage >= totalPages || posts.length < 20) {
               loadMore.remove();
             } else {
@@ -1536,7 +1592,14 @@
       const gotoCity = t.closest('[data-goto-city]');
       if (gotoCity) {
         const slug = gotoCity.dataset.gotoCity;
-        setState({ tab: 'cities', selectedCity: slug, cityFeed: [], cityFeedLoading: true });
+        setState({
+          tab: 'cities',
+          selectedCity: slug,
+          cityFeed: [],
+          cityFeedLoading: true,
+          cityPage: 1,
+          cityFeedTotalPages: 1,
+        });
         loadCityFeed(slug);
         history.pushState({ cityPage: slug }, '', '/citta/' + slug + '/');
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1548,7 +1611,13 @@
       if (cityChip) {
         const slug    = cityChip.dataset.city;
         const newSlug = state.selectedCity === slug ? '' : slug;
-        setState({ selectedCity: newSlug, cityFeed: [], cityFeedLoading: !!newSlug });
+        setState({
+          selectedCity: newSlug,
+          cityFeed: [],
+          cityFeedLoading: !!newSlug,
+          cityPage: 1,
+          cityFeedTotalPages: 1,
+        });
         loadCityFeed(newSlug);
         if (newSlug) {
           history.pushState({ cityPage: newSlug }, '', '/citta/' + newSlug + '/');
@@ -1700,6 +1769,8 @@
           selectedLegalPage: null,
           cityFeed: [],
           cityFeedLoading: true,
+          cityPage: 1,
+          cityFeedTotalPages: 1,
         });
         loadCityFeed(slug);
         return;

@@ -166,3 +166,17 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
     - Sitemap inclusion for aggregate URLs (term `count=0` excludes them from `wp-sitemap-taxonomies-city`; needs custom provider/filter)
     - Aggregate sticky-news (not a use case today; `dnap_get_sticky_per_city()` iterates only individual slugs by design)
 - [Aggregate "Vedi altro" fix — 26/4] Removed obsolete `CITY_GOTO_TARGET` map from app.js (was redirecting `cellole-baia-domizia` → `cellole` and `falciano-carinola` → `falciano-del-massico` because aggregate URLs used to be empty). After the aggregate-post-union deploy aggregate URLs return real merged content, so `data-goto-city` now uses the slug directly — home "Vedi altro" buttons correctly link to `/citta/cellole-baia-domizia/` and `/citta/falciano-carinola/`.
+- [Fase 2 hydration — 26/4] SPA pagination "Vedi altro" sulla tab Città: l'utente carica pagine successive senza lasciare la SPA, riusando il delegate handler `.dn-load-more` già esistente per gli archivi SSR.
+  * `state` esteso: nuovi campi `cityPage` (default 1) e `cityFeedTotalPages` (default 1) tra `cityFeed` e `scopriStep` (app.js:96).
+  * `loadCityFeed(slug, page=1, append=false)` — la firma diventa a 3 parametri:
+    - URL costruito con `&page=N&per_page=20`.
+    - `total_pages` letto dal body della response REST (`/domizio/v1/posts` ritorna `{posts, total, total_pages}` — verificato in [includes/rest.php:191-195](wp-content/plugins/domizionews-ai-publisher/includes/rest.php:191)).
+    - `append=true` → `cityFeed = state.cityFeed.concat(newPosts)`; `append=false` → replace puro (comportamento attuale).
+    - In entrambi i casi setState aggiorna `cityPage` e `cityFeedTotalPages`.
+    - Slug vuoto resetta tutto a default.
+  * `buildCities()` (app.js:751) appende un `<a class="dn-load-more dn-btn-primary">` dopo le card del feed città quando `state.cityFeedTotalPages > state.cityPage`. Stesse `data-archive-type="city"`, `data-archive-slug="<slug>"`, `data-next-page="<N+1>"` del bottone SSR archive — mandatorio perché il delegate handler `.dn-load-more` riconosca il bottone. `href="/citta/<slug>/page/<N+1>/"` per progressive enhancement (Googlebot/condivisione/Ctrl+click).
+  * `.dn-load-more` handler (app.js:1380) esteso con `isSpaContext = !!loadMore.closest('.dn-feed')`:
+    - SPA context: nuove card costruite via `buildArticleCard(p)` per coerenza visiva con il feed città (le card SSR archive `dn-archive-item` hanno layout diverso). Stato sincronizzato via mutation diretta su `state.cityFeed` / `state.cityPage` / `state.cityFeedTotalPages` — niente setState quindi niente render destructive (preserva scroll).
+    - SSR context (non-`.dn-feed`): path esistente `dn-archive-item` invariato — zero regressione sugli archivi server-rendered.
+  * Reset di `cityPage`/`cityFeedTotalPages` ai valori di default (1, 1) nei tre setState che cambiano città: `[data-goto-city]` (app.js:1595), `[data-city]` chip (app.js:1614), popstate `cityMatch` (app.js:1765).
+  * Out of scope: pagination simmetrica per le category chips (richiede mirror loadCategoryFeed → al momento `loadCategoryFeed` fa parallel fetch per CITY_SLUGS che è una struttura diversa).
