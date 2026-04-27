@@ -27,7 +27,14 @@ add_action( 'init', function () {
 // noindex viene emesso SOLO per il force-home 404 fallback (SPA URL
 // risolte client-side che atterrano su index.php via template_redirect)
 // e per le viste che WP considera archivio di secondo livello ma non
-// abbiamo SSR dedicato (search / author / date).
+// abbiamo SSR dedicato (search / author / date / tag).
+//
+// is_tag() è incluso perché gli archivi tag (1490 URL in produzione)
+// sono thin content: WP genera /tag/<slug>/ per ogni tag estratto da
+// Claude, ma quegli archivi non hanno SSR dedicato né valore SEO
+// — sono duplicati delle viste città/categoria, e Google li ha
+// segnalati in massa come "rilevate ma non indicizzate". Vedi anche
+// wp_sitemaps_taxonomies che li rimuove dalla sitemap.
 //
 // is_paged() è stato RIMOSSO deliberatamente: Google dal 2019 tratta
 // ogni URL paginato come contenuto indipendente, e mettere noindex su
@@ -38,7 +45,8 @@ add_filter( 'wp_robots', function ( $robots ) {
     $is_non_canonical = ! empty( $GLOBALS['dnapp_was_404'] )
         || is_search()
         || is_author()
-        || is_date();
+        || is_date()
+        || is_tag();
     if ( $is_non_canonical ) {
         $robots['noindex'] = true;
         unset( $robots['index'] );
@@ -296,18 +304,54 @@ add_filter( 'robots_txt', function ( $output ) {
     return $output;
 }, 10, 2 );
 
-// ─── SITEMAP: includi la tassonomia 'city' ───────────────────────────────────
-// WP core (5.5+) espone il sitemap XML su /wp-sitemap.xml ma include solo
-// le tassonomie registrate con public=true di default. 'city' lo è, ma il
-// provider core non la vede se show_in_rest è impostato dopo il filtro
-// iniziale — questo filtro la riaggiunge in modo esplicito così Googlebot
-// trova tutti gli URL /citta/<slug>/ direttamente dalla sitemap.
+// ─── SITEMAP: tassonomie ─────────────────────────────────────────────────────
+// Due operazioni complementari sullo stesso filtro:
+//   1) Includi 'city' — WP core (5.5+) espone il sitemap XML su
+//      /wp-sitemap.xml ma include solo le tassonomie registrate con
+//      public=true di default. 'city' lo è, ma il provider core non
+//      la vede se show_in_rest è impostato dopo il filtro iniziale
+//      — questo filtro la riaggiunge in modo esplicito così Googlebot
+//      trova tutti gli URL /citta/<slug>/ direttamente dalla sitemap.
+//   2) Escludi 'post_tag' — 1490 archivi tag in produzione, nessuno
+//      indicizzato da Google ("rilevate ma non indicizzate" in GSC),
+//      thin content, duplicati delle viste città/categoria. Rimossi
+//      dalla sitemap per non sprecare crawl budget; il noindex sul
+//      meta robots è gestito dal filtro wp_robots più in alto.
 add_filter( 'wp_sitemaps_taxonomies', function ( $taxonomies ) {
     if ( ! isset( $taxonomies['city'] ) && taxonomy_exists( 'city' ) ) {
         $taxonomies['city'] = get_taxonomy( 'city' );
     }
+    unset( $taxonomies['post_tag'] );
     return $taxonomies;
 } );
+
+// ─── SITEMAP: rimuovi il provider 'users' ────────────────────────────────────
+// Solo l'admin pubblica (account Redazione), quindi /wp-sitemap-users-1.xml
+// contiene un singolo URL /author/<admin>/ con count tutti i post. È già
+// noindex via il filtro wp_robots (is_author()), ma resta nella sitemap →
+// Google lo crawla, scopre il noindex, lo registra come "rilevata ma non
+// indicizzata". Rimuoverlo dalla sitemap evita lo spreco di crawl budget.
+add_filter( 'wp_sitemaps_add_provider', function ( $provider, $name ) {
+    if ( 'users' === $name ) {
+        return false;
+    }
+    return $provider;
+}, 10, 2 );
+
+// ─── SITEMAP: escludi 'uncategorized' dalla sitemap delle category ───────────
+// term_id=1 ('Uncategorized') ha count=0 dopo il fix manuale post-2475,
+// ma il provider sitemap include comunque tutti i termini con count>=1
+// e — più importante — il count può scendere a 0 mentre il termine resta
+// nella query. Escludiamo esplicitamente term_id=1 per evitare che un
+// futuro post miscategorized lo riporti nella sitemap.
+add_filter( 'wp_sitemaps_taxonomies_query_args', function ( $args, $taxonomy ) {
+    if ( 'category' === $taxonomy ) {
+        $args['exclude'] = isset( $args['exclude'] )
+            ? array_merge( (array) $args['exclude'], [ 1 ] )
+            : [ 1 ];
+    }
+    return $args;
+}, 10, 2 );
 
 // ─── REDIRECT SPA: tutte le URL → index.php ──────────────────────────────────
 // Così i link interni della React app non danno 404
