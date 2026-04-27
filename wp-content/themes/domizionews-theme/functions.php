@@ -394,6 +394,42 @@ add_action( 'template_redirect', function () {
             return;
         }
 
+        // Bail se il plugin Redirection ha una regola attiva per questa URL.
+        // Senza questo bypass il force-home sotto fa rendering della home con
+        // status 200 + noindex PRIMA che Redirection (priority WordPress
+        // standard) possa intercettare l'URL → i 301 configurati dall'admin
+        // non vengono mai eseguiti. Lasciando che WP prosegua il flusso
+        // normale, Redirection riceve l'URL e fa la sua redirect.
+        //
+        // Implementazione difensiva: query diretta su wpdb (non funzioni
+        // del plugin) così il bypass resta innocuo se Redirection è poi
+        // disattivato. Guardia table-exists evita warning fatali se la
+        // tabella non esiste (uninstall completo). Controlliamo entrambe
+        // le varianti trailing-slash perché Redirection memorizza l'URL
+        // esattamente come l'admin l'ha inserito.
+        if ( defined( 'REDIRECTION_VERSION' ) ) {
+            $current_path = trim( (string) parse_url( $_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH ) );
+            if ( $current_path !== '' && $current_path !== '/' ) {
+                global $wpdb;
+                $table = $wpdb->prefix . 'redirection_items';
+                $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
+                if ( $table_exists ) {
+                    $variants = [ $current_path ];
+                    if ( substr( $current_path, -1 ) === '/' ) {
+                        $variants[] = rtrim( $current_path, '/' );
+                    } else {
+                        $variants[] = $current_path . '/';
+                    }
+                    $placeholders = implode( ',', array_fill( 0, count( $variants ), '%s' ) );
+                    $sql = "SELECT id FROM {$table} WHERE url IN ({$placeholders}) AND status = 'enabled' LIMIT 1";
+                    $has_redirect = (bool) $wpdb->get_var( $wpdb->prepare( $sql, ...$variants ) );
+                    if ( $has_redirect ) {
+                        return;
+                    }
+                }
+            }
+        }
+
         // Normalize the request to a 200 "home" response so Googlebot
         // indexes SPA URLs that resolve client-side and index.php renders
         // the home SSR branch (with the correct canonical to the homepage).

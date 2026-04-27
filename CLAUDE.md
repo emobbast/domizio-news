@@ -224,3 +224,16 @@ All paths are under `wp-content/plugins/domizionews-ai-publisher/`.
   * **Implementazione:** filter `add_action('wp_head', …, 99)` legge `get_option('site_icon')`, risolve l'URL originale via `wp_get_attachment_image_url($id, 'full')` (full-size = 512x512 sorgente), ed emette il `<link>` con `esc_url`. Early-return se l'option è 0 o l'URL non risolve. Priority 99 garantisce che la dichiarazione esca DOPO `wp_site_icon()` core (priority 10 di default), così appare ultima in `<head>` e Google la prioritizza.
   * **Nessuna modifica esistente:** `wp_robots`, `pre_get_posts`, `wp_sitemaps_*` filters, `template_redirect` SPA fallback — tutti invariati. Il fix è additive-only e completamente reversibile rimuovendo l'action.
   * **Reference:** https://developers.google.com/search/docs/appearance/favicon-in-search
+- [Redirection bypass — 27/4] Aggiunto un secondo bypass al `template_redirect` di [functions.php](wp-content/themes/domizionews-theme/functions.php) (~righe 397-431) per permettere al plugin Redirection (installato 27/4 con 13 regole 301 per duplicati cancellati) di intercettare gli URL prima del force-home.
+  * **Problema:** dopo l'install di Redirection, le 301 configurate non scattavano. Sequenza: WP rileva 404 → `template_redirect` del tema fa fire prima → force-home (status 200 + noindex) → Redirection non vede mai l'URL. Symptom: `curl -I /furto-farmacia-mondragone-arresto-2/` ritornava `HTTP/1.1 200 OK` + body home + `<meta robots noindex>`, invece di `301 + Location: /winner/`.
+  * **Fix:** dopo il bypass paged-archive del 26/4, aggiunta una seconda guardia che controlla se il plugin Redirection ha una regola attiva per la URL corrente. Se sì, `return` precoce → WP prosegue il flusso normale → Redirection (priority WP standard) intercetta l'URL e fa la 301.
+  * **Implementazione difensiva:**
+    - Query diretta su `$wpdb` (non funzioni del plugin) → il bypass resta innocuo se Redirection è poi disattivato.
+    - Guardia `defined('REDIRECTION_VERSION')` per evitare la query quando il plugin non è caricato.
+    - Guardia `SHOW TABLES LIKE` per evitare warning fatali se il plugin è disinstallato ma la costante è definita altrove.
+    - Controllo entrambe le varianti trailing-slash (`/path/` e `/path`) → Redirection memorizza l'URL come l'admin l'ha inserito, e l'utente potrebbe atterrare sull'altra forma.
+    - `parse_url(REQUEST_URI, PHP_URL_PATH)` per estrarre solo il path (no query string), `trim()` per safety.
+    - Single SELECT con `WHERE url IN (?, ?) AND status = 'enabled' LIMIT 1` → l'indice 191-char prefix sulla colonna `url` rende la query economica anche con migliaia di regole. `$wpdb->prepare` con spread `...$variants` evita SQL injection.
+    - Bypass solo per URL non-root (`!== '' && !== '/'`) → la home non passa mai per il check.
+  * **Schema noto:** tabella `{prefix}redirection_items`, colonne `url` (varchar 2000, indexed) e `status` (enum 'enabled'/'disabled'), stabile attraverso Redirection 4.x/5.x.
+  * **Preservato verbatim:** bypass paged-archive del 26/4, filtri `wp_robots`, `pre_get_posts`, `wp_sitemaps_*`, action `wp_head` favicon — zero modifiche.
