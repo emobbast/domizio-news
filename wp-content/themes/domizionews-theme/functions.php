@@ -353,6 +353,32 @@ add_filter( 'wp_sitemaps_taxonomies_query_args', function ( $args, $taxonomy ) {
     return $args;
 }, 10, 2 );
 
+// ─── SITE ICON 512x512 (Google SERP brand circle) ────────────────────────────
+// WordPress core wp_site_icon() emits only 32x32 and 192x192 declarations.
+// Google's site icon thumbnail in SERP requires explicit sizes>=48x48
+// (recommended 512x512). Without this declaration Google falls back to the
+// 192x192 auto-scaled version, which looks blurry inside the SERP circle.
+//
+// The original 512x512 PNG is already uploaded as the WP Site Icon
+// (option 'site_icon'); we only add the missing <link rel="icon"
+// sizes="512x512"> declaration alongside core's output.
+//
+// Priority 99 ensures this runs AFTER core's wp_site_icon() (default 10),
+// so the 512x512 declaration appears last in <head>.
+//
+// Reference: https://developers.google.com/search/docs/appearance/favicon-in-search
+add_action( 'wp_head', function () {
+    $site_icon_id = (int) get_option( 'site_icon' );
+    if ( ! $site_icon_id ) {
+        return;
+    }
+    $url_512 = wp_get_attachment_image_url( $site_icon_id, 'full' );
+    if ( ! $url_512 ) {
+        return;
+    }
+    echo '<link rel="icon" sizes="512x512" href="' . esc_url( $url_512 ) . '" />' . "\n";
+}, 99 );
+
 // ─── REDIRECT SPA: tutte le URL → index.php ──────────────────────────────────
 // Così i link interni della React app non danno 404
 add_action( 'template_redirect', function () {
