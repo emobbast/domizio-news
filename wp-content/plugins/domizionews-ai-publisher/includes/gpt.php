@@ -254,6 +254,17 @@ function dnap_gpt_rewrite(string $text, string $original_title = '', string $sou
     $city_list   = dnap_get_city_labels();
     $symbol_list = implode(', ', $symbols);
 
+    // Phase B (Dedup v2): whitelist for event_location_city / mentioned_cities.
+    // Filters out the 3 aggregate slugs (cellole-baia-domizia, falciano-carinola,
+    // litorale-domizio) — those are downstream constructs, not physical fact
+    // locations. The 7 individual municipalities are the only legitimate values
+    // Claude may emit for the new event_location_city / mentioned_cities fields.
+    $aggregate_slugs    = ['cellole-baia-domizia', 'falciano-carinola', 'litorale-domizio'];
+    $individual_cities  = !empty($cities)
+        ? array_values(array_diff($cities, $aggregate_slugs))
+        : ['mondragone', 'castel-volturno', 'baia-domizia', 'sessa-aurunca', 'cellole', 'falciano-del-massico', 'carinola'];
+    $location_city_list = implode(', ', $individual_cities);
+
     $system_prompt = "Sei un redattore italiano di una testata locale del Litorale Domizio (provincia di Caserta). Scrivi in italiano corretto, con tono asciutto e professionale, come un cronista di redazione. Rispondi SEMPRE e SOLO con JSON valido, nessun testo aggiuntivo, nessun markdown, nessun ```json.";
 
     // ── Bug #26: prompt caching ──────────────────────────────────
@@ -392,6 +403,69 @@ Esempi:
 - "Incidente stradale Domitiana, due feriti" → ["incidente", "stradale", "feriti", "domitiana"]
 - "Fiaccolata a Baia Domizia per Vincenzo" → ["fiaccolata", "commemorazione", "iannitti"]
 
+## METADATI EVENTO (Dedup Pipeline v2 — Phase B)
+
+I quattro campi seguenti aiutano a (a) mostrare la data corretta del fatto sul sito quando il feed è in ritardo, (b) classificare correttamente la geografia del fatto per assegnazione tassonomica futura. Sono OBBLIGATORI in ogni risposta — usa null/[] quando non ricavabili.
+
+### event_date — data del FATTO PRINCIPALE
+
+Data ISO 8601 (YYYY-MM-DD) dell'evento raccontato, NON la data di pubblicazione del feed.
+
+Mappature tipiche:
+- "ieri" → data feed - 1 giorno
+- "oggi" / "in mattinata" → data feed
+- "nella notte tra il 22 e il 23 aprile" → 2026-04-23 (giorno di completamento)
+- "lo scorso fine settimana" → ultimo sabato (o domenica se contesto chiaro)
+- "due giorni fa" → data feed - 2
+- "questa settimana" senza giorno specifico → null
+- Date storiche/anniversari (es. "vent'anni fa") → null
+- Ordinanze/delibere con data ufficiale citata → quella data
+
+Se la data non è chiaramente desumibile dal testo → null.
+
+### event_scope — ampiezza geografica del fatto
+
+Scegli ESATTAMENTE UNO dei 3 valori:
+
+- single_city — il fatto accade in un solo comune del Litorale (≈85% dei casi).
+  Esempi: "Arrestato 30enne a Mondragone", "Incidente sulla Domitiana a Castel Volturno", "Sequestrate 6 aree a Sessa Aurunca".
+
+- multi_city — il fatto coinvolge esplicitamente 2-3 comuni del Litorale come SEDI del fatto (non semplici menzioni).
+  Esempi: "Operazione antidroga simultanea a Cellole e Mondragone", "Blackout su Carinola e Falciano", "Sagra itinerante tra Baia Domizia e Cellole".
+
+- transversal — il fatto riguarda l'INTERO litorale o un'area vasta non riconducibile a un comune specifico.
+  Esempi: "Ordinanza balneare per tutto il litorale", "Allerta meteo Litorale Domizio", "Monitoraggio acque su tutto il tratto costiero", "Nuovo piano regionale per la costa casertana".
+
+### event_location_city — comune principale del fatto
+
+Slug del comune dove avviene il FATTO PRINCIPALE. UNO solo, dalla whitelist seguente o null:
+
+{$location_city_list}
+
+NON usare slug aggregati (cellole-baia-domizia, falciano-carinola, litorale-domizio) — questi sono costrutti tassonomici a valle, non sedi fisiche di fatti.
+
+Quando usare null:
+- event_scope = "transversal" (per definizione il fatto non ha un comune principale)
+- Nessun comune principale è chiaramente identificabile dal testo
+
+Quando event_scope = "single_city" o "multi_city", event_location_city DEVE essere uno slug della whitelist, mai null.
+
+### mentioned_cities — comuni di contesto
+
+Array di slug di comuni MENZIONATI nel testo ma NON sede del fatto principale. Stessa whitelist di event_location_city.
+
+Esempi di "contesto":
+- residenza dell'arrestato quando l'arresto avviene altrove
+- sede della stazione carabinieri intervenuta da altro comune
+- città di provenienza di una vittima
+- comune di appartenenza di un amministratore citato per una delibera presa altrove
+
+REGOLE:
+- NON includere event_location_city in mentioned_cities (si presume implicitamente — evita duplicati)
+- NON includere comuni fuori Litorale (es. Caserta città, Napoli, Aversa) — usa solo la whitelist
+- Default: [] (lista vuota) se nessun comune di contesto è citato
+- Massimo 5 elementi
+
 ## STILE DI SCRITTURA
 
 Scrivi come un cronista locale esperto. Obiettivo PRIMARIO: preservare TUTTI i dettagli fattuali della fonte.
@@ -525,7 +599,11 @@ Rispondi SOLO con JSON valido, nessun testo aggiuntivo, nessun markdown:
   "social_caption": "1-2 frasi per gruppi Facebook, max 200 caratteri",
   "event_type": "uno dei 24 valori in CLASSIFICAZIONE EVENTO",
   "event_entity": "nome proprio centrale in lowercase, o null",
-  "event_keywords": ["3-5 parole chiave lowercase che identificano il fatto specifico (es. 'discarica', 'animali', 'sequestro'). Sostantivi concreti, no aggettivi generici, no nomi di città (già in cities)"]
+  "event_keywords": ["3-5 parole chiave lowercase che identificano il fatto specifico (es. 'discarica', 'animali', 'sequestro'). Sostantivi concreti, no aggettivi generici, no nomi di città (già in cities)"],
+  "event_date": "YYYY-MM-DD del fatto principale, o null se non desumibile",
+  "event_scope": "single_city | multi_city | transversal",
+  "event_location_city": "slug del comune principale (uno dei 7 individuali), o null solo se scope=transversal o non identificabile",
+  "mentioned_cities": ["slug di comuni di contesto dalla whitelist, mai duplicato di event_location_city, [] se nessuno"]
 }
 STATIC;
 
@@ -678,6 +756,56 @@ DYN;
         }
     }
     $data['event_keywords'] = array_slice(array_unique($data['event_keywords']), 0, 5);
+
+    // ── Phase B (Dedup v2): event_date / scope / location / mentioned ─
+    // Schema additive — existing fields above (cities, event_*) untouched.
+    // Strict validation: invalid input becomes null/[], never raises an
+    // error. Phase D will rely on these fields for taxonomy assignment;
+    // for now they only feed _dnap_event_* meta + post_date override.
+
+    // event_date: strict YYYY-MM-DD with sanity range
+    $raw_date = $data['event_date'] ?? null;
+    $data['event_date'] = null;
+    if (is_string($raw_date) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', trim($raw_date), $dm)) {
+        $y  = (int) $dm[1];
+        $mo = (int) $dm[2];
+        $d  = (int) $dm[3];
+        if (checkdate($mo, $d, $y) && $y >= 2020 && $y <= 2030) {
+            $data['event_date'] = sprintf('%04d-%02d-%02d', $y, $mo, $d);
+        }
+    }
+
+    // event_scope: enum
+    $raw_scope    = $data['event_scope'] ?? null;
+    $valid_scopes = ['single_city', 'multi_city', 'transversal'];
+    $data['event_scope'] = (is_string($raw_scope) && in_array($raw_scope, $valid_scopes, true))
+        ? $raw_scope
+        : null;
+
+    // event_location_city: slug from individual-cities whitelist (no aggregates).
+    // $individual_cities was built earlier in this function from the WP city
+    // taxonomy minus the 3 aggregate slugs.
+    $raw_loc = $data['event_location_city'] ?? null;
+    $data['event_location_city'] = null;
+    if (is_string($raw_loc)) {
+        $loc = sanitize_title(trim($raw_loc));
+        if ($loc !== '' && in_array($loc, $individual_cities, true)) {
+            $data['event_location_city'] = $loc;
+        }
+    }
+
+    // mentioned_cities: array of individual-city slugs, dedup against location
+    $raw_mentioned = is_array($data['mentioned_cities'] ?? null) ? $data['mentioned_cities'] : [];
+    $data['mentioned_cities'] = [];
+    foreach ($raw_mentioned as $mc) {
+        if (!is_string($mc)) continue;
+        $slug = sanitize_title(trim($mc));
+        if ($slug === '' || !in_array($slug, $individual_cities, true)) continue;
+        if ($slug === $data['event_location_city']) continue; // implicit dedup
+        if (in_array($slug, $data['mentioned_cities'], true)) continue;
+        $data['mentioned_cities'][] = $slug;
+    }
+    $data['mentioned_cities'] = array_slice($data['mentioned_cities'], 0, 5);
 
     // ── Image fields ─────────────────────────────────────────────
     $image_prompt = $data['image_prompt'] ?? null;

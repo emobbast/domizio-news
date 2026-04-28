@@ -787,6 +787,37 @@ function dnap_import_now() {
                 continue;
             }
 
+            // ── Phase B (Dedup v2): skip-too-old gate ──
+            // Hard-skip articles whose event_date is older than the
+            // configured threshold (default 14 days, tunable via
+            // dnap_max_event_age_days). Bug #1 part 2: feeds re-publish
+            // stale events with a fresh pubDate; URL/hash dedup misses
+            // them, but Claude can extract the real event_date from the
+            // body. Placed BEFORE Layer 1.5 / 2 to skip dedup queries on
+            // articles we'd reject anyway.
+            $max_age_days = (int) get_option('dnap_max_event_age_days', 14);
+            if (!empty($rewritten['event_date']) && $max_age_days > 0) {
+                $event_dt = DateTime::createFromFormat(
+                    'Y-m-d H:i:s',
+                    $rewritten['event_date'] . ' 12:00:00',
+                    wp_timezone()
+                );
+                if ($event_dt) {
+                    $age_days = (int) floor((time() - $event_dt->getTimestamp()) / DAY_IN_SECONDS);
+                    if ($age_days > $max_age_days) {
+                        dnap_log(sprintf(
+                            '⏭ Skip-too-old (event_date=%s, età=%d gg > soglia %d gg): "%s"',
+                            $rewritten['event_date'],
+                            $age_days,
+                            $max_age_days,
+                            $rewritten['title'] ?? '(no title)'
+                        ));
+                        $total_skipped++;
+                        continue;
+                    }
+                }
+            }
+
             // ── Layer 1.5: post-rewrite title similarity (Bug #4) ────────
             // Layer 1 pre-Claude catches wire copies; this catches same-fact
             // coverage with different phrasing rewritten by Claude into
@@ -979,14 +1010,48 @@ function dnap_import_now() {
 
             $content = wpautop($rewritten['content']);
 
-            $post_id = wp_insert_post([
+            // ── Phase B (Dedup v2): event_date → post_date override ──
+            // Bug #1 fix: many feeds re-publish stale events with a fresh
+            // pubDate, making old facts appear "today" on the site. If
+            // Claude extracted an event_date and it's >1 day from now,
+            // override post_date so the article displays the actual fact
+            // date in feed listings and meta tags.
+            //
+            // Always anchor at 12:00 site-local to avoid day-boundary
+            // ambiguity; use wp_timezone() so the GMT conversion is
+            // server-tz-independent.
+            $insert_args = [
                 'post_title'   => wp_slash(sanitize_text_field($rewritten['title'])),
                 'post_content' => wp_slash($content),
                 'post_status'  => 'publish',
                 'post_author'  => dnap_get_redazione_author(),
                 'post_excerpt' => wp_slash(sanitize_textarea_field($rewritten['excerpt'])),
                 'post_name'    => $slug,
-            ]);
+            ];
+            if (!empty($rewritten['event_date'])) {
+                $event_dt = DateTime::createFromFormat(
+                    'Y-m-d H:i:s',
+                    $rewritten['event_date'] . ' 12:00:00',
+                    wp_timezone()
+                );
+                if ($event_dt) {
+                    $delta_sec = time() - $event_dt->getTimestamp();
+                    if (abs($delta_sec) > DAY_IN_SECONDS) {
+                        $insert_args['post_date']     = $event_dt->format('Y-m-d H:i:s');
+                        $insert_args['post_date_gmt'] = $event_dt
+                            ->setTimezone(new DateTimeZone('UTC'))
+                            ->format('Y-m-d H:i:s');
+                        dnap_log(sprintf(
+                            '📅 post_date override → %s (event_date=%s, Δ=%+d ore vs now)',
+                            $insert_args['post_date'],
+                            $rewritten['event_date'],
+                            (int) round(-$delta_sec / HOUR_IN_SECONDS)
+                        ));
+                    }
+                }
+            }
+
+            $post_id = wp_insert_post($insert_args);
 
             if (is_wp_error($post_id)) {
                 dnap_log("ERRORE inserimento: " . $post_id->get_error_message());
@@ -1028,6 +1093,25 @@ function dnap_import_now() {
             }
             if (!empty($rewritten['image_symbol'])) {
                 update_post_meta($post_id, '_dnap_image_symbol', sanitize_text_field($rewritten['image_symbol']));
+            }
+
+            // ── Phase B (Dedup v2): new event metadata persistence ──
+            // Additive — existing _dnap_event_* meta untouched. Phase D will
+            // switch taxonomy assignment to use these fields. For now they
+            // feed only the post_date override (B.5) and the skip-too-old
+            // gate (B.6); Phase C will read them in shadow-mode scoring.
+            // Values are already strict-validated in dnap_gpt_rewrite().
+            if (!empty($rewritten['event_date'])) {
+                update_post_meta($post_id, '_dnap_event_date', $rewritten['event_date']);
+            }
+            if (!empty($rewritten['event_scope'])) {
+                update_post_meta($post_id, '_dnap_event_scope', $rewritten['event_scope']);
+            }
+            if (!empty($rewritten['event_location_city'])) {
+                update_post_meta($post_id, '_dnap_event_location_city', $rewritten['event_location_city']);
+            }
+            if (!empty($rewritten['mentioned_cities']) && is_array($rewritten['mentioned_cities'])) {
+                update_post_meta($post_id, '_dnap_mentioned_cities', $rewritten['mentioned_cities']);
             }
 
             // Post in evidenza (sticky) per soggetti VIP

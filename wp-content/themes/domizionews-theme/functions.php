@@ -528,6 +528,14 @@ add_action( 'init', function () {
         // candidate-vs-published comparison is logged with score breakdown.
         // Flip to false once Phase C is tuned.
         'dnap_dedup_log_all' => true,
+
+        // ── Phase B (Dedup v2): skip-too-old gate ──
+        // Maximum age in days for an event_date before the article is hard-
+        // skipped at import. Default 14: aligns with the editorial window
+        // for "still newsworthy" — older items typically arrive via wire
+        // republishes of stale events (Bug #1 part 2). Tunable via
+        // `wp option update dnap_max_event_age_days <N>` without redeploy.
+        'dnap_max_event_age_days' => 14,
     ];
 
     foreach ( $defaults as $key => $value ) {
