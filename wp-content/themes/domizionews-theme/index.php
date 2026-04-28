@@ -36,11 +36,17 @@ if (($is_city_archive || $is_category_arch) && $archive_term && !is_wp_error($ar
     'ignore_sticky_posts' => true,
   ];
   if ($is_city_archive) {
-    // Expand aggregate slug to sub-terms; otherwise use the term_id directly.
+    // Aggregate slugs may either expand to a multi-slug union (legacy
+    // aggregates) or query a single term on the aggregate itself
+    // (litorale-domizio). dnap_aggregate_uses_union() decides per slug;
+    // non-aggregate slugs always use the term_id single-term query.
     $aggregate_subs = function_exists('dnap_get_aggregate_city_subterms')
       ? dnap_get_aggregate_city_subterms($archive_term->slug)
       : [];
-    if (!empty($aggregate_subs)) {
+    $use_union = !empty($aggregate_subs)
+      && function_exists('dnap_aggregate_uses_union')
+      && dnap_aggregate_uses_union($archive_term->slug);
+    if ($use_union) {
       $_archive_args['tax_query'] = [[
         'taxonomy' => 'city',
         'field'    => 'slug',
@@ -231,10 +237,17 @@ if (!$single_post && !$page_obj && !$is_city_archive && !$is_category_arch) {
 // navigazione funziona anche con JavaScript disattivato.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Slug aggregati: usati per filtrare le città fisiche dai badge card e dalla
-// chip bar Città. Single source of truth in dnap_get_aggregate_city_subterms()
-// (core.php:94) — qui solo la lista delle CHIAVI aggregate.
-const DNAPP_AGGREGATE_CITY_SLUGS = ['cellole-baia-domizia', 'falciano-carinola'];
+// Slug aggregati: tutte le slug che dnap_ensure_aggregate_city_terms()
+// registra. Usati da dnapp_ssr_pick_city() per evitare di mostrare
+// l'aggregato come city badge sulle card (preferiamo la città fisica).
+// litorale-domizio è incluso qui per la stessa ragione.
+const DNAPP_AGGREGATE_CITY_SLUGS = ['cellole-baia-domizia', 'falciano-carinola', 'litorale-domizio'];
+
+// Sub-set di DNAPP_AGGREGATE_CITY_SLUGS — solo le aggregati con semantica
+// UNION (i loro sub-term sono già visibili come chip individuali, quindi
+// nascondiamo l'aggregato dalla chip bar per non duplicare). litorale-domizio
+// non è qui: è un destination separato che vogliamo esporre come chip.
+const DNAPP_AGGREGATES_USING_UNION = ['cellole-baia-domizia', 'falciano-carinola'];
 
 // Map slug → label visualizzata. Mirror di CITY_SLUG_LABELS in app.js.
 function dnapp_ssr_city_label($slug) {
@@ -248,6 +261,7 @@ function dnapp_ssr_city_label($slug) {
     'carinola'             => 'Carinola',
     'falciano-carinola'    => 'Falciano e Carinola',
     'sessa-aurunca'        => 'Sessa Aurunca',
+    'litorale-domizio'     => 'Tutto il Litorale',
   ];
   return $labels[$slug] ?? ucfirst(str_replace('-', ' ', $slug));
 }
@@ -318,10 +332,11 @@ function dnapp_ssr_footer() {
 }
 
 function dnapp_ssr_city_chips($active_slug = '') {
-  // Mirror della chip bar in buildCities (app.js:780-786): 7 città individuali,
-  // aggregati esclusi. Order: per ordine slug nei termini DB (alfabetico per
-  // name). data-city resta presente per compatibilità con eventuali handler
-  // delegati post-hydration; href è il primary path JS-off.
+  // Mirror della chip bar in buildCities (app.js): 7 città individuali +
+  // l'aggregato litorale-domizio come 8° chip. I 2 aggregati union-style
+  // (cellole-baia-domizia, falciano-carinola) restano esclusi perché i
+  // loro sub-term sono già visibili come chip individuali — duplicarli
+  // sarebbe rumore visivo.
   $terms = get_terms([
     'taxonomy'   => 'city',
     'hide_empty' => false,
@@ -332,7 +347,7 @@ function dnapp_ssr_city_chips($active_slug = '') {
 
   echo '<div class="dn-chips-scroll">';
   foreach ($terms as $term) {
-    if (in_array($term->slug, DNAPP_AGGREGATE_CITY_SLUGS, true)) continue;
+    if (in_array($term->slug, DNAPP_AGGREGATES_USING_UNION, true)) continue;
     $term_link = get_term_link($term);
     if (is_wp_error($term_link)) continue;
     $is_active = ($term->slug === $active_slug);
@@ -498,7 +513,14 @@ function dnapp_ssr_home_city_section($city_slug) {
     ? dnap_get_aggregate_city_subterms($city_slug)
     : [];
 
-  $tax_query = !empty($aggregate_subs)
+  // Aggregate slugs without union semantics (litorale-domizio) query the
+  // aggregate term directly; legacy union aggregates still UNION over their
+  // sub-terms; non-aggregates query their own slug.
+  $use_union = !empty($aggregate_subs)
+    && function_exists('dnap_aggregate_uses_union')
+    && dnap_aggregate_uses_union($city_slug);
+
+  $tax_query = $use_union
     ? [['taxonomy' => 'city', 'field' => 'slug', 'terms' => $aggregate_subs, 'operator' => 'IN']]
     : [['taxonomy' => 'city', 'field' => 'slug', 'terms' => [$city_slug]]];
 
@@ -680,13 +702,18 @@ elseif ($is_category_arch) $ssr_archive_attr = ' data-ssr-archive="category"';
       <main>
         <?php dnapp_ssr_category_chips(''); // home senza filtro = "Tutte" attivo ?>
         <?php
-          // 5 sezioni × 3 articoli ciascuna = 5 WP_Query (no_found_rows ON).
-          // Stesso ordine e contenuto di CITY_SLUGS in app.js:184-190.
+          // 6 sezioni × 3 articoli ciascuna = 6 WP_Query (no_found_rows ON).
+          // Stesso ordine e contenuto di CITY_SLUGS in app.js. La sezione
+          // litorale-domizio si auto-omette finché non ci sono post (early
+          // return in dnapp_ssr_home_city_section quando $q->have_posts()
+          // è false), quindi durante la fase shadow di Phase A non aggiunge
+          // markup né WP_Query inutili.
           dnapp_ssr_home_city_section('mondragone');
           dnapp_ssr_home_city_section('castel-volturno');
           dnapp_ssr_home_city_section('cellole-baia-domizia');
           dnapp_ssr_home_city_section('falciano-carinola');
           dnapp_ssr_home_city_section('sessa-aurunca');
+          dnapp_ssr_home_city_section('litorale-domizio');
         ?>
       </main>
     </div>

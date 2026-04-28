@@ -69,6 +69,13 @@ function dnap_ensure_aggregate_city_terms() {
     $aggregates = [
         'cellole-baia-domizia' => 'Cellole e Baia Domizia',
         'falciano-carinola'    => 'Falciano e Carinola',
+        // 3rd aggregate (Dedup Pipeline v2 — Phase A). Distinct semantics
+        // from the other two: dnap_aggregate_uses_union() returns false,
+        // so posts assigned to litorale-domizio stay only there — they do
+        // NOT auto-appear in individual city archives (and vice versa).
+        // Used for stories that pertain to the whole coastline rather
+        // than a specific municipality.
+        'litorale-domizio'     => 'Tutto il Litorale',
     ];
     foreach ($aggregates as $slug => $name) {
         $existing = term_exists($slug, 'city');
@@ -95,8 +102,36 @@ function dnap_get_aggregate_city_subterms(string $slug): array {
     $map = [
         'cellole-baia-domizia' => ['cellole', 'baia-domizia'],
         'falciano-carinola'    => ['falciano-del-massico', 'carinola'],
+        // litorale-domizio enumerates the 7 individual cities so REST/SSR
+        // can recognize it as an aggregate (non-empty return = aggregate).
+        // Whether the archive query is union vs single-term is decided
+        // separately by dnap_aggregate_uses_union() — see helper below.
+        'litorale-domizio'     => [
+            'mondragone', 'castel-volturno', 'baia-domizia', 'cellole',
+            'falciano-del-massico', 'carinola', 'sessa-aurunca',
+        ],
     ];
     return $map[$slug] ?? [];
+}
+
+/**
+ * Whether an aggregate city slug should expand its archive query into a
+ * UNION over its sub-terms (true) or stay as a single-term query on the
+ * aggregate term itself (false).
+ *
+ * - cellole-baia-domizia, falciano-carinola → union: an archive request
+ *   for the aggregate fetches posts assigned to either subterm. Posts
+ *   assigned to "cellole" automatically appear in the aggregate archive.
+ * - litorale-domizio → single-term: posts must be EXPLICITLY assigned to
+ *   litorale-domizio to appear in /citta/litorale-domizio/. Posts assigned
+ *   to individual cities do NOT auto-appear there.
+ *
+ * Used by REST /domizio/v1/posts and SSR archive branch in index.php to
+ * differentiate query construction.
+ */
+function dnap_aggregate_uses_union(string $slug): bool {
+    $union_aggregates = ['cellole-baia-domizia', 'falciano-carinola'];
+    return in_array($slug, $union_aggregates, true);
 }
 
 /* ============================================================

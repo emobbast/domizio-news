@@ -443,3 +443,96 @@ add_action( 'template_redirect', function () {
         exit;
     }
 } );
+
+// ─── DEDUP PIPELINE v2 — wp_options DEFAULTS (Phase A) ───────────────────────
+// Initialize the 8 wp_options that govern the new dedup pipeline (Layer 3
+// scoring, generic-tag exclusion, evolution-verb penalty). All values are
+// inert until Phase C wires the scoring loop — Phase A is pure scaffolding.
+//
+// add_option (NOT update_option) is used: pre-existing values (e.g. tuned
+// via `wp option update`) are NOT overwritten on re-deploy. autoload=false
+// keeps these out of the autoload hot path; only the dedup code reads them
+// (post-publish path, not the page-render path).
+//
+// Tunable at runtime without redeploy:
+//   wp option update dnap_dedup_skip_threshold 55          # activate Phase C
+//   wp option update dnap_dedup_related_threshold 30
+//   wp option patch update dnap_dedup_weights shared_tags 35
+//   wp option update dnap_dedup_log_all 0                  # disable verbose log
+//
+// All defaults are seeded from the production audit (28/4): top-30 post_tag
+// distribution showed sicurezza/carabinieri/litorale-domizio at 24.6/21.8/15.6%
+// (above the 15% generic threshold) while arresto/incendio/omicidio at
+// 8.8/3.4/3.3% — these are NEVER-GENERIC by editorial policy regardless of
+// frequency, hence the explicit stoplist override.
+add_action( 'init', function () {
+    $defaults = [
+        // Thresholds (integer scores 0-100)
+        'dnap_dedup_skip_threshold'    => 999,  // SHADOW MODE — Phase C activates with 55
+        'dnap_dedup_related_threshold' => 30,
+        'dnap_dedup_window_days'       => 30,
+
+        // Weights map (signed integers, summed to produce a 0-100ish score)
+        'dnap_dedup_weights' => [
+            'shared_tags'      => 30,
+            'entity_match'     => 20,
+            'title_jaccard'    => 15,
+            'same_city'        => 10,
+            'same_event_date'  => 10,
+            'recent_publish'   => 5,
+            'new_tag_penalty'  => -25,
+            'evolution_verb'   => -15,
+        ],
+
+        // Manual generic-tag stoplist (excluded from scoring as low-signal).
+        // Seeded from production top-30 prior to the auto-promotion mechanism.
+        'dnap_generic_tags_manual' => [
+            'sicurezza', 'carabinieri', 'litorale domizio',
+            'litorale-domizio', "forze dell'ordine", 'giovani',
+            'ambiente', 'territorio', 'comunità', 'legalità',
+            'polizia', 'cultura', 'politica locale',
+        ],
+
+        // Auto-promoted generic tags — populated by Phase C maintenance
+        // task once a tag exceeds dnap_generic_tag_threshold_pct of recent
+        // posts. Empty initially.
+        'dnap_generic_tags_auto'         => [],
+        'dnap_generic_tag_threshold_pct' => 15.0,
+
+        // Never-generic stoplist — overrides auto-promotion. These root
+        // nouns identify high-signal events and must always count for
+        // dedup even if they appear frequently.
+        'dnap_dedup_never_generic_tags' => [
+            'arresto', 'sequestro', 'incendio', 'omicidio',
+            'aggressione', 'incidente', 'incidente stradale',
+            'rapina', 'truffa', 'denuncia', 'inchiesta',
+            'condanna', 'sentenza', 'scomparsa', 'ritrovamento',
+            'fuga', 'evasione', 'spaccio', 'droga',
+            'inseguimento', 'furto',
+        ],
+
+        // Italian past-participle verbs that signal "evolution" of an
+        // ongoing story. Apply -15 penalty when the candidate title
+        // contains one of these (it's a follow-up, not a duplicate).
+        'dnap_evolution_verbs' => [
+            'identificato', 'identificata', 'fermato', 'fermata',
+            'arrestato', 'arrestata', 'condannato', 'condannata',
+            'confessa', 'confessato', 'assolto', 'assolta',
+            'riconosciuto', 'riconosciuta', 'accusato', 'accusata',
+            'rilasciato', 'scarcerato', 'prosciolto', 'indagato',
+            'denunciato', 'ricoverato', 'dimesso', 'deceduto',
+            'ritrovato', 'scomparso', 'sentenza', 'ergastolo',
+        ],
+
+        // Verbose logging for the first 30 days of shadow mode — every
+        // candidate-vs-published comparison is logged with score breakdown.
+        // Flip to false once Phase C is tuned.
+        'dnap_dedup_log_all' => true,
+    ];
+
+    foreach ( $defaults as $key => $value ) {
+        if ( get_option( $key, '__missing__' ) === '__missing__' ) {
+            add_option( $key, $value, '', false ); // autoload=false
+        }
+    }
+}, 5 );

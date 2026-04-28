@@ -201,12 +201,15 @@
 
   // Slug esatti registrati nel database — usati sia per la home che per il tab Città
   // 'cellole-baia-domizia' e 'falciano-carinola' sono slug virtuali: caricano entrambe le città
+  // 'litorale-domizio' è un aggregato a sé: NON unisce sub-term, raccoglie
+  // solo i post esplicitamente assegnati (vedi dnap_aggregate_uses_union)
   const CITY_SLUGS = [
     'mondragone',
     'castel-volturno',
     'cellole-baia-domizia',   // sezione unificata Cellole + Baia Domizia
     'falciano-carinola',      // sezione unificata Falciano del Massico + Carinola
     'sessa-aurunca',
+    'litorale-domizio',       // aggregato non-union: solo post assegnati esplicitamente
   ];
 
   // Nomi visualizzati per slug (incluso quello virtuale)
@@ -220,12 +223,17 @@
     'carinola':             'Carinola',
     'falciano-carinola':    'Falciano e Carinola',
     'sessa-aurunca':        'Sessa Aurunca',
+    'litorale-domizio':     'Tutto il Litorale',
   };
 
-  // City slugs that are virtual aggregates (multiple physical cities
-  // grouped in a single section). Used to filter them out from UI
-  // surfaces that list individual cities (e.g. the "Città" tab chip bar).
-  const AGGREGATE_CITY_SLUGS = ['cellole-baia-domizia', 'falciano-carinola'];
+  // City slugs aggregati con semantica UNION — nascosti dalla chip bar
+  // della tab "Città" perché i loro sub-term sono già visibili come chip
+  // individuali (`cellole`/`baia-domizia` e `falciano-del-massico`/
+  // `carinola`). `litorale-domizio` NON è qui: è un destination separato
+  // ed è esposto come chip dedicato. Mirror di DNAPP_AGGREGATES_USING_UNION
+  // in index.php (single source of truth via dnap_aggregate_uses_union()
+  // in core.php).
+  const AGGREGATES_USING_UNION = ['cellole-baia-domizia', 'falciano-carinola'];
 
   // Titolo fallback della home: viene ripristinato quando nessuna città e
   // nessun chip-categoria sono selezionati. Replicato qui perché _origTitle
@@ -801,7 +809,7 @@
         <main>
           <div class="dn-chips-scroll">
             ${state.cities
-              .filter(c => !AGGREGATE_CITY_SLUGS.includes(c.slug))
+              .filter(c => !AGGREGATES_USING_UNION.includes(c.slug))
               .map(c => `
                 <button class="dn-chip ${state.selectedCity === c.slug ? 'active' : ''}" data-city="${escHtml(c.slug)}">${escHtml(c.name)}</button>
               `).join('')}

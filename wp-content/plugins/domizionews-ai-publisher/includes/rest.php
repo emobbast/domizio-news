@@ -121,9 +121,14 @@ function dnap_rest_posts_handler(WP_REST_Request $request): WP_REST_Response {
     $cat_slug     = sanitize_text_field($request['category']);
 
     if ($city_slug) {
-        // Expand aggregate slug to its sub-terms; pass-through otherwise.
-        $sub_slugs   = dnap_get_aggregate_city_subterms($city_slug);
-        $city_terms  = !empty($sub_slugs) ? $sub_slugs : [$city_slug];
+        // Aggregate slugs may either expand to a multi-slug union (legacy
+        // aggregates: cellole-baia-domizia, falciano-carinola) or query a
+        // single term on the aggregate itself (litorale-domizio). The
+        // helper dnap_aggregate_uses_union() decides per slug; non-aggregate
+        // slugs always query a single term.
+        $sub_slugs  = dnap_get_aggregate_city_subterms($city_slug);
+        $use_union  = !empty($sub_slugs) && dnap_aggregate_uses_union($city_slug);
+        $city_terms = $use_union ? $sub_slugs : [$city_slug];
         $tax_query[] = [
             'taxonomy' => 'city',
             'field'    => 'slug',
