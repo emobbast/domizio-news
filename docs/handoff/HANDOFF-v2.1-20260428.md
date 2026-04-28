@@ -1,7 +1,7 @@
 # HANDOFF — Domizio News
-**Versione:** v2.0 | **Data:** 27 aprile 2026, fine giornata | **Branch attivo:** develop
+**Versione:** v2.1 | **Data:** 28 aprile 2026, fine giornata | **Branch attivo:** develop
 
-> Consolida v1.9 (sessione 26/4) aggiungendo sessione 27/4 completa: 3 deploy SEO (sitemap cleanup + favicon 512×512 + template_redirect bypass), cleanup DB 13 post duplicati, esperienza fallimentare plugin Redirection (disinstallato), 4 nuovi bug critici emersi (event_date, multi-city, wrong-city, cluster semantici), design completo "Dedup Pipeline v2" pronto per implementazione. Sostituisce v1.9.
+> Consolida v2.0 aggiungendo sessione 28/4 (continuazione 27 sera tardi): Phase A + Phase B di Dedup Pipeline v2 deployate in produzione. Sito ora cattura `event_date`, `event_scope`, `event_location_city`, `mentioned_cities` da Claude. Skip-too-old gate attivo (14 giorni). Term `litorale-domizio` live. Stato: **monitoraggio post-deploy**, prossima decisione operativa dopo primo cron import.
 
 ---
 
@@ -779,6 +779,220 @@ Output: conferma assumption "≥2 shared non-generic tags catch the cluster".
 
 ---
 
+### 3.11 Sessione 28/4 — Phase A + Phase B deployate in produzione
+
+Continuazione della sessione 27/4 (dopo design Dedup Pipeline v2). Realizzate Phase A (infrastruttura) e Phase B (Claude prompt extension), deployate insieme in produzione.
+
+#### 3.11.1 Pre-implementation queries SQL su prod (28/4 mattina)
+
+**Query #1 — Top-30 post_tag distribution su 1067 post:**
+
+| Tag | Count | % | Verdict |
+|---|---|---|---|
+| sicurezza | 263 | 24.6% | 🔴 Generic |
+| carabinieri | 233 | 21.8% | 🔴 Generic |
+| litorale domizio | 167 | 15.6% | 🔴 Generic |
+| arresto | 94 | 8.8% | 🟢 Never-generic |
+| sicurezza stradale | 80 | 7.5% | 🟡 |
+| controlli | 57 | 5.3% | 🟡 |
+| spaccio | 55 | 5.2% | 🟢 Discriminante |
+| giovani | 55 | 5.2% | 🔴 Generic |
+| giustizia | 52 | 4.9% | 🟡 |
+| droga | 50 | 4.7% | 🟢 Discriminante |
+| forze dell'ordine | 50 | 4.7% | 🔴 Generic |
+| indagini | 46 | 4.3% | 🟡 |
+| denuncia | 45 | 4.2% | 🟢 Never-generic |
+| sequestro | 42 | 3.9% | 🟢 Never-generic |
+| ambiente | 42 | 3.9% | 🔴 Generic |
+| furto | 42 | 3.9% | 🟢 Discriminante |
+| territorio | 40 | 3.7% | 🔴 Generic |
+| comunità | 40 | 3.7% | 🔴 Generic |
+| inseguimento | 38 | 3.6% | 🟢 Discriminante |
+| criminalità | 37 | 3.5% | 🟡 |
+| **incendio** | 36 | 3.4% | 🟢 Never-generic |
+| legalità | 36 | 3.4% | 🔴 Generic |
+| politica locale | 35 | 3.3% | 🟡 |
+| omicidio | 35 | 3.3% | 🟢 Never-generic |
+| polizia | 34 | 3.2% | 🔴 Generic |
+| turismo | 33 | 3.1% | 🟢 Discriminante |
+| aggressione | 32 | 3.0% | 🟢 Never-generic |
+| rifiuti | 30 | 2.8% | 🟢 Discriminante |
+| incidente stradale | 27 | 2.5% | 🟢 Discriminante |
+| cultura | 26 | 2.4% | 🔴 Generic |
+
+**Insight chiave:** "sicurezza" (24.6%) e "carabinieri" (21.8%) sono troppo generici per essere discriminanti. Vanno in `dnap_generic_tags_manual`. Threshold auto-promotion confermato a **15%** (a 10% si sarebbe incluso "arresto" 8.8%, perdendo il signal più forte).
+
+**Query #2 — Cluster incendio rimessaggio (11 post, validation positivo):**
+
+| Tag | Posts | Non-generic? |
+|---|---|---|
+| incendio | 9/11 | ✅ |
+| sicurezza | 8/11 | 🔴 (escluso) |
+| litorale domizio | 5/11 | 🔴 (escluso) |
+| vigili del fuoco | 4/11 | ✅ |
+| barche | 4/11 | ✅ |
+
+**Verdict:** cluster ha 3 tag non-generic condivisi tra ≥2 post (`incendio`, `vigili del fuoco`, `barche`). Algoritmo Layer 3 li catturerebbe correttamente.
+
+**Verifica post 2552 specifico (replay 27/4):**
+- Tag: `incendio, litorale, rimessaggio, sicurezza, vigili del fuoco`
+- Non-generic condivisi con cluster: 3 (`incendio`, `rimessaggio`, `vigili del fuoco`)
+- Score atteso: +30 (shared tags) +15 (title jaccard) +10 (city) +10 (event_date) = **65 → SKIP** ✓
+
+**Query #3 — Cluster Iannitti (11 post, validation negativo):**
+
+| Tag | Posts |
+|---|---|
+| omicidio | 9/11 |
+| carabinieri | 4/11 (escluso) |
+| indagini | 4/11 |
+| inchiesta | 4/11 |
+| scomparsa | 3/11 |
+| Vincenzo Iannitti | 3/11 |
+
+**Verdict:** entity match (Vincenzo Iannitti) + tag overlap (omicidio + scomparsa) farebbero scattare +30+20 = 50, ma le penalty `new_significant_tag` (-25) e `evolution_verb` (-15) portano a 35 → **RELATED, non SKIP** ✓.
+
+#### 3.11.2 Phase A deployata ✅ — `feature/dedup-v2` SHA `ce56b71`
+
+**Componenti:**
+- Term `litorale-domizio` (term_id 1707, count=0 iniziale) creato come 3° aggregato city
+- Helper `dnap_aggregate_uses_union(string $slug)` — opt-in union semantics:
+  - `cellole-baia-domizia` + `falciano-carinola`: union (posti subterm appaiono in aggregato)
+  - `litorale-domizio`: NO union (posti restano solo lì, non auto-appaiono in archivi città individuali)
+- 8 wp_options `dnap_dedup_*` registrate con `add_option` + autoload=false:
+  - `dnap_dedup_skip_threshold = 999` (shadow mode default, da abbassare a 55 in Phase C)
+  - `dnap_dedup_related_threshold = 30`
+  - `dnap_dedup_window_days = 30`
+  - `dnap_dedup_weights` (8 entries)
+  - `dnap_generic_tags_manual` (13 seed entries)
+  - `dnap_dedup_never_generic_tags` (21 root nouns)
+  - `dnap_evolution_verbs` (28 IT past-participles)
+  - `dnap_dedup_log_all = true`
+- SSR + SPA: chip "Tutto il Litorale" 8° in tab Città, 6° city section in homepage (conditional count > 0)
+- Diff: 6 file, +215/-22 righe
+
+**Risk: zero** (tutto additivo, behavior change zero).
+
+#### 3.11.3 Phase B deployata ✅ — `feature/dedup-v2` SHA `5942f48`
+
+**Componenti:**
+- Claude prompt extension con 4 nuovi campi (~825 input tokens cached):
+  - `event_date` (YYYY-MM-DD del fatto principale, NON del feed)
+  - `event_scope` (single_city | multi_city | transversal)
+  - `event_location_city` (whitelist 7 slug individuali, mai aggregati)
+  - `mentioned_cities` (array, comuni di contesto non-taxonomy, max 5)
+- Validazione strict in `gpt.php`:
+  - Regex YYYY-MM-DD per event_date
+  - Enum scope con default safe `single_city`
+  - Whitelist sanitize_title per location_city
+  - Array sanitize per mentioned_cities
+- Persistenza 4 nuovi post_meta in `core.php`:
+  - `_dnap_event_date`
+  - `_dnap_event_scope`
+  - `_dnap_event_location_city`
+  - `_dnap_mentioned_cities`
+- **Bug #1 fix — post_date_gmt rewrite** (`core.php:1013-1052`):
+  - Se `event_date` è settato e differisce da `now` di > 1 giorno
+  - Override `post_date` e `post_date_gmt` a event_date 12:00:00 site-local
+  - Usa `wp_timezone()` per evitare ambiguità day-boundary
+  - Log: `📅 post_date override → ... (event_date=..., Δ=±N ore)`
+- **Skip-too-old gate** (`core.php:790-819`):
+  - Hard skip BEFORE Layer 1.5/2 dedup
+  - Soglia `dnap_max_event_age_days = 14` (tunable, 9° wp_option)
+  - Log: `⏭ Skip-too-old (event_date=..., età=N gg > soglia 14 gg)`
+- Diff: 4 file, +249/-3 righe
+
+**Costo Phase B:**
+- Token delta input cached: ~825/articolo @ $0.10/Mtok = $0.000083
+- Token delta output: ~30/articolo @ $5/Mtok = $0.000150
+- Per articolo: ~$0.00023
+- Mensile @ 1500 articoli: **~$0.35/mese**
+- One-time cache invalidation: ~$0.012 (prompt cached prefix esteso 6500→9400 tokens)
+
+**Risk: low** (additive, esistenti taxonomy assignment + 4 dedup layers byte-identical preservati).
+
+#### 3.11.4 Verifica deploy A+B (28/4 fine giornata)
+
+```
+✅ SHA prod: 5942f48 (Phase B)
+✅ Term litorale-domizio: term_id=1707, count=0
+✅ wp_options: 11 totali registrate (8 dnap_dedup_* + 3 dnap_generic_*/dnap_evolution_* + dnap_max_event_age_days)
+✅ dnap_max_event_age_days = 14
+✅ Chip 8° SSR /citta/<x>/: 8 data-city values incluso litorale-domizio
+✅ Sitemap: 4 sub-sitemap (no regressione SEO da v2.0)
+```
+
+#### 3.11.5 Stato monitoraggio (28/4 fine giornata, da verificare 29/4)
+
+**In attesa di verifica overnight:**
+
+- [ ] **Primo cron import post-deploy** — verificare popolamento dei 4 nuovi `_dnap_event_*` post_meta su nuovi post (post_id > 2552)
+- [ ] **Volume import normale** — atteso ~120 articoli/giorno. Se <80 → soglia 14 troppo aggressiva, alzare a 30
+- [ ] **Skip-too-old log entries** — quanti articoli scartati per età? Plausibile pochi (<10/giorno) se Claude estrae correttamente
+- [ ] **post_date override log entries** — quanti articoli hanno date riscritte? Plausibili 5-20/giorno (articoli "1h fa" su fatti vecchi)
+- [ ] **Articoli con event_scope=transversal** — primi candidati per il chip "Tutto il Litorale". Se nessuno per 24h, possibile bug nel prompt o classifica troppo conservativa
+- [ ] **Distribuzione event_scope** — atteso ~85% single_city, 10% multi_city, 5% transversal. Se sbilanciato, calibrare prompt
+- [ ] **Wrong-city attribution** — verificare manualmente 2-3 articoli "Carabinieri di X arrestano a Y": i `mentioned_cities` includono X correttamente?
+
+**Comandi monitoraggio overnight (lanciare 29/4 mattina):**
+
+```bash
+# Check 1: nuovi post con _dnap_event_* meta popolati
+ssh -i "C:\Users\sorre\Desktop\DOMIZIO-NEWS\domizionews-server.pem" ubuntu@13.62.37.76 "cd /var/www/html && sudo -u www-data wp eval '
+global \$wpdb;
+\$rows = \$wpdb->get_results(\"
+  SELECT p.ID, p.post_title, p.post_date,
+    (SELECT meta_value FROM {\$wpdb->postmeta} WHERE post_id=p.ID AND meta_key=\\\"_dnap_event_date\\\") as ev_date,
+    (SELECT meta_value FROM {\$wpdb->postmeta} WHERE post_id=p.ID AND meta_key=\\\"_dnap_event_scope\\\") as scope,
+    (SELECT meta_value FROM {\$wpdb->postmeta} WHERE post_id=p.ID AND meta_key=\\\"_dnap_event_location_city\\\") as loc_city
+  FROM {\$wpdb->posts} p
+  WHERE p.post_status=\\\"publish\\\" AND p.post_type=\\\"post\\\"
+    AND p.ID > 2552
+  ORDER BY p.ID DESC LIMIT 20
+\");
+foreach (\$rows as \$r) echo \"ID \$r->ID | \$r->post_date | event_date=\$r->ev_date | scope=\$r->scope | loc=\$r->loc_city\n\";
+'"
+
+# Check 2: log skip-too-old + post_date override
+ssh -i "C:\Users\sorre\Desktop\DOMIZIO-NEWS\domizionews-server.pem" ubuntu@13.62.37.76 "echo '=== Skip too old ===' && sudo grep 'Skip-too-old' /var/www/html/wp-content/uploads/dnap.log | tail -20 && echo '' && echo '=== post_date override ===' && sudo grep 'post_date override' /var/www/html/wp-content/uploads/dnap.log | tail -20"
+
+# Check 3: distribuzione event_scope
+ssh -i "C:\Users\sorre\Desktop\DOMIZIO-NEWS\domizionews-server.pem" ubuntu@13.62.37.76 "cd /var/www/html && sudo -u www-data wp eval '
+global \$wpdb;
+\$rows = \$wpdb->get_results(\"
+  SELECT meta_value as scope, COUNT(*) as cnt
+  FROM {\$wpdb->postmeta}
+  WHERE meta_key=\\\"_dnap_event_scope\\\"
+  GROUP BY meta_value ORDER BY cnt DESC
+\");
+foreach (\$rows as \$r) echo \"\$r->scope: \$r->cnt\n\";
+'"
+
+# Check 4: volume import ultime 24h
+ssh -i "C:\Users\sorre\Desktop\DOMIZIO-NEWS\domizionews-server.pem" ubuntu@13.62.37.76 "cd /var/www/html && sudo -u www-data wp eval '
+global \$wpdb;
+\$count = \$wpdb->get_var(\"SELECT COUNT(*) FROM {\$wpdb->posts} WHERE post_status=\\\"publish\\\" AND post_type=\\\"post\\\" AND post_date >= NOW() - INTERVAL 24 HOUR\");
+echo \"Importati ultime 24h: \$count\n\";
+'"
+```
+
+#### 3.11.6 Decisioni operative se monitoraggio rivela problemi
+
+**Scenario A: volume import drasticamente calato (<80/giorno)**
+- Diagnosi probabile: skip-too-old gate troppo aggressivo, Claude estrae event_date sbagliato (es. su articoli con date ambigue)
+- Fix: `wp option update dnap_max_event_age_days 30` (oppure 999 per disabilitare temporaneamente)
+
+**Scenario B: nessun articolo con scope=transversal in 24h**
+- Diagnosi probabile: Claude troppo conservativo, classifica tutto come single_city
+- Fix: rivedere esempi nel prompt, possibilmente aggiungere più casi "transversal"
+
+**Scenario C: troppi articoli con scope=multi_city (>30%)**
+- Diagnosi probabile: Claude assegna multi_city quando dovrebbe essere single_city con mentioned_cities
+- Fix: rivedere distinzione "luogo del fatto" vs "comune menzionato" nel prompt
+
+**Scenario D: nessun problema visibile**
+- Procedere domani con Phase C (Layer 3 scoring in shadow mode)
+
 ---
 
 ## 4. Architettura post 26/4
@@ -853,6 +1067,15 @@ Output: conferma assumption "≥2 shared non-generic tags catch the cluster".
 | `claude/favicon-512` | Favicon 512×512 per Google SERP cerchietto | `9bf8b76` | ✅ Deployato |
 | `claude/template-redirect-redirection-bypass` | Bypass per Redirection (ora inerte) | `b023e31` | ✅ Deployato |
 | Cleanup DB | 13 post duplicati cancellati + 1 categoria fix | (no branch) | ✅ Eseguito |
+
+## 5c. Roadmap Dedup Pipeline v2 — Phase A+B COMPLETATE ✅
+
+| Phase | Cosa | SHA | Stato |
+|---|---|---|---|
+| A | Schema & taxonomy (term litorale-domizio + 8 wp_options + UI scaffolding) | `ce56b71` | ✅ Deployato 28/4 |
+| B | Claude prompt extension (4 nuovi campi + post_date override + skip-too-old) | `5942f48` | ✅ Deployato 28/4 |
+| **C** | **Layer 3 shadow mode 48-72h + activate** | — | 🔜 Prossimo (29/4) |
+| **D** | **Migration CSV audit + activate event_scope-driven taxonomy** | — | 🔜 Dopo Phase C |
 
 ---
 
@@ -979,34 +1202,43 @@ Risolve in un singolo branch coordinato 4 sub-bug:
 
 ---
 
-## 9. Prossimi Step (in ordine)
+## 9. Prossimi Step (in ordine, dopo 28/4)
 
-### 🔴 Imminente (prossima sessione)
+### 🔴 Imminente (29/4 mattina)
 
-**TASK 1 — Pre-implementation Dedup Pipeline v2** (~15 min totali)
-1. Lanciare Query SQL #1 (top-30 tag) — sez. 3.10.7
-2. Lanciare Query SQL #2 (cluster overlap incendio) — sez. 3.10.7
-3. Verificare path `dnap_log()` persistente
+**TASK 0 — Verifica monitoraggio Phase A+B post-deploy**
+1. Lanciare 4 check di monitoraggio (sez. 3.11.5)
+2. Verificare distribuzione `_dnap_event_scope`, volume import, log skip-too-old
+3. Decidere scenario A/B/C/D (sez. 3.11.6)
+4. Ribilanciare soglie via `wp option update` se necessario
 
-**TASK 2 — Implementazione Dedup Pipeline v2** branch `feature/dedup-v2` (~3-4h)
-- Phase A: schema & taxonomy (term `litorale-domizio` + chip + card homepage)
-- Phase B: Claude prompt extension
-- Phase C: Layer 3 shadow mode 48-72h
-- Phase D: activation + migration CSV audit
+**TASK 1 — Phase C: Layer 3 shadow mode**
+- Branch `feature/dedup-v2` (continua sopra `5942f48`)
+- Implementare scoring Layer 3 dopo Layer 2c
+- Default `dnap_dedup_skip_threshold = 999` (NO skip, solo log)
+- Scrivere `_dnap_dedup_score` + `_dnap_dedup_signals` per ogni post
+- Run 48-72h, monitorare distribuzione score
+- Effort: 2h implementazione + 2-3 giorni shadow
 
-**TASK 3 — Fix pipeline immagini Google News** (~2-3h)
-- Branch separato dopo dedup-v2 stabilizzato
-- Patch `media.php` per decoder base64 Google News + Unsplash retry
+**TASK 2 — Phase D: Activation + Migration**
+- Drop `dnap_dedup_skip_threshold` da 999 → 55 via `wp option update`
+- Switch taxonomy assignment da keyword-merge a event_scope-driven
+- Drop legacy `cities` field
+- Run WP-CLI migration script per `_dnap_event_scope` + `_dnap_event_location_city` su 1067 post storici
+- CSV audit per post con `count cities >= 4` (~30-50 post)
+- Remove legacy fallback `core.php:886-931`
+- Effort: 1.5h implementazione + audit manuale CSV
 
-### 🎯 Dopo dedup-v2 e Task B
+### 🎯 Dopo Phase C+D stabilizzate
 
-- **Re-submit AdSense** — finestra ottimale dopo cluster cleanup + immagini fixate
-- **Submit sitemap GSC + Convalida correzione** — chiede a Google di ricontrollare sito pulito
-- **Recovery URL 404 indicizzati Google** (Task A2) — `.htaccess` per cancellazioni passate
+- **Task B — Fix pipeline immagini Google News** (~2-3h, indipendente, branch separato)
+- **Re-submit AdSense** (dopo dedup-v2 + immagini fixate)
+- **Submit sitemap GSC + Convalida correzione** (dopo cleanup completo)
+- **Recovery URL 404 indicizzati Google** (Task A2, via `.htaccess`)
 
 ### 🎯 Medio termine
 
-- VIP/Slider bug #44-48 — pulizia accumulo sticky_post + dedup cross-slot
+- VIP/Slider bug #44-48
 - #URL-tab-sync — sincronizzare URL su click tab principali
 - #chip-incidenti-sicurezza — categoria 58 post non visibile in chip SPA
 - #htaccess-versioning — versionare `.htaccess` in repo
@@ -1015,8 +1247,8 @@ Risolve in un singolo branch coordinato 4 sub-bug:
 
 - #template-redirect-cleanup — rimuovere bypass Redirection ora inerte
 - #dn-btn-primary-cleanup — rimuovere rule unused in base.css
-- Quattro siti `<style>${STYLES}</style>` in render() — possono essere rimossi
-- Footer SPA hardcoded "© 2026" → dinamico al rollover anno
+- Quattro siti `<style>${STYLES}</style>` in render() — rimuovibili
+- Footer SPA hardcoded "© 2026" → dinamico
 - #wp-site-icon-32x32-mismatch — fix dichiarazione sizes
 
 ---
@@ -1055,6 +1287,15 @@ Risolve in un singolo branch coordinato 4 sub-bug:
 - **Skip threshold dedup-v2 = 55** (compromesso): non 50 (troppo aggressivo, rischia falsi positivi su evolution chains tipo Iannitti), non 60 (troppo permissivo, lascia passare duplicati con segnale parziale). 55 è il punto in cui Iannitti ha margine +20 e cluster incendio +10. Tunable via wp_option.
 - **Shadow mode 48-72h prima di attivare dedup**: anti-pattern sicurezza. Deploy con `threshold=999` (no skip), solo log. Vedi distribuzione scores reali, poi calibri con dati prod, poi attivi. Elimina rischio "deploy bad threshold → cron skippa 200 articoli legittimi".
 - **Never-generic stoplist** (intuizione Claude Code): 16 root nouns delle news cronaca (`arresto, sequestro, incendio, omicidio, ...`) non possono mai essere auto-promossi a generic anche se >15% usage. Sono sempre discriminanti. Senza stoplist, dopo 6-12 mesi il sistema perderebbe la capacità di catturare cluster come "incendio rimessaggio" perché "incendio" diventerebbe generic.
+
+### 28 aprile — Phase A+B deploy (validazione design con dati reali)
+
+- **Query SQL pre-implementation confermano il design**: cluster incendio condivide 3 tag non-generic ≥2 post (`incendio`, `vigili del fuoco`, `barche`); cluster Iannitti ha entity overlap ma le penalty discriminano (algoritmo torna sui numeri).
+- **`dnap_max_event_age_days = 14` da subito (no shadow mode)**: scelta utente esplicita, accettando rischio falsi positivi. Mitigazione: tunable via `wp option update`, rollback in 5 secondi se >5 skip ingiustificati nelle prime 24h.
+- **post_date_gmt rewrite con `wp_timezone()`**: scelta tecnica di Claude Code per evitare ambiguità day-boundary. Alternative `DateTime` "naive" avrebbero generato off-by-one quando event_date era a mezzanotte server-tz.
+- **Skip-too-old gate piazzato BEFORE Layer 1.5/2 dedup**: ottimizzazione di Claude Code — risparmia query DB per articoli che verrebbero scartati comunque. Plausibile guadagno 5-10ms per import.
+- **Deploy unico A+B invece di separato**: Phase A da sola fa apparire chip "Tutto il Litorale" con 0 articoli (UX strana per ore). Deploy combinato A+B ha senso UX reale — Claude inizia subito a popolare i campi.
+- **Costo finale Phase B**: $0.35/mese (era stima $0.42, allineato con margine 17%). One-time cache invalidation $0.012 (era stima $0.002, 6x ma trascurabile su singolo evento).
 
 ### Pattern operativi consolidati
 - **Audit-prima-di-implementare** (consolidata mattino, riapplicata 3 volte nella stessa giornata): per ogni decisione importante, prima audit read-only, poi implement. Ha permesso di evitare regressioni multiple.
@@ -1235,15 +1476,16 @@ Se la risposta è "in 10 minuti con [tecnologia nativa]", probabilmente quella �
 
 ---
 
-*Fine HANDOFF v2.0 — 27 aprile 2026, fine giornata*
+*Fine HANDOFF v2.1 — 28 aprile 2026, fine giornata*
 
 *Sessione 26/4: 6 deploy hydration*
 *Sessione 27/4: 3 deploy SEO + cleanup DB 13 duplicati + design Dedup Pipeline v2*
+*Sessione 28/4: Phase A + Phase B Dedup Pipeline v2 deployate*
 
-*Roadmap hydration ✅ COMPLETATA. Roadmap SEO 27/4 ✅ COMPLETATA.*
+*Roadmap hydration ✅ | Roadmap SEO 27/4 ✅ | Dedup-v2 Phase A+B ✅*
 
-*Bug critici aperti consolidati in design "Dedup Pipeline v2" (Phase A-D, branch `feature/dedup-v2`): event_date, multi-city, wrong-city, cluster semantici. Implementazione pronta in 4 fasi atomiche.*
+*Stato attuale: monitoraggio post-deploy 28/4 sera. Da verificare 29/4 mattina (4 check + decisioni operative se scenario A/B/C/D).*
 
-*Lezioni operative consolidate: SSR↔SPA parity rule (post v1.7), audit-prima-di-implementare, evita over-engineering (post 27/4 plugin Redirection).*
+*Prossimi step: Phase C (Layer 3 shadow mode) → Phase D (activation + migration). Task B (immagini Google News) parallelo.*
 
-*Prossima priorità: Pre-implementation queries SQL → branch `feature/dedup-v2` Phase A.*
+*Lezioni operative consolidate: SSR↔SPA parity rule, audit-prima-di-implementare, evita over-engineering, design consultation prima di coding (intelligenza emergente Claude Code).*
