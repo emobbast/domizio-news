@@ -1,7 +1,7 @@
 # HANDOFF — Domizio News
-**Versione:** v1.9 | **Data:** 26 aprile 2026, sera tardi | **Branch attivo:** develop
+**Versione:** v2.0 | **Data:** 27 aprile 2026, fine giornata | **Branch attivo:** develop
 
-> Consolida v1.8 (5 deploy della giornata) aggiungendo: 6° deploy (paged404+vedialtro-style), verifica visiva SSR/SPA parity completata, audit completo bug immagini Google News + duplicati contenuti, decisione strategia SEO per cancellazioni. Sostituisce v1.8.
+> Consolida v1.9 (sessione 26/4) aggiungendo sessione 27/4 completa: 3 deploy SEO (sitemap cleanup + favicon 512×512 + template_redirect bypass), cleanup DB 13 post duplicati, esperienza fallimentare plugin Redirection (disinstallato), 4 nuovi bug critici emersi (event_date, multi-city, wrong-city, cluster semantici), design completo "Dedup Pipeline v2" pronto per implementazione. Sostituisce v1.9.
 
 ---
 
@@ -367,6 +367,418 @@ Il problema è **ongoing in produzione**, non legacy.
 
 **Conclusione audit:** i due bug sono indipendenti. Immagini = scraping failure Google News-specifico. Duplicati = Claude metadata gap. Entrambi hanno fix code-level disponibili.
 
+### 3.9 Sessione 27/4 — Cleanup SEO esteso (3 deploy + DB cleanup)
+
+Sessione lunga (8+ ore) con 3 deploy + cleanup DB diretto + esperienza fallimentare plugin Redirection. Risultato netto: stato SEO sito significativamente migliorato.
+
+#### 3.9.1 Audit GSC — Scoperta crisi indicizzazione
+
+Export Coverage da Google Search Console ha rivelato che il sito è in stato **critico SEO**, ben oltre i 13 duplicati DB visti ieri:
+
+| Categoria GSC | Pagine | Severità |
+|---|---|---|
+| Indicizzate | 93 | — (4.3% del corpus!) |
+| Pagina alternativa con canonical appropriato | 65 | OK |
+| Pagina duplicata senza canonical (DIVERSI dai 13 DB) | 38 | 🔴 |
+| Duplicata con canonical Google diverso | 3 | 🟠 |
+| Non trovata (404) | 2 | 🟢 |
+| Pagina con reindirizzamento | 2 | 🟢 |
+| **Rilevata ma non indicizzata** | **2082** | 🚨 |
+| Scansionata ma non indicizzata | 79 | 🟠 |
+
+**Diagnosi via Python pandas analysis dei 1000 URL "rilevata non indicizzata":**
+
+| Tipo URL | % | Note |
+|---|---|---|
+| Tag pages (`/tag/<keyword>/`) | 58.9% | 🔴 **Causa principale crisi** |
+| Singoli articoli | 40.5% | Mai scansionati (data 1970-01-01) |
+| Archivio città | 0.5% | OK |
+| Author/Category | <1% | Marginale |
+
+**Verifica sitemap effettiva:**
+
+| Sub-sitemap | URL count | Atteso | Anomalia |
+|---|---|---|---|
+| `posts-post-1.xml` | 1080 | ~1080 | OK |
+| `posts-page-1.xml` | 7 | 7 (con home) | OK |
+| `taxonomies-category-1.xml` | 9 | 8 | +Uncategorized |
+| **`taxonomies-post_tag-1.xml`** | **1490** | **0** | 🔴 PROBLEMA |
+| `taxonomies-city-1.xml` | 7 | 9 | -2 aggregati mancanti |
+| `users-1.xml` | 1 | 0 | Da rimuovere |
+
+#### 3.9.2 Branch `claude/sitemap-noindex-cleanup` ✅ DEPLOYATO
+
+**SHA:** `32bb96e` — merged → main
+
+**4 fix correlati in `functions.php`:**
+
+1. **`wp_robots` esteso**: `noindex` su `is_tag()` (1490 tag pages — recupera crawl budget)
+2. **`wp_sitemaps_taxonomies` esteso** (filtro city già esistente, riutilizzato): `unset($taxonomies['post_tag'])` — sub-sitemap tag rimossa
+3. **`wp_sitemaps_add_provider`**: rimuove provider `users` da sitemap (1 admin, già `noindex` via wp_robots esistente)
+4. **`wp_sitemaps_taxonomies_query_args`**: esclude term_id=1 (`uncategorized`, count=0 dopo manuale)
+
+**Pre-step manuale:** post ID 2475 ("Processo per corruzione all'Asl") ricategorizzato da `uncategorized` → `cronaca`. Era l'unico post in Uncategorized; categoria ora vuota.
+
+**Verifica post-deploy (curl):**
+- ✅ Sitemap index pulita (4 sub-sitemap invece di 6)
+- ✅ Tag pages emettono `<meta name='robots' content='max-image-preview:large, noindex, follow' />`
+- ✅ Category sitemap mostra 8 categorie (no Uncategorized)
+- ⚠️ `wp-sitemap-users-1.xml` URL diretto ritorna soft-404 (force-home + noindex). Delta intentional accettato.
+
+**Effetto SEO atteso (in 14-30 giorni):**
+- 1490 URL tag deindicizzati da Google
+- Recupero crawl budget per articoli reali
+- Counter "Rilevate ma non indicizzate" deve scendere
+
+#### 3.9.3 Branch `claude/favicon-512` ✅ DEPLOYATO
+
+**SHA:** `9bf8b76` — merged → main
+
+**Diagnosi:** WordPress core `wp_site_icon()` emette solo `<link rel="icon">` con `sizes="32x32"` e `sizes="192x192"`. Google SERP cerchietto richiede sizes ≥48×48 (ottimale 512×512). Senza dichiarazione esplicita, Google falleggia con la 192×192 auto-scaled (sfocata nel cerchietto).
+
+**Bug pregresso scoperto (NON sistemato):** WordPress dichiara `sizes="32x32"` per un file 80×80 (mismatch). Innocuo ma da P2.
+
+**Setup pre-fix:** verificato che `/var/www/html/wp-content/uploads/2026/04/logo-domizio-news.png` è già 512×512 originale (non occorre re-upload).
+
+**Fix:** filter `wp_head` priorità 99 che aggiunge:
+```html
+<link rel="icon" sizes="512x512" href="https://domizionews.it/wp-content/uploads/2026/04/logo-domizio-news.png" />
+```
+
+Filtro additivo (priorità 99 dopo core 10), nessuna dichiarazione esistente alterata. Tab browser/iOS/Android invariati, Google SERP riceve nuova dichiarazione.
+
+**Verifica post-deploy:** 4 link icon presenti in `<head>` (3 esistenti + 1 nuova 512×512).
+
+**Tempo propagazione Google:** 3-15 giorni. Per accelerare: GSC URL Inspection → Request Indexing su home.
+
+#### 3.9.4 Branch `claude/template-redirect-redirection-bypass` ✅ DEPLOYATO (poi inerte)
+
+**SHA:** `b023e31` — merged → main
+
+**Contesto:** plugin Redirection installato per gestire i 13 redirect 301 del cleanup duplicati. I 301 non scattavano perché il custom `template_redirect` (functions.php:316) intercettava i 404 con force-home prima del plugin Redirection.
+
+**Fix implementato:** secondo bypass nel `template_redirect` (oltre a quello paged-archive di ieri):
+- Guard `defined('REDIRECTION_VERSION')` + `SHOW TABLES LIKE` per evitare query inutile se plugin disinstallato
+- Query SELECT su `wp_redirection_items` per URL corrente (con varianti trailing-slash)
+- Se match trovato: `return` early → permette al plugin di processare
+
+**Stato attuale:** il fix è **deployato ma inerte** dopo la disinstallazione di Redirection (il guard `defined('REDIRECTION_VERSION')` ora restituisce false). Codice innocuo, **technical debt** da rimuovere in futuro (P2 #template-redirect-cleanup).
+
+#### 3.9.5 Cleanup DB — 13 post duplicati cancellati
+
+**Mappa rivista durante audit pre-cleanup** (con inversioni rispetto al "tieni più vecchio"):
+
+| # | Mantieni | Cancella | Motivo scelta vincitore |
+|---|---|---|---|
+| 1 | 1931 | 1936, 1988, 2022 | Più vecchio + slug pulito |
+| 2 | 1026 | 1061 | **Fonte ecaserta.com** (immagine reale) |
+| 3 | 1085 | 1219 | Più vecchio |
+| 4 | **1256** | **1255** | ⚠️ Inversione: 1256 da pupia.tv ha fonte vera |
+| 5 | 1443 | 1948 | **Fonte ilmattino.it** |
+| 6 | 1926 | 1978 | Più vecchio (entrambi Google News) |
+| 7 | 1983 | 2076 | **Fonte cronachedi.it** + content ricco |
+| 8 | 1995 | 2030 | **Fonte ansa.it** |
+| 9 | 2151 | 2170 | thereportzone.it + content più ricco |
+| 10 | 2388 | 2397 | Più vecchio |
+| 11 | 2497 | 2512 | Più vecchio |
+
+**Procedura via wp-cli (4 step):**
+
+1. ✅ Backup DB: `backup-pre-cleanup.sql` 8.2MB
+2. ✅ Pipeline import bloccata (`dnap_import_lock = 1`)
+3. ✅ Dry-run pre-flight: 11 vincitori + 13 perdenti tutti trovati
+4. ✅ 13 redirect 301 inseriti in `wp_redirection_items` (poi rivelatisi inutili)
+5. ✅ 13 post cancellati con `wp_delete_post(..., true)` (force, no trash)
+6. ✅ Verifica finale: 0 duplicati title rimanenti, **1067 post pubblicati** totali (era 1080)
+7. ✅ Pipeline import sbloccata
+
+**Decisione utente:** non cancellare immagini orfane. ~2MB di file fisici restano in `wp-content/uploads/` come carcasse innocue.
+
+#### 3.9.6 Esperienza fallimentare plugin Redirection (lezione critica)
+
+**Sequenza problemi (4 ore di debug):**
+
+1. Plugin Redirection 5.7.5 installato + setup wizard completato
+2. 13 record `wp_redirection_items` creati via wp-cli
+3. Test redirect: HTTP 200 (force-home, plugin saltato) → fix deploy `b023e31`
+4. Re-test: HTTP 404 invece di 301 → plugin trova zero match
+5. Diagnosi 1: tabella `wp_redirection_modules` mancante → creata manualmente via SQL
+6. Diagnosi 2: campo `match_url` vuoto nei record → popolato via UPDATE
+7. Diagnosi 3: campo `match_data` vuoto → popolato con default JSON
+8. Diagnosi 4: `Red_Item::get_for_url()` ritorna 0 anche bypassando HTTP — plugin NON registra hook frontend, solo `Redirection_Admin::init`
+9. Tentativo deactivate/reactivate → nessun cambio
+10. **Decisione:** disinstallato Redirection completamente
+
+**Risultato finale:** 13 URL "perdenti" tornano a soft-404 con noindex (SEO-safe). Per i 13 URL **a 0 hits totali, 0 backlink, 0 indicizzati**, il valore SEO marginale di 301 vs soft-404 è praticamente zero.
+
+**Lezione operativa critica consolidata** (vedi sez. 12 "Regole operative"):
+- Per redirect statici a basso volume (<50): preferire `.htaccess` direttamente, non plugin third-party
+- Plugin third-party con setup runtime complesso (richiedono dashboard click per tabelle aggiuntive) sono fragili in pipeline automatizzate
+- Quando il problema è semplice ma il fix richiede 4+ diagnosi → STOP, ripensare l'approccio
+
+#### 3.9.7 Bug critici emersi durante audit visivo del sito
+
+Durante review post-cleanup l'utente ha identificato **4 bug strutturali** mai documentati prima:
+
+**Bug #1 — Event date vs publish date**
+Esempio: post 2552 importato 27/4 09:47 con titolo "Incendio al rimessaggio di barche a Castel Volturno nella notte". Il body cita testualmente "nella notte tra il 22 e il 23 aprile". Il sito mostra `post_date` (27/4) come "1h fa", facendo apparire come news fresca un fatto di 5 giorni fa. Confonde lettori e Google.
+
+**Bug #2 — Cluster duplicati semantici (oltre i title-identici)**
+Stesso evento "incendio rimessaggio barche Castel Volturno" pubblicato **10 volte** in 11 giorni con titoli rewritten diversi:
+- 16/4: 7 post (ID 1926, 1933, 1934, 1938, 1953, 1959, 1977)
+- 17/4: 4 post (ID 1978, 1982, 1983, 2076)
+- 27/4: 1 replay (ID 2552, 11 giorni dopo!)
+
+Layer 1.5 finestra 12h non li cattura, Layer 2 entity sotto-popolato (3.5%). Tag overlap potrebbe catturarli ma non è implementato come signal.
+
+**Bug #3 — Multi-city transversal articles**
+Articoli su tematiche litorale-wide assegnati a 4-6 città individuali:
+- Post 2549 "Litorale domizio, sequestrata tubazione per scarichi abusivi": Baia Domizia + Castel Volturno + Cellole + Mondragone (4 città)
+- Post 2460 "Centro migranti sul litorale, Cgil e vescovo Lagnese": Baia Domizia + Castel Volturno + Cellole + Falciano + Mondragone + Sessa Aurunca (6 città)
+
+Effetti negativi: gonfia city archive count, dilui SEO signal su tutti i comuni, lettore vede badge sovraffollati nelle card.
+
+**Bug #4 — Wrong-city attribution (police HQ false positive)**
+Pattern "Carabinieri di Mondragone arrestano X a Castel Volturno" → assegnato sia Castel Volturno (luogo evento) sia Mondragone (sede caserma). Esempi:
+- Post 2495: "Castel Volturno, arrestato 58enne per armi"
+- Post 2486: "Castel Volturno, furto energia elettrica"
+- Post 2550: "Sessa Aurunca e Cellole, controlli rafforzati" (HQ Caserta)
+
+Causa: `core.php:1029-1048` merge tra `dnap_get_cities_from_text($title + $description)` e Claude's `cities` array. Il keyword scan non distingue "Carabinieri di Mondragone" (riferimento istituzionale) da "rapina a Mondragone" (luogo evento).
+
+#### 3.9.8 Sblocco pipeline import e analisi falso bug "articoli vecchi"
+
+L'utente ha segnalato sospetto: "il sistema importa articoli di giorni fa". Verifica via wp-cli + tail log:
+
+- Ultimi 20 articoli importati: tutti del 26-27 aprile (recenti)
+- Log: "Importati 1 | Saltati 282" su singolo cron run (filtri funzionano)
+- L'output del primo comando wp-cli aveva mescolato due liste, dando l'impressione di articoli vecchi
+
+**Conclusione:** non è un bug nel filtro temporale. È **Bug #1** (event date vs publish date) che fa apparire articoli con `post_date` recente ma fatti vecchi citati nel body. Sintomo dello stesso problema, manifestazione diversa.
+
+### 3.10 Design "Dedup Pipeline v2" — Documento di progettazione completo
+
+Prima di implementare, design consultation con Claude Code. Iterazioni: design v1 da Claude Code → review utente con 5 modifiche → re-review da Claude Code con disagreement costruttivo → versione finale concordata.
+
+#### 3.10.1 Decisioni finali concordate
+
+**Algoritmo Layer 3 (additivo, dopo Layer 2c esistente):**
+
+```
+Candidate set query: posts pubblicati ultimi 30 giorni con almeno uno di:
+  - shared non-generic tag
+  - same primary_event_city
+  - matching _dnap_event_entity
+
+Per candidate, score:
+  + 30  if shared_non_generic_tags ≥ 2
+  + 20  if entity_match
+  + 15  if title_jaccard_keywords ≥ 0.5
+  + 10  if same primary_event_city
+  + 10  if event_date present in BOTH AND |Δ| ≤ 2 days
+  +  5  if publish-date Δ ≤ 7 days
+  - 25  if new_significant_tag (≥1 non-generic tag in new article that NO candidate has)
+  - 15  if title contains evolution_verb on new entity action
+
+Decisione:
+  if score ≥ 55  → SKIP (mark duplicate, log)
+  if 30 ≤ score < 55 → IMPORT + write _dnap_related_to = root_id
+  if score < 30 → import normal
+```
+
+**Soglie finali (modificate da v1 design):**
+- `dnap_dedup_skip_threshold` = **55** (non 50, non 60 — compromesso)
+- `dnap_dedup_related_threshold` = **30** (non 25, banda 30-55 di 25 punti)
+
+**Trace verifica su 3 casi:**
+
+| Caso | Score | Decisione | Margine |
+|---|---|---|---|
+| Cluster incendio post 2552 vs 1926 | 65 | SKIP ✓ | +10 sopra skip |
+| Cluster incendio con 1 signal mancante | 55 | SKIP ✓ | at threshold |
+| Iannitti Day 2 vs Day 1 | 35 | RELATED ✓ | +20 sotto skip |
+| Random unrelated post pair | ≤10 | NORMAL ✓ | n/a |
+
+**Never-generic stoplist** (root nouns sempre discriminanti, mai auto-promossi a generic):
+```
+arresto, sequestro, incendio, omicidio, aggressione, incidente,
+rapina, truffa, denuncia, inchiesta, condanna, sentenza,
+scomparsa, ritrovamento, fuga, evasione
+```
+
+**Generic tags seed** (esclusi dal calcolo overlap):
+- Categorie WP (cronaca, sport, politica, ecc)
+- Slug città individuali e aggregate (mondragone, castel-volturno, ecc)
+- Generici (caserta, casertano, campania, italia, comunale, regionale, ecc)
+
+**Auto-promotion threshold:** `dnap_generic_tag_threshold_pct` = **15%** (non 10% — più permissivo)
+
+**Evolution verbs** (penalty -15 quando titolo contiene azione nuova):
+```
+identificato, identificata, fermato, fermata, arrestato, arrestata,
+condannato, condannata, confessa, confessato, assolto, assolta,
+riconosciuto, riconosciuta, accusato, accusata, rilasciato,
+scarcerato, prosciolto, indagato, denunciato, ricoverato,
+dimesso, deceduto, ritrovato, scomparso, sentenza, ergastolo
+```
+
+#### 3.10.2 Refactor schema Claude (cities → event_location_city + scope)
+
+Sostituisce l'attuale `cities` array con:
+
+```json
+{
+  "event_location_city": "castel-volturno",   // single primary
+  "event_scope": "single_city",                // single_city | multi_city | transversal
+  "mentioned_cities": ["mondragone"]           // context (police HQ, residenza), NON taxonomy
+}
+```
+
+**Logica taxonomy assignment (sostituisce `core.php:1029-1048`):**
+- `single_city`: assegna [event_location_city] (~85% degli articoli)
+- `multi_city`: assegna [event_location_city, ...mentioned_cities] (2-3 città legittime)
+- `transversal`: assegna `litorale-domizio` (term virtuale, NO union semantics, posti SOLO lì)
+
+Risolve **Bug #3 e #4 in un colpo**. Costo prompt extra: ~120 input tokens cached + 10 output tokens = **+$0.30/mese**.
+
+#### 3.10.3 Term virtuale `litorale-domizio` (decisione utente: visibile)
+
+Da implementare in Phase A:
+- ✅ Aggiunto a `dnap_ensure_aggregate_city_terms()` come 3° aggregato
+- ✅ **Visibile come 8° chip** nella tab Città (no exclusion da chip menu)
+- ✅ **Card homepage dedicata** "Tutto il Litorale" come 6° city section
+- ✅ **NO aggregate union** (diversamente da cellole-baia-domizia e falciano-carinola): posti transversal stanno **solo** in `/citta/litorale-domizio/`, non appaiono negli archivi città individuali
+- ✅ Inclusa in sitemap se count > 0
+
+Discoverability scelta utente: chip menu + homepage card.
+
+#### 3.10.4 Event date extraction
+
+Schema Claude esteso con campo `event_date` (ISO 8601 YYYY-MM-DD).
+
+**Prompt addendum (~80 tokens cached):**
+```
+event_date — data dell'evento principale
+NON la data di pubblicazione del feed.
+- "ieri" → data feed - 1
+- "nella notte tra il 22 e il 23 aprile" → 2026-04-23
+- "questa mattina" → data feed
+- "nelle scorse settimane" o ambigua → null
+- evento futuro → data evento
+```
+
+**Storage e downstream:**
+- `_dnap_event_date` (post_meta)
+- Se `|event_date - today| > 1` giorno → `post_date_gmt` riscritto a `event_date 12:00:00` (sito mostra data corretta del fatto)
+- Skip-too-old gate: se `event_date < today - 14d` → skip
+- Layer 3 dedup score: `+10` se entrambi hanno event_date e Δ ≤ 2 giorni
+
+Risolve **Bug #1**. Costo: +$0.12/mese.
+
+#### 3.10.5 Strategia migrazione (1067 post esistenti)
+
+**Backfill DB-only (no Claude calls):**
+
+| Backfill | Cosa | Costo |
+|---|---|---|
+| `_dnap_event_scope` | Heuristic tiered: 1 città→single, 2-3→multi, ≥4→transversal | DB-only, ~30s |
+| `_dnap_event_location_city` | Da `_dnap_event_city` esistente o `cities[0]` | DB-only |
+| `_dnap_event_date` retroattivo | NON fare (costerebbe $6.40, valore basso su archivio) | skip |
+| `_dnap_related_to` retroattivo | NON fare (clusters storici non utili) | skip |
+
+**Audit manuale post-migration:**
+- WP-CLI script esporta CSV con `post_id, title, current_cities, heuristic_scope, body_excerpt_300_char`
+- Utente apre in spreadsheet, rivede ~30-50 post con `count cities >= 4`
+- Corregge classifica (transversal vs multi_city) dove l'heuristic ha sbagliato (false positive previsti: processioni, joint sweeps, ricapitoli)
+- Secondo WP-CLI script applica le correzioni dal CSV editato
+
+#### 3.10.6 Plan implementazione — branch unico `feature/dedup-v2` in 4 fasi atomiche
+
+**Phase A — Schema & taxonomy (no behavior change)**
+- Aggiungere term `litorale-domizio` a `dnap_ensure_aggregate_city_terms()`
+- Registrare nuovi post_meta keys (no writes ancora)
+- Aggiungere wp_options con defaults
+- Helper SSR `dnapp_ssr_city_chips` aggiunge chip litorale-domizio
+- Helper SSR `dnapp_ssr_home_city_section` aggiunge 6° section
+- SPA `buildCities()` chip filter + `buildHome()` city section iteration **(REGOLA SSR↔SPA PARITY)**
+- Risk: zero, additivo
+
+**Phase B — Claude prompt extension (data flowing, no skip)**
+- Estendere JSON schema Claude: `event_date`, `event_scope`, `event_location_city`, `mentioned_cities`
+- Persist nei nuovi post_meta
+- Mantenere ANCHE legacy `cities` field (backwards compat)
+- NON cambiare ancora taxonomy assignment (keyword merge attivo)
+- Cache prompt invalidata 1 volta (~$0.002)
+- Risk: low, additivo
+
+**Phase C — Layer 3 in shadow mode 48-72h**
+- Implementare scoring layer dopo Layer 2c
+- `dnap_dedup_skip_threshold = 999` (NO skips, solo log)
+- Scrivere `_dnap_dedup_score` + `_dnap_dedup_signals` per ogni post
+- Verbose log on (gated da `dnap_dedup_log_all = true`)
+- Run 48-72h, review distribuzione scores
+- Risk: low (no skips happen)
+
+**Phase D — Activate & migrate**
+- Drop threshold a 55 via `wp option update` (active skip)
+- Switch taxonomy assignment da keyword-merge a event_scope-driven
+- Drop legacy `cities` field e `dnap_get_cities_from_text` merge
+- Run WP-CLI migration script (`_dnap_event_scope` + `_dnap_event_location_city` su 1067 post)
+- Run audit CSV export → review manuale → batch-apply correzioni
+- Remove legacy fallback (`core.php:886-931`)
+- Risk: medium, monitoraggio richiesto
+
+#### 3.10.7 Pre-implementation checklist (DA FARE prima di Phase A)
+
+**MUST do:**
+
+- [ ] **Query SQL #1 — Top-30 tag distribution su prod:**
+```bash
+ssh -i "C:\Users\sorre\Desktop\DOMIZIO-NEWS\domizionews-server.pem" ubuntu@13.62.37.76 "cd /var/www/html && sudo -u www-data wp eval '
+global \$wpdb;
+\$rows = \$wpdb->get_results(\"
+  SELECT t.name, tt.count
+  FROM {\$wpdb->terms} t
+  INNER JOIN {\$wpdb->term_taxonomy} tt ON t.term_id=tt.term_id
+  WHERE tt.taxonomy=\\\"post_tag\\\"
+  ORDER BY tt.count DESC LIMIT 30
+\");
+foreach (\$rows as \$r) echo \"\$r->name: \$r->count\n\";
+'"
+```
+Output: seed list per `dnap_generic_tags_manual` (escludendo i never-generic stoplist).
+
+- [ ] **Query SQL #2 — Cluster overlap incendio rimessaggio:**
+```bash
+ssh -i "C:\Users\sorre\Desktop\DOMIZIO-NEWS\domizionews-server.pem" ubuntu@13.62.37.76 "cd /var/www/html && sudo -u www-data wp eval '
+global \$wpdb;
+\$ids = [1926, 1933, 1934, 1938, 1953, 1959, 1977, 1982, 1983, 2076, 2552];
+\$rows = \$wpdb->get_results(\$wpdb->prepare(\"
+  SELECT t.name, COUNT(DISTINCT p.ID) as posts
+  FROM {\$wpdb->posts} p
+  INNER JOIN {\$wpdb->term_relationships} tr ON p.ID = tr.object_id
+  INNER JOIN {\$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+  INNER JOIN {\$wpdb->terms} t ON tt.term_id = t.term_id
+  WHERE p.ID IN (\" . implode(\",\", array_fill(0, 11, \"%d\")) . \")
+    AND tt.taxonomy = \\\"post_tag\\\"
+  GROUP BY t.term_id
+  ORDER BY posts DESC
+\", \$ids));
+foreach (\$rows as \$r) echo \"\$r->posts/11: \$r->name\n\";
+'"
+```
+Output: conferma assumption "≥2 shared non-generic tags catch the cluster".
+
+- [ ] **Verificare** che `dnap_log()` scriva su path persistente (non `/tmp`) per retention 30 giorni del dedup log
+
+**Out of scope per ora (rimandato):**
+- Vector embedding similarity (cost-prohibitive a Haiku tier)
+- Image-based dedup
+- Cross-language clustering (sito IT-only)
+- A/B testing weights (single-deploy tuning sufficiente)
+
+---
+
 ---
 
 ## 4. Architettura post 26/4
@@ -420,62 +832,63 @@ Il problema è **ongoing in produzione**, non legacy.
 
 ---
 
-## 5. Roadmap Hydration "True takeover"
+## 5. Roadmap Hydration "True takeover" — COMPLETATA ✅
 
 | Fase | Cosa | Effort | SHA | Stato |
 |---|---|---|---|---|
-| 1 | Aggregate post union | 45 min | `a459a76` | ✅ Deployato |
-| 1.5 | Fix "Vedi altro" aggregati (CITY_GOTO_TARGET) | 5 min | `2853669` | ✅ Deployato |
-| 2 | SPA paginazione + "Vedi altro" in buildCities | 35 min | `720efdb` | ✅ Deployato |
-| 3 | SSR pixel-identical (card + chrome + CSS unification) | 4h | `5008735` | ✅ Deployato |
-| 3.6 | Paged 404 fix + Vedi altro style align | 30 min | `6b9fac8` | ✅ Deployato |
-| 4 | Hydration true takeover boot() | 30 min | — | 🟢 De facto già implementato in v1.7 |
+| 1 | Aggregate post union | 45 min | `a459a76` | ✅ Deployato 26/4 |
+| 1.5 | Fix "Vedi altro" aggregati (CITY_GOTO_TARGET) | 5 min | `2853669` | ✅ Deployato 26/4 |
+| 2 | SPA paginazione + "Vedi altro" in buildCities | 35 min | `720efdb` | ✅ Deployato 26/4 |
+| 3 | SSR pixel-identical (card + chrome + CSS unification) | 4h | `5008735` | ✅ Deployato 26/4 |
+| 3.6 | Paged 404 fix + Vedi altro style align | 30 min | `6b9fac8` | ✅ Deployato 26/4 |
+| 4 | Hydration true takeover boot() | 30 min | de-facto in `5008735` | ✅ Già implementata |
 
-**Nota Fase 4:** v1.7 ha già implementato l'hydration takeover — `boot()` rileva `[data-ssr-archive]` e va in modalità hydration senza innerHTML replacement. Verificato in 3.7 che lo swap è invisibile. Branch separato per Fase 4 non necessario.
+**Roadmap hydration COMPLETATA al 100%.** Fondazione SSR/SPA stabile.
 
-**Roadmap hydration COMPLETATA** ✅ — la fondazione SSR/SPA è stabile.
+## 5b. Roadmap SEO 27/4 — COMPLETATA ✅
+
+| Branch | Cosa | SHA | Stato |
+|---|---|---|---|
+| `claude/sitemap-noindex-cleanup` | Sitemap cleanup + noindex tag/users/uncategorized | `32bb96e` | ✅ Deployato |
+| `claude/favicon-512` | Favicon 512×512 per Google SERP cerchietto | `9bf8b76` | ✅ Deployato |
+| `claude/template-redirect-redirection-bypass` | Bypass per Redirection (ora inerte) | `b023e31` | ✅ Deployato |
+| Cleanup DB | 13 post duplicati cancellati + 1 categoria fix | (no branch) | ✅ Eseguito |
 
 ---
 
-## 6. Bug Status — 26 aprile sera tardi
+## 6. Bug Status — 27 aprile fine giornata
 
-### ✅ Risolti oggi (6 deploy)
+### ✅ Risolti oggi 27/4 (3 deploy + cleanup DB)
 
-| Bug/feature | Branch | SHA |
+| Item | Branch | SHA |
 |---|---|---|
-| Cities menu asymmetric | cities-menu-asymmetric | 00e385b |
-| Aggregate post union | aggregate-post-union | a459a76 |
-| Vedi altro aggregati (CITY_GOTO_TARGET) | aggregate-vedi-altro-fix | 2853669 |
-| SPA pagination Città | spa-pagination-vedi-altro | 720efdb |
-| SSR ↔ SPA HTML parity | ssr-spa-html-parity | 5008735 |
-| Paged 404 + Vedi altro style align | paged404-and-vedialtro-style | 6b9fac8 |
+| Sitemap cleanup + noindex archivi sottili | sitemap-noindex-cleanup | 32bb96e |
+| Favicon 512×512 per Google SERP | favicon-512 | 9bf8b76 |
+| Template_redirect bypass per Redirection | template-redirect-redirection-bypass | b023e31 |
+| Cleanup 13 duplicati DB title-identici | (no branch, wp-cli) | — |
+| Categoria Uncategorized vuota (post 2475 → cronaca) | (no branch, wp-cli) | — |
 
-### 🔴 Bug critici emersi oggi (audit completato, fix da pianificare)
+### 🔴 Bug critici emersi oggi (design completato, implementazione in roadmap)
 
-#### **A. Cleanup duplicati DB con strategia SEO 301**
-- 23 post duplicati esatti in 11 gruppi (sez. 3.8.2.1)
-- **Strategia richiesta:** non solo cancellare, ma reindirizzare 301 dal "perdente" al "vincitore" della coppia per preservare SEO + backlink + indicizzazione Google
-- **Vincitore = post più vecchio del gruppo** (probabile già indicizzato + più backlink)
-- **Effort:** ~30 min (cleanup) + setup plugin Redirection o regole .htaccess
+#### **Dedup Pipeline v2** (consolidata da Task C, D, F del v1.9)
+Risolve in un singolo branch coordinato 4 sub-bug:
 
-#### **A2. Recovery URL già cancellati indicizzati da Google**
-- Aspetto SEO emerso: cancellazioni passate (es. ~45 Iannitti documentati in v1.6 da pulire) ritornano 404 senza redirect
-- **Effort:** 1-2h (audit Google Search Console "Pagine non trovate" + decisione 301 vs 410 per ognuno)
-- **Pre-requisito:** verificare se c'è già un plugin redirect installato + check GSC quanti URL 404 sono indicizzati
+- **Cluster duplicati semantici** (es. incendio rimessaggio: 10 post stesso evento)
+- **Event date vs publish date** (es. post 2552 mostra "1h fa" per fatto del 22/4)
+- **Multi-city transversal articles** (es. post 2549, 2460 con 4-6 città assegnate)
+- **Wrong-city attribution** (es. post 2495 "Carabinieri di Mondragone arrestano X a Castel Volturno" → 2 città)
 
-#### **B. Pipeline immagini Google News broken**
-- 246 post no-image (22.8% del corpus), 207 placeholder Unsplash
-- Causa: `dnap_resolve_google_news_url` base64 decode + URL upgrade a publisher canonical fallisce, Unsplash fallback intermittente
-- **Effort:** 2-3h (patch `media.php`, debug iterativo del payload base64 Google News)
-- **Beneficio:** sblocca 50%+ nuovi import; post storici no-image sono persi (fonti hanno perso le immagini originali nel frattempo)
+**Stato:** design completato (sez. 3.10), pre-implementation checklist in attesa, implementazione su branch `feature/dedup-v2` in 4 fasi atomiche (~3-4h totali).
 
-#### **C. Pipeline dedup sotto-alimentata**
-- Layer 1.5 finestra 12h troppo stretta
-- Layer 2a/2b/2c richiede `_dnap_event_entity`/keywords ma solo 3.5-7.9% dei post li hanno
-- **Effort:** 1-2h (patch `core.php`, allargare finestra Layer 1.5 a 72h + tightening Claude prompt per entity extraction sui collective subjects)
-- **Beneficio:** preventivo, ferma i prossimi 23+ duplicati
+### 🔴 Altri bug critici aperti (non in dedup-v2)
 
-### 🟠 P1 aperti (preesistenti)
+| # | Bug | Effort |
+|---|---|---|
+| **B** | Fix pipeline immagini Google News (246 no-image, 207 placeholder Unsplash, 50%+ nuovi import) | 2-3h |
+| **A2** | Recovery URL già cancellati indicizzati Google (audit GSC + 301 retroattivi via .htaccess) | 1-2h |
+
+### 🟠 P1 aperti (preesistenti, non risolti)
+
 - **#URL-tab-sync** — Tab principali (Home, Città, Scopri, Cerca) non aggiornano URL su click
 - **#44** Dedup cross-slot slider — `rest.php:25-85`
 - **#45** `stick_post()` accumulo infinito (33 sticky dead) — `core.php:842-843`
@@ -486,27 +899,45 @@ Il problema è **ongoing in produzione**, non legacy.
 - **#30** Query N+1 sticky_per_city
 
 ### 🟡 P2 aperti
+
 - **#34** rsync+symlink deploy atomico
 - **#35** CI gate `php -l` pre-deploy
 - **#36** opcache reload post-deploy
 - **#42** preconnect domini esterni
-- **#sitemap-aggregates** — Aggregati non in `wp-sitemap-taxonomies-city` (count=0). Custom provider, ~30 min
-- **#dn-btn-primary-cleanup** — Rule preserved in base.css ma marcato unused. Cleanup branch separato dopo verifica zero consumers altrove.
+- **#sitemap-aggregates** — `cellole-baia-domizia` + `falciano-carinola` non in sitemap (count=0). Risolto naturalmente con dedup-v2 quando aggiungiamo `litorale-domizio` (custom provider già necessario).
+- **#dn-btn-primary-cleanup** — Rule unused in base.css (cleanup branch separato)
+- **#chip-incidenti-sicurezza** — Categoria "Incidenti & Sicurezza" (58 post) non visibile nei chip SPA
+- **#htaccess-versioning** — `.htaccess` non versionato in repo (vive solo su EC2)
+- **#template-redirect-cleanup** — Codice bypass Redirection ora inerte dopo disinstallazione
+- **#wp-site-icon-32x32-mismatch** — WP dichiara `sizes="32x32"` per file 80×80 (innocuo)
 
-### 🟢 Risolti per side-effect oggi
-- **#CSS-unification** — ✅ Risolto con v1.7 SSR↔SPA parity
-- **Paged archive SEO regression** — ✅ Risolto con 3.6 (era stato introdotto da v1.7, fixato stesso giorno)
-- Footer markup divergence SSR/SPA — unificato via helper
-- Material Symbols caricato ma non usato su SSR — ora usato per chrome
-- Roboto weight 300 mismatch SPA/base.css — allineato
+### 🟢 Risolti per side-effect 27/4
 
-### Task non-bug
-- 16 simboli Unsplash da scaricare manualmente
-- AdSense re-submit (24/4 +48h finestra) — DA FARE
-- Verifica Google Search Console su URL 404 indicizzati (pre-requisito A2)
+- 1490 tag pages "rilevate non indicizzate" → ora `noindex` (in 14-30gg Google le toglie)
+- 1 user page (admin) in sitemap → rimossa
+- Uncategorized in sitemap → escluso, con count=0
+- 13 URL "perdenti" duplicati → soft-404 con noindex (SEO-safe)
+- Favicon 512×512 dichiarata in head (Google SERP usa la nitida)
 
-### Soft delta intentional documentati
-- `/citta/<slug>/page/99/` (out-of-range) → 200 + noindex su body home. Soft-404 SEO-safe; Googlebot non segue link a pagine inesistenti, utenti raramente digitano URL out-of-range manualmente.
+### 🟢 Bug "monitoring only" (sintomi da osservare)
+
+| Cosa | Quando ricontrollare |
+|---|---|
+| Brand SERP "domizio news" (sparito dalla SERP) | 2-6 settimane |
+| Favicon 512×512 in cerchietto Google | 3-7 giorni (deploy 27/4) |
+| 1490 tag pages noindex deindicizzate | 14-30 giorni |
+| 13 URL "perdenti" soft-404 deindicizzati | 14-30 giorni |
+| GSC "Rilevata, non indicizzata" 2082 → calo | 2-4 settimane |
+| GSC "93 indicizzate" → crescita | 2-6 settimane |
+
+### Task non-bug (azioni manuali da fare)
+
+| Task | Effort | Quando |
+|---|---|---|
+| Re-submit AdSense | 5 min | DOPO Task B (immagini) e dedup-v2 |
+| Submit sitemap GSC + Convalida correzione | 10 min | DOPO dedup-v2 (sito pulito) |
+| Request Indexing su home GSC (per favicon) | 2 min | Adesso (può andare oggi) |
+| 16 simboli Unsplash da scaricare manualmente | manuale | quando possibile |
 
 ---
 
@@ -552,45 +983,41 @@ Il problema è **ongoing in produzione**, non legacy.
 
 ### 🔴 Imminente (prossima sessione)
 
-**Macro-task A — Strategia SEO post-cancellazione (struttura + framework)**
-1. Verificare se plugin redirect è installato (es. "Redirection" by John Godley) — prerequisito per A1+A2
-2. Audit Google Search Console → "Pagine non trovate (404)" e "Pagina con reindirizzamento" — capire perimetro reale di URL 404 indicizzati
-3. Decidere strategia: 301 (a duplicato sopravvissuto) vs 410 Gone (contenuto morto senza sostituto)
+**TASK 1 — Pre-implementation Dedup Pipeline v2** (~15 min totali)
+1. Lanciare Query SQL #1 (top-30 tag) — sez. 3.10.7
+2. Lanciare Query SQL #2 (cluster overlap incendio) — sez. 3.10.7
+3. Verificare path `dnap_log()` persistente
 
-**Task A1 — Cleanup 23 duplicati esatti con redirect 301**
-- Per ogni gruppo: identificare il "vincitore" (post più vecchio = più probabile indicizzato + backlink)
-- Cancellare i "perdenti" + creare 301 dal loro permalink al vincitore
-- ~30 min
+**TASK 2 — Implementazione Dedup Pipeline v2** branch `feature/dedup-v2` (~3-4h)
+- Phase A: schema & taxonomy (term `litorale-domizio` + chip + card homepage)
+- Phase B: Claude prompt extension
+- Phase C: Layer 3 shadow mode 48-72h
+- Phase D: activation + migration CSV audit
 
-**Task A2 — Recovery cancellazioni passate (Iannitti cluster + altri)**
-- Audit GSC per quantificare URL 404 indicizzati
-- 301 verso post equivalente attuale o 410 Gone se nessun sostituto valido
-- 1-2h
+**TASK 3 — Fix pipeline immagini Google News** (~2-3h)
+- Branch separato dopo dedup-v2 stabilizzato
+- Patch `media.php` per decoder base64 Google News + Unsplash retry
 
-**Task B — Fix pipeline immagini Google News**
-- Patch `media.php` step 4 (Google News URL resolution) e step 6 (Unsplash retry)
-- Beneficio: sblocca 50%+ dei nuovi import Google News
-- 2-3h, mente fresca consigliata
+### 🎯 Dopo dedup-v2 e Task B
 
-**Task C — Fix pipeline dedup**
-- Patch `core.php`: Layer 1.5 finestra da 12h → 72h
-- Patch Claude prompt: forzare entity extraction anche su collective subjects (gruppi/eventi senza persona singola)
-- 1-2h
-
-### 🎯 Dopo cleanup + fix pipeline
-- **Re-submit AdSense** — finestra ottimale dopo che immagini Google News sono fixate (sito visivamente più ricco)
-- **Ping Google Search Console** sui URL aggregati `/citta/cellole-baia-domizia/` e `/citta/falciano-carinola/`
+- **Re-submit AdSense** — finestra ottimale dopo cluster cleanup + immagini fixate
+- **Submit sitemap GSC + Convalida correzione** — chiede a Google di ricontrollare sito pulito
+- **Recovery URL 404 indicizzati Google** (Task A2) — `.htaccess` per cancellazioni passate
 
 ### 🎯 Medio termine
-5. **VIP/Slider bug #44-48** — pulizia accumulo sticky_post + dedup cross-slot
-6. **#URL-tab-sync** — sincronizzare URL su click tab principali
-7. **#sitemap-aggregates** — custom sitemap provider per aggregati
-8. **#dn-btn-primary-cleanup** — rimuovere rule unused dopo verifica zero consumers
 
-### 🟢 Side opportunities
+- VIP/Slider bug #44-48 — pulizia accumulo sticky_post + dedup cross-slot
+- #URL-tab-sync — sincronizzare URL su click tab principali
+- #chip-incidenti-sicurezza — categoria 58 post non visibile in chip SPA
+- #htaccess-versioning — versionare `.htaccess` in repo
 
-9. **Quattro siti `<style>${STYLES}</style>` in render()** — possono essere rimossi (STYLES ora è `''`).
-10. **Footer SPA hardcoded "© 2026"** (`app.js:734`) — passare a dinamico al rollover anno.
+### 🟢 Side opportunities (cleanup tecnico)
+
+- #template-redirect-cleanup — rimuovere bypass Redirection ora inerte
+- #dn-btn-primary-cleanup — rimuovere rule unused in base.css
+- Quattro siti `<style>${STYLES}</style>` in render() — possono essere rimossi
+- Footer SPA hardcoded "© 2026" → dinamico al rollover anno
+- #wp-site-icon-32x32-mismatch — fix dichiarazione sizes
 
 ---
 
@@ -617,6 +1044,17 @@ Il problema è **ongoing in produzione**, non legacy.
 - **`/citta/<slug>/page/99/` → soft-404**: accettato come delta intentional. Googlebot non segue link inesistenti, utenti raramente digitano URL out-of-range. Trade-off: noindex sulla home se URL fuori range, vs lavoro non banale per ricostruire `is_paged()` post-handle_404. Non vale il rischio.
 - **Bottone "Vedi altro" stile pillola bianca per tutte le superfici**: deciso opzione "allinea SPA + SSR a HOME". Coerente con design language Material 3 più morbido.
 - **Strategia SEO 301 invece di hard-delete**: per i 23 duplicati e per cancellazioni future, sempre 301 verso il "vincitore" (post più vecchio del gruppo). Massima conservazione SEO + UX (utenti da SERP non vedono 404).
+
+### 27 aprile — Cleanup SEO + scoperta crisi indicizzazione
+- **Audit GSC ha rivelato situazione critica**: solo 4.3% del sito indicizzato (93/2175 URL noti). Il problema dei 13 duplicati title-identici era marginale rispetto alle 1490 tag pages e 38 URL "duplicati per Google".
+- **Tag pages con `noindex`**: scelta strategica per recuperare crawl budget. WordPress crea automaticamente una pagina archive per ogni tag, ma sono thin content (lista articoli che esistono già). Google le marca duplicate-content.
+- **Favicon 512×512 dichiarata in head**: WordPress core emette solo 32x32 e 192x192. Per il cerchietto SERP serve dichiarazione esplicita ≥48×48 (ottimale 512×512). Filtro additivo, niente alterazione comportamento esistente.
+- **Plugin Redirection abbandonato**: dopo 4 ore di debug (tabella mancante, campi vuoti, hook non registrati), disinstallato. **Lezione operativa**: per redirect statici a basso volume (<50), `.htaccess` è infinitamente più affidabile e veloce. Plugin third-party con setup runtime complesso fragili in pipeline automatizzate.
+- **13 redirect 301 → soft-404 noindex**: accettato come delta. Per URL a 0 hits totali, 0 backlink, 0 indicizzati su Google, valore SEO marginale di 301 vs soft-404 è zero.
+- **`litorale-domizio` come 3° aggregato visibile** (decisione utente): coerente con `cellole-baia-domizia` e `falciano-carinola` come pattern di aggregazione, ma con **NO union semantics** — diverso dagli altri due perché posti transversal stanno SOLO lì, non appaiono negli archivi città individuali (eviterebbe duplicate content reale).
+- **Skip threshold dedup-v2 = 55** (compromesso): non 50 (troppo aggressivo, rischia falsi positivi su evolution chains tipo Iannitti), non 60 (troppo permissivo, lascia passare duplicati con segnale parziale). 55 è il punto in cui Iannitti ha margine +20 e cluster incendio +10. Tunable via wp_option.
+- **Shadow mode 48-72h prima di attivare dedup**: anti-pattern sicurezza. Deploy con `threshold=999` (no skip), solo log. Vedi distribuzione scores reali, poi calibri con dati prod, poi attivi. Elimina rischio "deploy bad threshold → cron skippa 200 articoli legittimi".
+- **Never-generic stoplist** (intuizione Claude Code): 16 root nouns delle news cronaca (`arresto, sequestro, incendio, omicidio, ...`) non possono mai essere auto-promossi a generic anche se >15% usage. Sono sempre discriminanti. Senza stoplist, dopo 6-12 mesi il sistema perderebbe la capacità di catturare cluster come "incendio rimessaggio" perché "incendio" diventerebbe generic.
 
 ### Pattern operativi consolidati
 - **Audit-prima-di-implementare** (consolidata mattino, riapplicata 3 volte nella stessa giornata): per ogni decisione importante, prima audit read-only, poi implement. Ha permesso di evitare regressioni multiple.
@@ -742,6 +1180,33 @@ Pattern: **audit → review output → implement**. Mai implement diretto se ci 
 
 Tutti gli altri delta sono **bug** e vanno corretti subito, non documentati.
 
+### 🔴 Regola "Evita over-engineering" (consolidata 27/4 sera)
+
+Quando un problema è semplice ma il fix richiede 4+ diagnosi successive senza progresso, **STOP e ripensare l'approccio**. Non insistere a debuggare la soluzione complessa.
+
+**Caso scuola (27/4 plugin Redirection):** 13 redirect statici da gestire. Plugin Redirection installato, 4 ore di debug per:
+1. Tabella `wp_redirection_modules` mancante (creata manualmente)
+2. Campo `match_url` vuoto nei record (popolato via UPDATE)
+3. Campo `match_data` vuoto (popolato con default JSON)
+4. `Red_Item::get_for_url()` ritorna 0 anche bypassando HTTP — plugin non registra hook frontend
+
+Ogni passo "risolveva" un problema, ma rivelava il successivo. **L'approccio era sbagliato dall'inizio.** Per 13 redirect statici, `.htaccess` è la soluzione corretta:
+- 13 righe RewriteRule
+- Apache li applica prima del PHP
+- Niente DB, niente plugin, niente cache
+- Versionable in repo
+- Deterministic
+
+**Pattern operativo:**
+- Se la soluzione richiede plugin third-party con setup runtime complesso → considerare alternativa nativa
+- Se la soluzione richiede 3+ workaround a problemi infrastrutturali del plugin → STOP, abbandonare
+- Costo opportunità del tempo speso > beneficio funzionale del 301 vs soft-404 per URL a 0 hits
+
+**Domanda da porsi a metà debug:**
+> "Se questo plugin non esistesse, come risolverei il problema?"
+
+Se la risposta è "in 10 minuti con [tecnologia nativa]", probabilmente quella è la strada giusta.
+
 ### Regole Project Claude
 - **SSH login premesso** SEMPRE a ogni blocco comandi server
 - **Deploy comando unico** concatenato con `&&`
@@ -770,12 +1235,15 @@ Tutti gli altri delta sono **bug** e vanno corretti subito, non documentati.
 
 ---
 
-*Fine HANDOFF v1.9 — 26 aprile 2026, sera tardi*
+*Fine HANDOFF v2.0 — 27 aprile 2026, fine giornata*
 
-*Sessione 26/4: 6 deploy in giornata (cities asymmetric → aggregate union → vedi-altro fix → SPA pagination → SSR/SPA parity → paged404+vedialtro-style)*
+*Sessione 26/4: 6 deploy hydration*
+*Sessione 27/4: 3 deploy SEO + cleanup DB 13 duplicati + design Dedup Pipeline v2*
 
-*Roadmap hydration COMPLETATA: Fase 1, 1.5, 2, 3, 3.6 ✅. Fase 4 de-facto già implementata in v1.7.*
+*Roadmap hydration ✅ COMPLETATA. Roadmap SEO 27/4 ✅ COMPLETATA.*
 
-*Bug critici emersi dall'audit serale: A (cleanup duplicati con SEO 301), A2 (recovery URL già cancellati), B (immagini Google News), C (dedup pipeline). Tutti pianificati con effort stimato.*
+*Bug critici aperti consolidati in design "Dedup Pipeline v2" (Phase A-D, branch `feature/dedup-v2`): event_date, multi-city, wrong-city, cluster semantici. Implementazione pronta in 4 fasi atomiche.*
 
-*Prossima priorità: Task A — strategia 301 + cleanup duplicati con preservazione SEO.*
+*Lezioni operative consolidate: SSR↔SPA parity rule (post v1.7), audit-prima-di-implementare, evita over-engineering (post 27/4 plugin Redirection).*
+
+*Prossima priorità: Pre-implementation queries SQL → branch `feature/dedup-v2` Phase A.*
